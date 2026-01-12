@@ -6,7 +6,7 @@ import { Source, ChatMessage, UserProfile, MetricPoint } from '../types';
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
-const MODEL_ID = 'gemini-3-flash-preview';
+const MODEL_ID = 'gemini-2.0-flash';
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
 
 /**
@@ -175,9 +175,10 @@ export const generateProntuario = async (
 export const embedText = async (text: string): Promise<number[] | null> => {
   if (!apiKey) return null;
   try {
+    // CORRECTION: Ensure content is structured correctly for single embed
     const result = await ai.models.embedContent({
       model: EMBEDDING_MODEL_ID,
-      content: text,
+      content: { parts: [{ text: text }] }, 
     });
     return result.embedding.values;
   } catch (error) {

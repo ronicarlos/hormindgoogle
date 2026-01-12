@@ -14,9 +14,10 @@ import {
 
 interface ExerciseLibraryProps {
     project: Project;
+    onAddExercise: (exercise: Exercise) => void; // Callback adicionado
 }
 
-const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project }) => {
+const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project, onAddExercise }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedMuscle, setSelectedMuscle] = useState('Todos');
     const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
@@ -129,6 +130,14 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project }) => {
         return isCutting 
             ? { sets: '4', reps: '12-15', rest: '45s', focus: 'Metabólico' }
             : { sets: '3', reps: '6-10', rest: '90s', focus: 'Tensional' };
+    };
+
+    // Handler para adicionar e fechar
+    const handleAddClick = () => {
+        if (selectedExercise) {
+            onAddExercise(selectedExercise);
+            setSelectedExercise(null);
+        }
     };
 
     return (
@@ -382,14 +391,20 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project }) => {
 
                         {/* Floating Action Mobile */}
                         <div className="md:hidden fixed bottom-6 left-6 right-6 z-[120]">
-                            <button className="w-full py-4 bg-black text-white font-black text-sm rounded-2xl shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all border border-gray-800 touch-manipulation">
+                            <button 
+                                onClick={handleAddClick}
+                                className="w-full py-4 bg-black text-white font-black text-sm rounded-2xl shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all border border-gray-800 touch-manipulation"
+                            >
                                 <IconPlus className="w-4 h-4" />
-                                ADICIONAR
+                                ADICIONAR AO TREINO
                             </button>
                         </div>
                         
                          <div className="hidden md:block absolute bottom-10 right-10 z-[120]">
-                            <button className="px-8 py-4 bg-black text-white font-black text-sm rounded-2xl shadow-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all">
+                            <button 
+                                onClick={handleAddClick}
+                                className="px-8 py-4 bg-black text-white font-black text-sm rounded-2xl shadow-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all"
+                            >
                                 <IconPlus className="w-4 h-4" />
                                 ADICIONAR AO TREINO
                             </button>

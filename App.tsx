@@ -9,7 +9,7 @@ import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
 import AuthScreen from './components/AuthScreen';
-import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, MetricPoint, AppView, UserProfile } from './types';
+import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, MetricPoint, AppView, UserProfile, Exercise } from './types';
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { supabase } from './lib/supabase';
@@ -23,6 +23,27 @@ const MOCK_RISKS: RiskFlag[] = [
 ];
 
 const DISCLAIMER_TEXT = "FitLM é uma ferramenta educacional e analítica. Não substitui consulta médica. O uso de substâncias ergogênicas possui riscos graves à saúde.";
+
+// --- HIGHLIGHT COMPONENT HELPER ---
+const HighlightText = ({ text, highlight }: { text: string, highlight: string }) => {
+    if (!highlight || !text) return <>{text}</>;
+    
+    // Escape regex special characters to prevent errors
+    const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escapedHighlight})`, 'gi'));
+    
+    return (
+        <>
+            {parts.map((part, i) => 
+                part.toLowerCase() === highlight.toLowerCase() ? (
+                    <span key={i} className="bg-yellow-200 text-gray-900 font-bold px-0.5 rounded shadow-sm">{part}</span>
+                ) : (
+                    part
+                )
+            )}
+        </>
+    );
+};
 
 const App: React.FC = () => {
   // Auth State
@@ -405,6 +426,30 @@ const App: React.FC = () => {
     setIsProcessing(false);
   };
 
+  const handleAddExerciseToRoutine = async (exercise: Exercise) => {
+    if (!project) return;
+    
+    // 1. Update Note String
+    const noteEntry = `\n[Exercício Adicionado da Biblioteca]: ${exercise.name} (${exercise.targetMuscle})`;
+    const newNotes = (project.trainingNotes || "") + noteEntry;
+    
+    // 2. Update Local State
+    setProject(prev => prev ? {...prev, trainingNotes: newNotes} : null);
+    
+    // 3. Update DB
+    await dataService.updateProjectSettings(project.id, project.objective, project.currentProtocol || [], newNotes);
+
+    // 4. Notify User via Chat System Message
+    const msg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'model',
+        text: `✅ **${exercise.name}** adicionado ao seu contexto de treino.\n\nAgora posso avaliar sua execução ou sugerir onde encaixá-lo. Experimente perguntar: *"Como fazer ${exercise.name} corretamente?"*`,
+        timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, msg]);
+    await dataService.addMessage(project.id, msg);
+  };
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isProcessing || !project) return;
 
@@ -589,6 +634,32 @@ const App: React.FC = () => {
           case SourceType.PRONTUARIO: return 'bg-gray-800 text-white';
           default: return 'bg-blue-50 text-blue-500';
       }
+  };
+
+  // --- MARKDOWN HIGHLIGHT HELPER FOR AI MESSAGES ---
+  // Recursively process children to find strings and highlight them
+  const processChildrenWithHighlight = (children: any, highlight: string): any => {
+    if (typeof children === 'string') {
+        return <HighlightText text={children} highlight={highlight} />;
+    }
+    if (Array.isArray(children)) {
+        return children.map((child, i) => (
+            <React.Fragment key={i}>
+                {processChildrenWithHighlight(child, highlight)}
+            </React.Fragment>
+        ));
+    }
+    // If it's a React Element, clone and process its children
+    if (React.isValidElement(children)) {
+        const props: any = children.props;
+        if (props.children) {
+            return React.cloneElement(children, {
+                ...props,
+                children: processChildrenWithHighlight(props.children, highlight)
+            });
+        }
+    }
+    return children;
   };
 
   // --- RENDERING ---
@@ -825,10 +896,22 @@ const App: React.FC = () => {
                                             : 'bg-transparent text-gray-800 text-sm md:text-base leading-relaxed'}
                                         `}>
                                         {msg.role === 'user' ? (
-                                            msg.text
+                                            isSearchActive && searchQuery ? (
+                                                <HighlightText text={msg.text} highlight={searchQuery} />
+                                            ) : (
+                                                msg.text
+                                            )
                                         ) : (
                                             <div className="prose prose-blue prose-sm max-w-none">
-                                                <ReactMarkdown>{msg.text}</ReactMarkdown>
+                                                <ReactMarkdown
+                                                    components={{
+                                                        // Intercept text rendering to add highlights if searching
+                                                        p: ({children}) => <p className="mb-3">{isSearchActive && searchQuery ? processChildrenWithHighlight(children, searchQuery) : children}</p>,
+                                                        li: ({children}) => <li className="mb-1">{isSearchActive && searchQuery ? processChildrenWithHighlight(children, searchQuery) : children}</li>
+                                                    }}
+                                                >
+                                                    {msg.text}
+                                                </ReactMarkdown>
                                             </div>
                                         )}
                                         </div>
@@ -986,7 +1069,7 @@ const App: React.FC = () => {
 
         {currentView === 'training_library' && project && (
             <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-                <ExerciseLibrary project={project} />
+                <ExerciseLibrary project={project} onAddExercise={handleAddExerciseToRoutine} />
             </div>
         )}
 
