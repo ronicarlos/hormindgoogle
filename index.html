@@ -65,5 +65,17 @@
 </head>
   <body>
     <div id="root"></div>
+
+    <!-- Firebase Config Snippet (Adicionado conforme solicitado) -->
+    <script src="https://www.gstatic.com/firebasejs/8.0/firebase.js"></script>
+    <script>
+      var config = {
+        apiKey: "AIzaSyAC3gNNuhdifBW_jiywebxIUJYAkiJt0YI",
+        authDomain: "gen-lang-client-0490359766.firebaseapp.com",
+      };
+      if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(config);
+      }
+    </script>
   </body>
 </html>
