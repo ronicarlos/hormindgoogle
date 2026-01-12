@@ -1,23 +1,49 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { IconDumbbell, IconFlame, IconPill, IconCheck, IconClose, IconPlus } from './Icons';
-import { ProtocolItem, DailyLogData } from '../types';
+import { ProtocolItem, DailyLogData, Project } from '../types';
 
 interface InputModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: DailyLogData) => void;
+  initialData?: Project | null; // Added to receive current DB state
 }
 
-const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave }) => {
+const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
   const [activeTab, setActiveTab] = useState<'meta' | 'treino' | 'dieta' | 'protocolo'>('meta');
   
   // Form State
   const [goal, setGoal] = useState('Bulking');
-  const [calories, setCalories] = useState('2500');
+  const [calories, setCalories] = useState('');
   const [trainingNotes, setTrainingNotes] = useState('');
   const [protocol, setProtocol] = useState<ProtocolItem[]>([
-    { compound: 'Testosterona Enantato', dosage: '250mg', frequency: '2x/semana' }
+    { compound: '', dosage: '', frequency: '' }
   ]);
+
+  // Load initial data when modal opens or project data changes
+  useEffect(() => {
+    if (initialData) {
+        setGoal(initialData.objective || 'Bulking');
+        
+        // Load persistent Training Notes
+        setTrainingNotes(initialData.trainingNotes || '');
+        
+        // Try to find latest calorie entry
+        const calMetrics = initialData.metrics['Calories'];
+        if (calMetrics && calMetrics.length > 0) {
+            setCalories(calMetrics[calMetrics.length - 1].value.toString());
+        }
+
+        // Load existing protocol
+        if (initialData.currentProtocol && initialData.currentProtocol.length > 0) {
+            setProtocol(initialData.currentProtocol);
+        } else {
+             // Default placeholder if empty
+             setProtocol([{ compound: '', dosage: '', frequency: '' }]);
+        }
+    }
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -36,24 +62,27 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave }) => {
   };
 
   const handleSave = () => {
+    // Filter out empty protocol lines
+    const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
+
     onSave({
         goal,
         calories,
         trainingNotes,
-        protocol
+        protocol: cleanProtocol
     });
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Entrada de Dados</h2>
-            <p className="text-sm text-gray-500">Atualize suas métricas para a IA processar.</p>
+            <h2 className="text-xl font-bold text-gray-800">Parâmetros & Métricas</h2>
+            <p className="text-sm text-gray-500">Os dados salvos aqui persistem no seu projeto.</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400">
             <IconClose className="w-5 h-5" />
@@ -110,7 +139,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave }) => {
           {activeTab === 'treino' && (
             <div className="space-y-4">
               <label className="block">
-                <span className="text-sm font-semibold text-gray-700">Registro do Treino (Hoje/Recente)</span>
+                <span className="text-sm font-semibold text-gray-700">Registro do Treino / Rotina Atual</span>
                 <textarea
                   value={trainingNotes}
                   onChange={(e) => setTrainingNotes(e.target.value)}
@@ -118,6 +147,9 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave }) => {
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 bg-gray-50 h-40 text-gray-900 placeholder-gray-400"
                 />
               </label>
+              <div className="bg-green-50 p-4 rounded-lg text-sm text-green-800">
+                Nota: Este campo agora salva sua rotina ou observações para análise contínua da IA.
+              </div>
             </div>
           )}
 
@@ -187,7 +219,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave }) => {
               <div className="bg-yellow-50 p-3 rounded-md border border-yellow-100 flex gap-2 items-start">
                  <div className="text-yellow-600 mt-0.5"><IconCheck className="w-4 h-4" /></div>
                  <p className="text-xs text-yellow-800">
-                    A IA analisará esses compostos em conjunto com seus exames de sangue para identificar riscos hepáticos, lipídicos e hormonais.
+                    Estes dados são salvos no banco e usados para calcular interações medicamentosas com seu perfil.
                  </p>
               </div>
             </div>

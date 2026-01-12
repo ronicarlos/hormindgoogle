@@ -1,9 +1,11 @@
+
 export enum SourceType {
   PDF = 'PDF',
   IMAGE = 'IMAGE',
   TEXT = 'TEXT',
   CSV = 'CSV',
-  USER_INPUT = 'USER_INPUT'
+  USER_INPUT = 'USER_INPUT',
+  PRONTUARIO = 'PRONTUARIO'
 }
 
 export enum AnalysisType {
@@ -13,13 +15,39 @@ export enum AnalysisType {
   FULL_PRONTUARIO = 'FULL_PRONTUARIO'
 }
 
+export type AppView = 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources';
+
+export interface UserProfile {
+  id?: string;
+  name: string;
+  avatarUrl?: string;
+  birthDate: string; // Changed from age to birthDate (YYYY-MM-DD)
+  gender: 'Masculino' | 'Feminino';
+  height: string; // cm
+  weight: string; // kg
+  bodyFat?: string; // %
+  comorbidities: string; 
+  medications: string;
+  measurements: {
+    chest: string;
+    arm: string;
+    waist: string;
+    hips: string;
+    thigh: string;
+    calf: string;
+  };
+}
+
 export interface Source {
   id: string;
   title: string;
   type: SourceType;
   date: string;
   content: string; 
+  summary?: string;
   selected: boolean;
+  filePath?: string;
+  fileUrl?: string;
 }
 
 export interface MetricPoint {
@@ -43,10 +71,11 @@ export interface Project {
   name: string;
   objective: 'Cutting' | 'Bulking' | 'Performance' | 'Longevity';
   sources: Source[];
-  // Standardized keys: 'Testosterone', 'BodyWeight', 'Strength', 'Calories'
   metrics: Record<string, MetricPoint[]>; 
-  currentProtocol?: ProtocolItem[]; // To track current state
+  currentProtocol?: ProtocolItem[]; 
+  trainingNotes?: string; // NEW: Added for persistence
   lastAnalysis?: string;
+  userProfile?: UserProfile;
 }
 
 export interface RiskFlag {
@@ -55,7 +84,6 @@ export interface RiskFlag {
   category: 'Health' | 'Protocol' | 'Training';
 }
 
-// Novos Tipos para Input Estruturado
 export interface ProtocolItem {
   compound: string;
   dosage: string;
@@ -67,4 +95,36 @@ export interface DailyLogData {
   calories: string;
   trainingNotes: string;
   protocol: ProtocolItem[];
+}
+
+export interface Exercise {
+  id: string;
+  name: string;
+  targetMuscle: string;
+  secondaryMuscles: string[];
+  equipment: string;
+  difficulty: 'Iniciante' | 'Intermediário' | 'Avançado';
+  images: string[];
+  steps: string[];
+  commonMistakes: string[];
+  type: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Cardio';
+  mechanics: 'Composto' | 'Isolado' | 'N/A';
+}
+
+export interface Compound {
+    id: string;
+    name: string;
+    category: 'Testosterona' | '19-Nor' | 'DHT' | 'Oral' | 'Peptídeo' | 'SERM/IA' | 'Termogênico' | 'Nootrópico' | 'Mitocondrial' | 'Protocolo Exemplo' | 'Outros' | 'Metabólico';
+    type: 'Injetável' | 'Oral' | 'Subcutâneo' | 'Topico' | 'Combo' | 'Transdérmico';
+    halfLife: string;
+    anabolicRating: string; 
+    description: string;
+    commonDosages: {
+        beginner: string;
+        advanced: string;
+        women?: string;
+    };
+    sideEffects: string[];
+    benefits: string[];
+    riskLevel: 'Baixo' | 'Médio' | 'Alto' | 'Extremo';
 }
