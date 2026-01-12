@@ -64,6 +64,7 @@ export interface ChatMessage {
   citations?: string[]; 
   timestamp: number;
   isThinking?: boolean;
+  isBookmarked?: boolean; // NEW: Added for bookmarking feature
 }
 
 export interface Project {

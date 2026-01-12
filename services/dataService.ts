@@ -1,6 +1,7 @@
 
 import { supabase } from '../lib/supabase';
 import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage } from '../types';
+import { embedText } from './geminiService';
 
 // Tipos auxiliares para Banco de Dados
 interface DBProject {
@@ -28,6 +29,7 @@ interface DBMessage {
     project_id: string;
     role: 'user' | 'model';
     text: string;
+    is_bookmarked?: boolean; // New field
     created_at: string;
 }
 
@@ -371,22 +373,66 @@ export const dataService = {
             id: msg.id,
             role: msg.role,
             text: msg.text,
-            timestamp: new Date(msg.created_at).getTime()
+            timestamp: new Date(msg.created_at).getTime(),
+            isBookmarked: msg.is_bookmarked
         }));
     },
 
     async addMessage(projectId: string, message: ChatMessage) {
         const created_at = new Date(message.timestamp).toISOString();
         
+        // 1. Generate Embedding
+        const embedding = await embedText(message.text);
+
         const { error } = await supabase
             .from('messages')
             .insert({
                 project_id: projectId,
                 role: message.role,
                 text: message.text,
-                created_at: created_at
+                created_at: created_at,
+                embedding: embedding, // Save Vector
+                is_bookmarked: false
             });
 
         if (error) console.error('Error adding message:', error);
+    },
+
+    async toggleMessageBookmark(messageId: string, isBookmarked: boolean) {
+        const { error } = await supabase
+            .from('messages')
+            .update({ is_bookmarked: isBookmarked })
+            .eq('id', messageId);
+        
+        if (error) console.error('Error toggling bookmark:', error);
+    },
+
+    /**
+     * Performs a semantic search on messages using Supabase Vectors
+     */
+    async searchMessagesSemantic(projectId: string, query: string): Promise<ChatMessage[]> {
+        const embedding = await embedText(query);
+        if (!embedding) return [];
+
+        const { data, error } = await supabase.rpc('match_messages', {
+            query_embedding: embedding,
+            match_threshold: 0.7, // Sensitivity
+            match_count: 10,
+            p_id: projectId
+        });
+
+        if (error) {
+            console.error("Semantic Search Error:", error);
+            return [];
+        }
+
+        // Map results back to ChatMessage type
+        return data.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            text: msg.text,
+            timestamp: new Date(msg.created_at).getTime(),
+            isBookmarked: msg.is_bookmarked
+        }));
     }
 };

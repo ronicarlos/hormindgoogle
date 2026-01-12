@@ -13,7 +13,7 @@ import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, Metri
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { supabase } from './lib/supabase';
-import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash } from './components/Icons';
+import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled } from './components/Icons';
 import ReactMarkdown from 'react-markdown';
 import { Tooltip } from './components/Tooltip';
 
@@ -41,6 +41,13 @@ const App: React.FC = () => {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // Search & Bookmark State
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+
   // Prontuario State
   const [prontuarioContent, setProntuarioContent] = useState('');
   const [isProntuarioOpen, setIsProntuarioOpen] = useState(false);
@@ -124,8 +131,10 @@ const App: React.FC = () => {
   }, [session]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, currentView]);
+    if (!isSearchActive && !showBookmarksOnly) {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, currentView, isSearchActive, showBookmarksOnly]);
 
   const handleToggleSource = async (id: string) => {
     const source = sources.find(s => s.id === id);
@@ -434,6 +443,34 @@ const App: React.FC = () => {
     setIsProcessing(false);
   };
 
+  // --- SEMANTIC SEARCH LOGIC ---
+  const handleSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!searchQuery.trim() || !project) return;
+
+    setIsSearching(true);
+    try {
+        const results = await dataService.searchMessagesSemantic(project.id, searchQuery);
+        setSearchResults(results);
+    } catch (error) {
+        console.error(error);
+    } finally {
+        setIsSearching(false);
+    }
+  };
+
+  const toggleBookmark = async (msg: ChatMessage) => {
+      const newState = !msg.isBookmarked;
+      
+      // Optimistic update
+      const updateMsg = (m: ChatMessage) => m.id === msg.id ? { ...m, isBookmarked: newState } : m;
+      
+      setMessages(prev => prev.map(updateMsg));
+      setSearchResults(prev => prev.map(updateMsg));
+      
+      await dataService.toggleMessageBookmark(msg.id, newState);
+  };
+
   const handleGenerateProntuario = async () => {
     if(isProcessing || !project) return;
     
@@ -565,8 +602,14 @@ const App: React.FC = () => {
       )
   }
 
+  const displayedMessages = isSearchActive 
+    ? searchResults 
+    : showBookmarksOnly 
+        ? messages.filter(m => m.isBookmarked) 
+        : messages;
+
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
+    <div className="flex h-[100dvh] bg-white overflow-hidden">
       {/* DESKTOP SIDEBAR - Hidden on Mobile unless triggered, but now we have a dedicated mobile view */}
       <div className="hidden md:block">
           <SourceSidebar 
@@ -583,36 +626,111 @@ const App: React.FC = () => {
           />
       </div>
 
-      <main className="flex-1 flex flex-col h-screen relative bg-white pb-20 md:pb-0 w-full min-w-0">
+      <main className="flex-1 flex flex-col h-[100dvh] relative bg-white pb-20 md:pb-0 w-full min-w-0">
         
         {currentView === 'dashboard' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <div className="h-16 border-b border-gray-100 flex items-center justify-between px-4 md:px-6 bg-white/80 backdrop-blur-md shrink-0 sticky top-0 z-40">
-                    <div className="flex items-center gap-3">
-                        <h2 className="font-bold text-gray-800 truncate text-sm md:text-base">Notebook & Chat</h2>
-                    </div>
+                {/* Fixed Header (Flex Item) */}
+                <div className="h-16 border-b border-gray-100 flex items-center justify-between px-4 md:px-6 bg-white/95 backdrop-blur-md shrink-0 z-40 transition-all">
+                    
+                    {/* SEARCH HEADER MODE */}
+                    {isSearchActive ? (
+                         <form onSubmit={handleSearch} className="flex-1 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                             <button 
+                                type="button"
+                                onClick={() => { setIsSearchActive(false); setSearchQuery(''); setSearchResults([]); }}
+                                className="p-2 hover:bg-gray-100 rounded-full"
+                             >
+                                 <IconArrowLeft className="w-5 h-5 text-gray-500" />
+                             </button>
+                             <div className="flex-1 relative">
+                                <input 
+                                    autoFocus
+                                    type="text" 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Busca semântica nas conversas..."
+                                    className="w-full bg-gray-100 rounded-xl px-4 py-2 pl-10 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                                />
+                                <IconSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                             </div>
+                             <button 
+                                type="submit"
+                                disabled={isSearching || !searchQuery.trim()}
+                                className="bg-black text-white px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50"
+                             >
+                                 {isSearching ? '...' : 'BUSCAR'}
+                             </button>
+                         </form>
+                    ) : (
+                        // NORMAL HEADER MODE
+                        <>
+                            <div className="flex items-center gap-3">
+                                <h2 className="font-bold text-gray-800 truncate text-sm md:text-base">Notebook & Chat</h2>
+                            </div>
 
-                    <div className="flex gap-3">
-                        <Tooltip content="Adicione calorias do dia, treino realizado ou atualização de protocolo." position="bottom">
-                            <button 
-                                onClick={() => setIsModalOpen(true)}
-                                className="group relative px-4 py-2 rounded-full transition-all active:scale-95 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full" />
-                                <div className="relative flex items-center gap-2 text-white">
-                                    <IconPlus className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline font-bold text-xs tracking-wide">PARÂMETROS BIOMÉTRICOS</span>
-                                    <span className="sm:hidden font-bold text-xs tracking-wide">PARÂMETROS</span>
-                                </div>
-                            </button>
-                        </Tooltip>
-                    </div>
+                            <div className="flex gap-2">
+                                {/* Search Toggle */}
+                                <Tooltip content="Pesquisar no histórico (Busca Semântica)" position="bottom">
+                                    <button 
+                                        onClick={() => setIsSearchActive(true)}
+                                        className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+                                    >
+                                        <IconSearch className="w-5 h-5" />
+                                    </button>
+                                </Tooltip>
+                                
+                                {/* Bookmarks Filter */}
+                                <Tooltip content={showBookmarksOnly ? "Ver todas as mensagens" : "Ver apenas favoritos"} position="bottom">
+                                    <button 
+                                        onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
+                                        className={`p-2 rounded-full transition-colors ${showBookmarksOnly ? 'bg-yellow-50 text-yellow-600' : 'hover:bg-gray-100 text-gray-500'}`}
+                                    >
+                                        {showBookmarksOnly ? <IconBookmarkFilled className="w-5 h-5" /> : <IconBookmark className="w-5 h-5" />}
+                                    </button>
+                                </Tooltip>
+
+                                <Tooltip content="Adicione calorias do dia, treino realizado ou atualização de protocolo." position="bottom">
+                                    <button 
+                                        onClick={() => setIsModalOpen(true)}
+                                        className="group relative px-4 py-2 rounded-full transition-all active:scale-95 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 ml-2"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full" />
+                                        <div className="relative flex items-center gap-2 text-white">
+                                            <IconPlus className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline font-bold text-xs tracking-wide">PARÂMETROS BIOMÉTRICOS</span>
+                                            <span className="sm:hidden font-bold text-xs tracking-wide">PARÂMETROS</span>
+                                        </div>
+                                    </button>
+                                </Tooltip>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-4 scroll-smooth">
-                    {messages.map((msg, index) => {
+                    {/* Search Info Banner */}
+                    {isSearchActive && (
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-xs text-blue-800 flex items-center justify-between">
+                            <span>
+                                {searchResults.length > 0 
+                                    ? `Encontramos ${searchResults.length} mensagens relevantes.` 
+                                    : searchQuery ? "Nenhum resultado encontrado." : "Digite para buscar temas, sintomas ou treinos no seu histórico."}
+                            </span>
+                        </div>
+                    )}
+                    
+                    {/* Bookmarks Info Banner */}
+                    {!isSearchActive && showBookmarksOnly && (
+                         <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 mb-4 text-xs text-yellow-800 flex items-center gap-2">
+                            <IconBookmarkFilled className="w-4 h-4" />
+                            <span>Exibindo apenas mensagens salvas.</span>
+                        </div>
+                    )}
+
+                    {displayedMessages.map((msg, index) => {
                         const showDateSeparator = index === 0 || 
-                            new Date(msg.timestamp).toDateString() !== new Date(messages[index - 1].timestamp).toDateString();
+                            new Date(msg.timestamp).toDateString() !== new Date(displayedMessages[index - 1].timestamp).toDateString();
 
                         return (
                             <React.Fragment key={msg.id}>
@@ -623,18 +741,38 @@ const App: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                                <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[90%] md:max-w-2xl w-full ${msg.role === 'user' ? 'ml-auto' : ''}`}>
-                                        {msg.role === 'model' && (
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center">
-                                                    <IconSparkles className="w-3 h-3 text-white" />
+                                <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}>
+                                    <div className={`max-w-[90%] md:max-w-2xl w-full ${msg.role === 'user' ? 'ml-auto' : ''} relative`}>
+                                        
+                                        {/* Header Message Info */}
+                                        <div className="flex justify-between items-center mb-1">
+                                            {msg.role === 'model' && (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center">
+                                                        <IconSparkles className="w-3 h-3 text-white" />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                                                        FitLM AI
+                                                    </span>
                                                 </div>
-                                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                                                    FitLM AI • {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' })}
-                                                </span>
+                                            )}
+                                            
+                                            {/* Bookmark Action - Visible on Hover or if Bookmarked */}
+                                            <div className={`flex items-center gap-2 ml-auto ${msg.isBookmarked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}>
+                                                <Tooltip content={msg.isBookmarked ? "Remover dos favoritos" : "Salvar esta mensagem"} position="left">
+                                                    <button 
+                                                        onClick={() => toggleBookmark(msg)}
+                                                        className="p-1 hover:bg-gray-100 rounded-full"
+                                                    >
+                                                        {msg.isBookmarked ? (
+                                                            <IconBookmarkFilled className="w-4 h-4 text-yellow-500" />
+                                                        ) : (
+                                                            <IconBookmark className="w-4 h-4 text-gray-300 hover:text-gray-500" />
+                                                        )}
+                                                    </button>
+                                                </Tooltip>
                                             </div>
-                                        )}
+                                        </div>
                                         
                                         <div className={`
                                         ${msg.role === 'user' 
@@ -648,6 +786,11 @@ const App: React.FC = () => {
                                                 <ReactMarkdown>{msg.text}</ReactMarkdown>
                                             </div>
                                         )}
+                                        </div>
+                                        
+                                        {/* Timestamp Footer */}
+                                        <div className={`text-[10px] text-gray-300 mt-1 clear-both ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                                            {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' })}
                                         </div>
                                     </div>
                                 </div>
@@ -671,30 +814,32 @@ const App: React.FC = () => {
                     <div ref={chatEndRef} />
                 </div>
 
-                <div className="p-4 bg-white border-t border-gray-100 z-20 shrink-0">
-                    <div className="max-w-3xl mx-auto relative">
-                        <div className="absolute top-1/2 -translate-y-1/2 left-4 text-gray-400">
-                            <IconMessage className="w-5 h-5" />
+                {!isSearchActive && !showBookmarksOnly && (
+                    <div className="p-4 bg-white border-t border-gray-100 z-20 shrink-0">
+                        <div className="max-w-3xl mx-auto relative">
+                            <div className="absolute top-1/2 -translate-y-1/2 left-4 text-gray-400">
+                                <IconMessage className="w-5 h-5" />
+                            </div>
+                            <Tooltip content="A IA usa suas fontes ativas (exames, inputs) para responder." position="top">
+                                <input
+                                    type="text"
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                    placeholder="Pergunte sobre sua evolução..."
+                                    className="w-full pl-12 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all shadow-sm text-gray-700 placeholder-gray-400 text-sm"
+                                />
+                            </Tooltip>
+                            <button 
+                                onClick={handleSendMessage}
+                                disabled={!inputValue.trim() || isProcessing}
+                                className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-all active:scale-95 touch-manipulation"
+                            >
+                                <IconSend className="w-4 h-4" />
+                            </button>
                         </div>
-                        <Tooltip content="A IA usa suas fontes ativas (exames, inputs) para responder." position="top">
-                            <input
-                                type="text"
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                placeholder="Pergunte sobre sua evolução..."
-                                className="w-full pl-12 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all shadow-sm text-gray-700 placeholder-gray-400 text-sm"
-                            />
-                        </Tooltip>
-                        <button 
-                            onClick={handleSendMessage}
-                            disabled={!inputValue.trim() || isProcessing}
-                            className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-all active:scale-95 touch-manipulation"
-                        >
-                            <IconSend className="w-4 h-4" />
-                        </button>
                     </div>
-                </div>
+                )}
             </div>
         )}
 
