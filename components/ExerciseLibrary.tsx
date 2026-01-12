@@ -257,9 +257,13 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project }) => {
                 <div className="fixed inset-0 z-[100] flex flex-col bg-white animate-in slide-in-from-bottom duration-300 md:bg-black/80 md:backdrop-blur-sm md:items-center md:justify-center md:p-6">
                     <div className="relative flex-1 flex flex-col bg-white md:max-w-6xl md:h-full md:max-h-[90vh] md:rounded-[2.5rem] md:flex-row overflow-hidden shadow-2xl w-full">
                         
+                        {/* 
+                           UPDATE: High Contrast Close Button 
+                           Removed transparent/glass effect. Used solid white circle with shadow.
+                        */}
                         <button 
                             onClick={() => setSelectedExercise(null)} 
-                            className="absolute top-4 right-4 z-[110] bg-white/20 backdrop-blur-md border border-white/30 text-white md:text-gray-500 md:bg-white md:border-gray-100 p-2.5 rounded-full hover:bg-black hover:text-white transition-all active:scale-90 md:top-6 md:right-6 shadow-xl touch-manipulation"
+                            className="absolute top-4 right-4 z-[110] bg-white text-gray-900 border border-gray-100 p-2.5 rounded-full hover:bg-gray-100 transition-all shadow-lg active:scale-90 md:top-6 md:right-6 touch-manipulation flex items-center justify-center"
                         >
                             <IconClose className="w-5 h-5" />
                         </button>
@@ -276,7 +280,11 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project }) => {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/5 pointer-events-none" />
                             
                             <div className="absolute top-6 left-6 flex flex-col gap-2">
-                                <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md border border-white/10 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-sm">
+                                {/* 
+                                    UPDATE: High Contrast Badge
+                                    Used bg-black/80 for label background to ensure white text is readable over any image.
+                                */}
+                                <span className="inline-flex items-center gap-1.5 bg-black/80 backdrop-blur-md border border-white/10 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-sm">
                                     <div className={`w-2 h-2 rounded-full ${frameIndex === 0 ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                                     {frameIndex === 0 ? 'Preparação' : 'Execução'}
                                 </span>

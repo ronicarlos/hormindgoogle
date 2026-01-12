@@ -13,7 +13,7 @@ import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, Metri
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { supabase } from './lib/supabase';
-import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled } from './components/Icons';
+import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose } from './components/Icons';
 import ReactMarkdown from 'react-markdown';
 import { Tooltip } from './components/Tooltip';
 
@@ -443,20 +443,56 @@ const App: React.FC = () => {
     setIsProcessing(false);
   };
 
-  // --- SEMANTIC SEARCH LOGIC ---
+  // --- SEMANTIC SEARCH LOGIC (HYBRID) ---
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!searchQuery.trim() || !project) return;
 
     setIsSearching(true);
     try {
-        const results = await dataService.searchMessagesSemantic(project.id, searchQuery);
-        setSearchResults(results);
+        // 1. Busca Semântica (Backend - Vector Search)
+        const semanticResults = await dataService.searchMessagesSemantic(project.id, searchQuery);
+
+        // 2. Busca Keyword Exata (Frontend - Local Filter)
+        // Isso garante que se a palavra existe, ela aparece, mesmo que o vetor falhe ou mensagens antigas não tenham vetor.
+        const keywordResults = messages.filter(msg => 
+            msg.text.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        // 3. Combinar resultados (Remover duplicatas por ID)
+        const combinedResults = [...keywordResults];
+        semanticResults.forEach(semResult => {
+            if (!combinedResults.find(k => k.id === semResult.id)) {
+                combinedResults.push(semResult);
+            }
+        });
+
+        // 4. Ordenar por Data (opcional, mas melhor para contexto)
+        combinedResults.sort((a, b) => a.timestamp - b.timestamp);
+
+        setSearchResults(combinedResults);
     } catch (error) {
-        console.error(error);
+        console.error("Search Error:", error);
+        // Fallback para apenas keyword search se a API falhar
+        const fallback = messages.filter(msg => 
+            msg.text.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        setSearchResults(fallback);
     } finally {
         setIsSearching(false);
     }
+  };
+
+  const handleClearSearch = () => {
+      setSearchQuery('');
+      setSearchResults([]);
+      // Não sai do modo de busca, apenas limpa os resultados
+  };
+
+  const handleExitSearch = () => {
+      setIsSearchActive(false);
+      setSearchQuery('');
+      setSearchResults([]);
   };
 
   const toggleBookmark = async (msg: ChatMessage) => {
@@ -638,7 +674,7 @@ const App: React.FC = () => {
                          <form onSubmit={handleSearch} className="flex-1 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                              <button 
                                 type="button"
-                                onClick={() => { setIsSearchActive(false); setSearchQuery(''); setSearchResults([]); }}
+                                onClick={handleExitSearch}
                                 className="p-2 hover:bg-gray-100 rounded-full"
                              >
                                  <IconArrowLeft className="w-5 h-5 text-gray-500" />
@@ -650,9 +686,18 @@ const App: React.FC = () => {
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Busca semântica nas conversas..."
-                                    className="w-full bg-gray-100 rounded-xl px-4 py-2 pl-10 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                                    className="w-full bg-gray-100 rounded-xl px-4 py-2 pl-10 pr-8 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100"
                                 />
                                 <IconSearch className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                {searchQuery && (
+                                    <button 
+                                        type="button" 
+                                        onClick={handleClearSearch}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <IconClose className="w-4 h-4" />
+                                    </button>
+                                )}
                              </div>
                              <button 
                                 type="submit"
@@ -715,7 +760,7 @@ const App: React.FC = () => {
                             <span>
                                 {searchResults.length > 0 
                                     ? `Encontramos ${searchResults.length} mensagens relevantes.` 
-                                    : searchQuery ? "Nenhum resultado encontrado." : "Digite para buscar temas, sintomas ou treinos no seu histórico."}
+                                    : searchQuery ? "Nenhum resultado encontrado para este termo." : "Digite para buscar temas, sintomas ou treinos no seu histórico."}
                             </span>
                         </div>
                     )}

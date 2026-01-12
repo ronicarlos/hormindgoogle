@@ -416,7 +416,7 @@ export const dataService = {
 
         const { data, error } = await supabase.rpc('match_messages', {
             query_embedding: embedding,
-            match_threshold: 0.7, // Sensitivity
+            match_threshold: 0.5, // Alterado de 0.7 para 0.5 para aumentar recall
             match_count: 10,
             p_id: projectId
         });
