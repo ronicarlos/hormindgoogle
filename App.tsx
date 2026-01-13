@@ -1185,6 +1185,7 @@ const App: React.FC = () => {
             project={project}
             onUpdateProfile={handleUpdateProfile}
             onUpdateProject={p => setProject(p)}
+            onUpload={handleAddSourceFile} // PASSANDO A FUNÇÃO DE UPLOAD PARA O WIZARD
         />
       )}
 

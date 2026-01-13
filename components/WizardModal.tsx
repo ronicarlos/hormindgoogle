@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Project, UserProfile, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
-import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose } from './Icons';
+import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder } from './Icons';
 
 interface WizardModalProps {
     isOpen: boolean;
@@ -11,6 +11,7 @@ interface WizardModalProps {
     project: Project;
     onUpdateProfile: (profile: UserProfile) => void;
     onUpdateProject: (project: Project) => void;
+    onUpload: (file: File) => Promise<void>; // NEW PROP
 }
 
 const steps = [
@@ -18,14 +19,20 @@ const steps = [
     { id: 'anthro', title: 'Antropometria', icon: IconActivity, description: 'Peso e altura para cálculos metabólicos.' },
     { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Cintura e quadril (Risco Cardíaco).' },
     { id: 'health', title: 'Saúde', icon: IconAlert, description: 'Histórico médico e medicamentos.' },
-    { id: 'routine', title: 'Rotina & Dieta', icon: IconDumbbell, description: 'Contexto de treino e calorias.' }, // NEW
-    { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' }, // NEW
+    { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' }, // NEW STEP
+    { id: 'routine', title: 'Rotina & Dieta', icon: IconDumbbell, description: 'Contexto de treino e calorias.' },
+    { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' },
     { id: 'goal', title: 'Objetivo Final', icon: IconScience, description: 'Onde vamos chegar?' }
 ];
 
-const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject }) => {
+const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject, onUpload }) => {
     const [currentStep, setCurrentStep] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Upload State
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Form States
     const [profileData, setProfileData] = useState<UserProfile>(project.userProfile || {} as UserProfile);
@@ -62,9 +69,10 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
             else if (!p.height || !p.weight) startStep = 1;
             else if (!p.measurements.waist || !p.measurements.hips) startStep = 2;
             // Skip health check (optional)
-            else if (!project.trainingNotes && !calories) startStep = 4; // Jump to Routine
-            else if ((!project.currentProtocol || project.currentProtocol.length === 0) && project.objective !== 'Longevity') startStep = 5; // Jump to Protocol (unless longevity)
-            else if (!project.objective) startStep = 6;
+            // Step 4 is Upload (Optional), we can skip to it if user has sources? No, let them see it.
+            else if (!project.trainingNotes && !calories) startStep = 5; // Jump to Routine (index 5 now)
+            else if ((!project.currentProtocol || project.currentProtocol.length === 0) && project.objective !== 'Longevity') startStep = 6; // Jump to Protocol
+            else if (!project.objective) startStep = 7;
             else startStep = 0; // Review mode
 
             setCurrentStep(startStep);
@@ -100,6 +108,23 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         setProtocol(protocol.filter((_, i) => i !== index));
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            await onUpload(file);
+            setUploadedFiles(prev => [...prev, file.name]);
+        } catch (error) {
+            console.error("Upload error inside wizard", error);
+            alert("Erro ao processar arquivo. Tente novamente.");
+        } finally {
+            setIsUploading(false);
+            if (e.target) e.target.value = '';
+        }
+    };
+
     const handleNext = async () => {
         setIsSaving(true);
         try {
@@ -111,8 +136,10 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     onUpdateProfile(profileData);
                 }
                 
-                // 2. Save Routine & Diet (Step 4)
-                if (currentStep === 4) {
+                // Step 4 is Upload (handled immediately by onUpload), so no explicit save needed here.
+
+                // 2. Save Routine & Diet (Step 5 - moved index)
+                if (currentStep === 5) {
                     // Update notes
                     await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
                     // Add calorie metric if changed/new
@@ -128,8 +155,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     onUpdateProject({ ...project, trainingNotes, objective, currentProtocol: protocol });
                 }
 
-                // 3. Save Protocol (Step 5) & Final Objective (Step 6)
-                if (currentStep >= 5) {
+                // 3. Save Protocol (Step 6) & Final Objective (Step 7)
+                if (currentStep >= 6) {
                     const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                     await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes);
                     onUpdateProject({ ...project, objective, currentProtocol: cleanProtocol, trainingNotes });
@@ -270,8 +297,57 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {/* STEP 4: Rotina e Dieta (NEW) */}
+                        {/* STEP 4: Exames e Arquivos (NEW) */}
                         {currentStep === 4 && (
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl p-6 text-center">
+                                    <div className="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3">
+                                        {isUploading ? (
+                                            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <IconFolder className="w-6 h-6" />
+                                        )}
+                                    </div>
+                                    <h4 className="text-sm font-bold text-gray-900 mb-1">Importar Documentos</h4>
+                                    <p className="text-xs text-gray-500 mb-4 px-4">
+                                        Arraste ou clique para enviar exames de sangue (PDF) ou fotos de treinos/dietas. A IA analisará tudo automaticamente.
+                                    </p>
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                        className="bg-white border border-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg text-xs hover:bg-gray-50 transition-colors shadow-sm"
+                                    >
+                                        {isUploading ? 'Processando...' : 'Selecionar Arquivo'}
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        onChange={handleFileUpload}
+                                        accept=".pdf,.jpg,.jpeg,.png,.txt,.csv"
+                                    />
+                                </div>
+
+                                {uploadedFiles.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Enviados nesta sessão:</p>
+                                        {uploadedFiles.map((f, i) => (
+                                            <div key={i} className="flex items-center gap-2 bg-green-50 p-2 rounded-lg border border-green-100 text-xs text-green-800">
+                                                <IconCheck className="w-4 h-4" />
+                                                <span className="truncate flex-1">{f}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                <p className="text-[10px] text-gray-400 text-center italic">
+                                    Os dados extraídos dos exames (como testosterona, colesterol) aparecerão no seu painel assim que processados.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* STEP 5: Rotina e Dieta (Moved index) */}
+                        {currentStep === 5 && (
                             <>
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700">Dieta: Média Calórica (Kcal/dia)</span>
@@ -296,8 +372,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {/* STEP 5: Protocolo (NEW) */}
-                        {currentStep === 5 && (
+                        {/* STEP 6: Protocolo (Moved index) */}
+                        {currentStep === 6 && (
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm font-bold text-gray-700">O que você está usando?</span>
@@ -349,8 +425,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </div>
                         )}
 
-                        {/* STEP 6: Objetivo */}
-                        {currentStep === 6 && (
+                        {/* STEP 7: Objetivo (Moved index) */}
+                        {currentStep === 7 && (
                             <>
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700">Qual seu foco atual?</span>
@@ -379,8 +455,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     </button>
                     <button 
                         onClick={handleNext}
-                        disabled={isSaving}
-                        className="px-8 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all active:scale-95 shadow-lg flex items-center gap-2"
+                        disabled={isSaving || isUploading} // Disable if uploading
+                        className="px-8 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all active:scale-95 shadow-lg flex items-center gap-2 disabled:opacity-50"
                     >
                         {isSaving ? 'Salvando...' : currentStep === steps.length - 1 ? 'Concluir' : 'Próximo'}
                         {currentStep < steps.length - 1 && !isSaving && <span className="text-lg leading-none">→</span>}
