@@ -56,7 +56,8 @@ const HighlightText = ({ text, highlight }: { text: string, highlight: string })
     );
 };
 
-const MobileBottomNav = ({ currentView, onViewChange, onOpenFiles }: { currentView: AppView, onViewChange: (view: AppView) => void, onOpenFiles: () => void }) => (
+// MODIFIED: 'onOpenFiles' now triggers view change to 'sources' instead of sidebar overlay
+const MobileBottomNav = ({ currentView, onViewChange }: { currentView: AppView, onViewChange: (view: AppView) => void }) => (
     <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-gray-200 flex justify-around items-center z-50 md:hidden pb-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:bg-gray-900 dark:border-gray-800">
         <button 
             onClick={() => onViewChange('dashboard')}
@@ -87,10 +88,10 @@ const MobileBottomNav = ({ currentView, onViewChange, onOpenFiles }: { currentVi
             <span className="text-[10px] font-bold tracking-tight">Pharma</span>
         </button>
         <button 
-            onClick={onOpenFiles}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 text-gray-400 dark:text-gray-600 hover:text-blue-600 dark:hover:text-blue-400`}
+            onClick={() => onViewChange('sources')}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'sources' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
-            <IconFolder className="w-6 h-6" />
+            <IconFolder className={`w-6 h-6 ${currentView === 'sources' ? 'fill-current' : ''}`} />
             <span className="text-[10px] font-bold tracking-tight">Arquivos</span>
         </button>
     </div>
@@ -1297,6 +1298,26 @@ const App: React.FC = () => {
 
         {/* --- CONTENT VIEWS --- */}
         
+        {/* NEW: MOBILE FULL SCREEN SOURCES VIEW */}
+        {currentView === 'sources' && (
+             <div className="h-full w-full flex flex-col">
+                <SourceSidebar 
+                    sources={sources} 
+                    onToggleSource={handleToggleSource}
+                    onAddSource={handleBatchAddSources}
+                    currentView={currentView}
+                    onViewChange={setCurrentView}
+                    isOpen={true} // Always open in this view
+                    onClose={() => {}} // No close needed here
+                    onLogout={handleLogout}
+                    onViewSummary={handleViewSummary} 
+                    onDeleteSource={handleRequestDelete} 
+                    onOpenWizard={() => setIsWizardOpen(true)}
+                    isMobileFullView={true} // Activate full screen mode
+                />
+            </div>
+        )}
+        
         {currentView === 'metrics' && project && (
             <MetricDashboard 
                 project={project}
@@ -1393,7 +1414,7 @@ const App: React.FC = () => {
         )}
 
         {/* NEW: MOBILE BOTTOM NAVIGATION */}
-        <MobileBottomNav currentView={currentView} onViewChange={setCurrentView} onOpenFiles={() => setIsSidebarOpen(true)} />
+        <MobileBottomNav currentView={currentView} onViewChange={setCurrentView} />
 
       </main>
     </div>

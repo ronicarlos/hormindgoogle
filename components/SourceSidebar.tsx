@@ -16,6 +16,7 @@ interface SourceSidebarProps {
   onViewSummary?: (source: Source) => void; 
   onDeleteSource?: (id: string) => void;
   onOpenWizard?: () => void;
+  isMobileFullView?: boolean; // NEW PROP: Controls full screen mode
 }
 
 const SourceSidebar: React.FC<SourceSidebarProps> = ({ 
@@ -29,7 +30,8 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
     onLogout,
     onViewSummary,
     onDeleteSource,
-    onOpenWizard
+    onOpenWizard,
+    isMobileFullView = false
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,92 +89,107 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
       }
   };
 
-  // Base classes always applied 
-  // Z-Index aumentado para 100 para sobrepor a MobileBottomNav (que é z-50)
-  const baseClasses = "bg-gray-50 border-r border-gray-200 h-screen flex flex-col transition-transform duration-300 ease-in-out z-[100] dark:bg-gray-900 dark:border-gray-800";
+  // Lógica de Classes CSS
+  // Se for visualização mobile full (isMobileFullView):
+  // - Removemos posicionamento fixo e largura fixa
+  // - Usamos w-full h-full para ocupar o container principal
   
-  // Mobile vs Desktop logic
-  const mobileClasses = `fixed inset-y-0 left-0 w-80 shadow-2xl ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
-  const desktopClasses = "md:flex md:translate-x-0 md:static md:w-80 md:shadow-none";
+  let containerClasses = "";
+  
+  if (isMobileFullView) {
+      containerClasses = "bg-gray-50 flex flex-col h-full w-full dark:bg-gray-900";
+  } else {
+      // Comportamento original (Sidebar Lateral)
+      const baseClasses = "bg-gray-50 border-r border-gray-200 h-screen flex flex-col transition-transform duration-300 ease-in-out z-[100] dark:bg-gray-900 dark:border-gray-800";
+      const mobileClasses = `fixed inset-y-0 left-0 w-80 shadow-2xl ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
+      const desktopClasses = "md:flex md:translate-x-0 md:static md:w-80 md:shadow-none";
+      containerClasses = `${baseClasses} ${mobileClasses} ${desktopClasses}`;
+  }
 
   return (
     <>
-        {/* Mobile Overlay Backdrop */}
-        {isOpen && (
+        {/* Mobile Overlay Backdrop (Only for Sidebar Mode) */}
+        {isOpen && !isMobileFullView && (
             <div 
                 className="fixed inset-0 bg-black/50 z-[90] md:hidden backdrop-blur-sm"
                 onClick={onClose}
             />
         )}
 
-        <div className={`${baseClasses} ${mobileClasses} ${desktopClasses}`}>
+        <div className={containerClasses}>
             {/* Header */}
             <div className="p-6 border-b border-gray-100 flex justify-between items-center shrink-0 dark:border-gray-800">
                 <div>
                     <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
                     FitLM
                     </h1>
-                    <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider font-semibold dark:text-gray-500">Caderno Inteligente</p>
+                    <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider font-semibold dark:text-gray-500">
+                        {isMobileFullView ? 'Gerenciador de Arquivos' : 'Caderno Inteligente'}
+                    </p>
                 </div>
-                {/* Mobile Close Button */}
-                <button onClick={onClose} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-full dark:hover:bg-gray-800">
-                    <IconClose className="w-5 h-5" />
-                </button>
+                {/* Mobile Close Button (Only in Sidebar Mode) */}
+                {!isMobileFullView && (
+                    <button onClick={onClose} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-full dark:hover:bg-gray-800">
+                        <IconClose className="w-5 h-5" />
+                    </button>
+                )}
             </div>
 
-            {/* Navigation Menu */}
-            <div className="p-4 border-b border-gray-100 space-y-1 shrink-0 dark:border-gray-800">
-                <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 dark:text-gray-500">Menu</p>
-                <button 
-                    onClick={() => { onViewChange('dashboard'); onClose?.(); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
-                        currentView === 'dashboard' ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                    }`}
-                >
-                    <IconLayout className="w-4 h-4" />
-                    Notebook & Chat
-                </button>
-                <button 
-                    onClick={() => { onViewChange('profile'); onClose?.(); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
-                        currentView === 'profile' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                    }`}
-                >
-                    <IconUser className="w-4 h-4" />
-                    Perfil Biométrico
-                </button>
-                <button 
-                    onClick={() => { onViewChange('training_library'); onClose?.(); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
-                        currentView === 'training_library' ? 'bg-white text-indigo-600 shadow-sm dark:bg-gray-800 dark:text-indigo-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                    }`}
-                >
-                    <IconDumbbell className="w-4 h-4" />
-                    Biblioteca de Treinos
-                </button>
-                <button 
-                    onClick={() => { onViewChange('protocol_library'); onClose?.(); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
-                        currentView === 'protocol_library' ? 'bg-white text-purple-600 shadow-sm dark:bg-gray-800 dark:text-purple-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                    }`}
-                >
-                    <IconScience className="w-4 h-4" />
-                    Enciclopédia de Protocolos
-                </button>
-                
-                {/* TABLET ONLY LINK: Visible on MD (Tablet), Hidden on LG (Desktop has right sidebar), Hidden on Mobile (uses bottom nav) */}
-                <button 
-                    onClick={() => { onViewChange('metrics'); onClose?.(); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium items-center gap-3 transition-colors hidden md:flex lg:hidden ${
-                        currentView === 'metrics' ? 'bg-white text-emerald-600 shadow-sm dark:bg-gray-800 dark:text-emerald-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                    }`}
-                >
-                    <IconActivity className="w-4 h-4" />
-                    Painel de Métricas
-                </button>
-            </div>
+            {/* Navigation Menu - HIDDEN IN MOBILE FULL VIEW to give space to files */}
+            {!isMobileFullView && (
+                <div className="p-4 border-b border-gray-100 space-y-1 shrink-0 dark:border-gray-800">
+                    <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 dark:text-gray-500">Menu</p>
+                    <button 
+                        onClick={() => { onViewChange('dashboard'); onClose?.(); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
+                            currentView === 'dashboard' ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                        <IconLayout className="w-4 h-4" />
+                        Notebook & Chat
+                    </button>
+                    <button 
+                        onClick={() => { onViewChange('profile'); onClose?.(); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
+                            currentView === 'profile' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                        <IconUser className="w-4 h-4" />
+                        Perfil Biométrico
+                    </button>
+                    <button 
+                        onClick={() => { onViewChange('training_library'); onClose?.(); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
+                            currentView === 'training_library' ? 'bg-white text-indigo-600 shadow-sm dark:bg-gray-800 dark:text-indigo-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                        <IconDumbbell className="w-4 h-4" />
+                        Biblioteca de Treinos
+                    </button>
+                    <button 
+                        onClick={() => { onViewChange('protocol_library'); onClose?.(); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
+                            currentView === 'protocol_library' ? 'bg-white text-purple-600 shadow-sm dark:bg-gray-800 dark:text-purple-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                        <IconScience className="w-4 h-4" />
+                        Enciclopédia de Protocolos
+                    </button>
+                    
+                    {/* TABLET ONLY LINK */}
+                    <button 
+                        onClick={() => { onViewChange('metrics'); onClose?.(); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium items-center gap-3 transition-colors hidden md:flex lg:hidden ${
+                            currentView === 'metrics' ? 'bg-white text-emerald-600 shadow-sm dark:bg-gray-800 dark:text-emerald-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                        <IconActivity className="w-4 h-4" />
+                        Painel de Métricas
+                    </button>
+                </div>
+            )}
             
-            {/* WIZARD BUTTON (NEW) */}
+            {/* WIZARD BUTTON (NEW) - Mantido no Full View pois é importante */}
              <div className="px-4 py-2 shrink-0">
                  <button 
                     onClick={() => { onOpenWizard?.(); onClose?.(); }}
@@ -186,7 +203,7 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
              </div>
 
             {/* SCROLLABLE LIST OF SOURCES */}
-            <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="flex-1 overflow-y-auto p-4 min-h-0 pb-24 md:pb-4">
                 <div className="flex justify-between items-center mb-3 px-2">
                     <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400">Fontes Ativas</h3>
                     <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full dark:bg-gray-700 dark:text-gray-300">{sources.length}</span>
@@ -258,8 +275,8 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
                 </div>
             </div>
 
-            {/* FIXED BOTTOM SECTION (Upload & Profile) */}
-            <div className="p-4 border-t border-gray-200 bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10 shrink-0 pb-6 dark:bg-gray-900 dark:border-gray-800">
+            {/* FIXED BOTTOM SECTION (Upload & Profile) - Ajuste para não ficar atrás do menu inferior no mobile */}
+            <div className={`p-4 border-t border-gray-200 bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10 shrink-0 pb-6 dark:bg-gray-900 dark:border-gray-800 ${isMobileFullView ? 'mb-20 md:mb-0' : ''}`}>
                 
                 {/* Visible Upload Call-to-Action */}
                 <div className="mb-4">
@@ -289,20 +306,22 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
                     multiple 
                 />
 
-                <div 
-                    onClick={() => { onViewChange('profile'); onClose?.(); }}
-                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors mt-2 border-t border-gray-50 pt-3 dark:hover:bg-gray-800 dark:border-gray-800"
-                >
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs overflow-hidden dark:bg-indigo-900 dark:text-indigo-300">
-                        BR
+                {!isMobileFullView && (
+                    <div 
+                        onClick={() => { onViewChange('profile'); onClose?.(); }}
+                        className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors mt-2 border-t border-gray-50 pt-3 dark:hover:bg-gray-800 dark:border-gray-800"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs overflow-hidden dark:bg-indigo-900 dark:text-indigo-300">
+                            BR
+                        </div>
+                        <div className="text-sm">
+                            <p className="font-medium text-gray-700 dark:text-gray-200">Meu Perfil</p>
+                            <p className="text-xs text-gray-400">Ver ficha do atleta</p>
+                        </div>
                     </div>
-                    <div className="text-sm">
-                        <p className="font-medium text-gray-700 dark:text-gray-200">Meu Perfil</p>
-                        <p className="text-xs text-gray-400">Ver ficha do atleta</p>
-                    </div>
-                </div>
+                )}
                 
-                {onLogout && (
+                {onLogout && !isMobileFullView && (
                     <button 
                         onClick={onLogout}
                         className="w-full text-left px-2 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors uppercase tracking-wider mt-1 dark:hover:bg-red-900/20"
