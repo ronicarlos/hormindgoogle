@@ -1,7 +1,7 @@
 
-
 import { GoogleGenAI } from "@google/genai";
 import { Source, ChatMessage, UserProfile, MetricPoint } from '../types';
+import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 
 // Initialize Gemini Client
 const apiKey = process.env.API_KEY || '';
@@ -38,6 +38,9 @@ const buildContext = (
     metrics?: Record<string, MetricPoint[]>
 ): string => {
   let context = "Você é o FitLM, um analista de fitness avançado com IA (Esporte, Medicina, Farmacologia).\n\n";
+
+  // INJECT SYSTEM SELF-KNOWLEDGE (Architecture Explanation)
+  context += FITLM_ARCHITECTURE_EXPLANATION + "\n\n";
 
   // 1. DADOS VITAIS DO PACIENTE/ATLETA (Prioridade Máxima)
   if (profile) {

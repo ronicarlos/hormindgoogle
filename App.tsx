@@ -1328,6 +1328,39 @@ const App: React.FC = () => {
             />
         )}
 
+        {/* DELETE CONFIRMATION MODAL */}
+        {sourceToDelete && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 dark:bg-red-900/30">
+                            <IconTrash className="w-6 h-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2 dark:text-white">Excluir Fonte?</h3>
+                        <p className="text-sm text-gray-500 mb-6 dark:text-gray-400">
+                            Tem certeza que deseja remover <strong>{sourceToDelete.title}</strong>? <br/>
+                            A IA perderá acesso a este contexto.
+                        </p>
+                        <div className="flex gap-3 w-full">
+                            <button 
+                                onClick={() => setSourceToDelete(null)}
+                                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={confirmDeleteSource}
+                                disabled={isDeleting}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 dark:bg-red-600 dark:hover:bg-red-700"
+                            >
+                                {isDeleting ? 'Excluindo...' : 'Excluir'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* NEW: MOBILE BOTTOM NAVIGATION */}
         <MobileBottomNav currentView={currentView} onViewChange={setCurrentView} onOpenFiles={() => setIsSidebarOpen(true)} />
 
