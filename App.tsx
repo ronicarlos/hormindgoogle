@@ -5,7 +5,8 @@ import MetricDashboard from './components/MetricDashboard';
 import InputModal from './components/InputModal';
 import ProntuarioModal from './components/ProntuarioModal';
 import SourceDetailModal from './components/SourceDetailModal'; 
-import WizardModal from './components/WizardModal'; // NEW IMPORT
+import WizardModal from './components/WizardModal'; 
+import LegalContractModal from './components/LegalContractModal'; // NEW IMPORT
 import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
@@ -60,9 +61,13 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // Disclaimer & Legal State
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false); // Controls the per-session modal
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false); // Controls the "Contract" modal
+  const [dontShowDisclaimerAgain, setDontShowDisclaimerAgain] = useState(false);
+
   // Search & Bookmark State
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,11 +143,25 @@ const App: React.FC = () => {
                     setMessages([initialMsg]);
                 }
 
-                // Check for Missing Data (Auto-Open Wizard)
+                // --- LEGAL CHECKS ---
                 if (loadedProject.userProfile) {
                     const p = loadedProject.userProfile;
+                    
+                    // 1. Check if Contract Signed
+                    if (!p.termsAcceptedAt) {
+                        setIsLegalModalOpen(true);
+                    } else {
+                        // 2. Check Disclaimer Preference (Only if Contract Signed)
+                        if (p.hideStartupDisclaimer) {
+                            setDisclaimerAccepted(true); // Skip disclaimer
+                        }
+                    }
+
+                    // 3. Wizard Logic (After Legal)
                     const isMissingCritical = !p.name || !p.height || !p.weight || !p.measurements.waist;
+                    // Only show wizard if terms accepted OR will be accepted
                     if (isMissingCritical) {
+                        // We set wizard open, but it will be visually behind the Legal Modal due to z-index if needed
                         setIsWizardOpen(true);
                     }
                 }
@@ -163,6 +182,31 @@ const App: React.FC = () => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, currentView, isSearchActive, showBookmarksOnly]);
+
+  // --- LEGAL HANDLERS ---
+  const handleLegalAccept = async () => {
+      if (!session?.user?.id || !project) return;
+      
+      // Update DB
+      await dataService.acceptLegalTerms(session.user.id);
+      
+      // Update Local State
+      if (project.userProfile) {
+          setProject({
+              ...project,
+              userProfile: { ...project.userProfile, termsAcceptedAt: new Date().toISOString() }
+          });
+      }
+      
+      setIsLegalModalOpen(false);
+  };
+
+  const handleDisclaimerAccept = async () => {
+      if (dontShowDisclaimerAgain && session?.user?.id) {
+          await dataService.toggleStartupDisclaimer(session.user.id, true);
+      }
+      setDisclaimerAccepted(true);
+  };
 
   const handleToggleSource = async (id: string) => {
     const source = sources.find(s => s.id === id);
@@ -683,6 +727,14 @@ const App: React.FC = () => {
       return <AuthScreen />;
   }
 
+  // --- RENDERING MODALS & SCREENS ---
+
+  // 1. LEGAL CONTRACT (HIGHEST PRIORITY)
+  if (isLegalModalOpen) {
+      return <LegalContractModal isOpen={true} onAccept={handleLegalAccept} />;
+  }
+
+  // 2. DISCLAIMER (IF NOT ACCEPTED/HIDDEN)
   if (!disclaimerAccepted) {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -696,8 +748,19 @@ const App: React.FC = () => {
           <p className="text-gray-600 text-center mb-6 text-sm leading-relaxed">
             {DISCLAIMER_TEXT}
           </p>
+          
+          <label className="flex items-center justify-center gap-2 mb-6 cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                checked={dontShowDisclaimerAgain}
+                onChange={e => setDontShowDisclaimerAgain(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-xs text-gray-500 font-medium">Não mostrar novamente</span>
+          </label>
+
           <button 
-            onClick={() => setDisclaimerAccepted(true)}
+            onClick={handleDisclaimerAccept}
             className="w-full py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 touch-manipulation"
           >
             Entendo e Concordo
@@ -1192,7 +1255,7 @@ const App: React.FC = () => {
       {/* MODALS */}
       {project && (
         <WizardModal 
-            isOpen={isWizardOpen}
+            isOpen={isWizardOpen && !isLegalModalOpen} // Ensure Legal modal is priority
             onClose={() => setIsWizardOpen(false)}
             project={project}
             onUpdateProfile={handleUpdateProfile}

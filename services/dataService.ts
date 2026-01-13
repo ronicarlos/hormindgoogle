@@ -278,7 +278,10 @@ export const dataService = {
             comorbidities: data.comorbidities || '',
             medications: data.medications || '',
             measurements: measurements,
-            calculatedStats: calculatedStats // Injected Calculated Stats
+            calculatedStats: calculatedStats,
+            // Legal Fields
+            termsAcceptedAt: data.terms_accepted_at,
+            hideStartupDisclaimer: data.hide_startup_disclaimer
         };
     },
 
@@ -302,6 +305,27 @@ export const dataService = {
             .upsert(dbProfile, { onConflict: 'user_id' });
 
         if (error) console.error("Error saving profile:", error);
+        return error;
+    },
+
+    // NEW: Accept Legal Terms
+    async acceptLegalTerms(userId: string) {
+        const { error } = await supabase
+            .from('user_profiles')
+            .update({ 
+                terms_accepted_at: new Date().toISOString(),
+                terms_version: '1.0'
+            })
+            .eq('user_id', userId);
+        return error;
+    },
+
+    // NEW: Toggle Startup Disclaimer
+    async toggleStartupDisclaimer(userId: string, hide: boolean) {
+        const { error } = await supabase
+            .from('user_profiles')
+            .update({ hide_startup_disclaimer: hide })
+            .eq('user_id', userId);
         return error;
     },
     

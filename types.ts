@@ -44,6 +44,9 @@ export interface UserProfile {
       bmiClassification?: string;
       whrRisk?: string;
   };
+  // NEW: Legal fields
+  termsAcceptedAt?: string | null;
+  hideStartupDisclaimer?: boolean;
 }
 
 export interface Source {
