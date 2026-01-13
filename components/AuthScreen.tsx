@@ -41,6 +41,15 @@ const AuthScreen: React.FC = () => {
         }
     };
 
+    const translateError = (errorMsg: string) => {
+        if (errorMsg.includes("Invalid login credentials")) return "E-mail ou senha incorretos.";
+        if (errorMsg.includes("User already registered")) return "Este e-mail já está cadastrado.";
+        if (errorMsg.includes("Password should be")) return "A senha deve ter pelo menos 6 caracteres.";
+        if (errorMsg.includes("Email not confirmed")) return "E-mail não confirmado. Verifique sua caixa de entrada.";
+        if (errorMsg.includes("Token has expired")) return "O código expirou. Solicite um novo.";
+        return errorMsg || "Ocorreu um erro. Verifique seus dados.";
+    };
+
     const handleGoogleLogin = async () => {
         setLoading(true);
         setError('');
@@ -54,7 +63,7 @@ const AuthScreen: React.FC = () => {
             if (error) throw error;
         } catch (err: any) {
             console.error(err);
-            setError(err.message || 'Erro ao conectar com Google.');
+            setError(translateError(err.message));
             setLoading(false);
         }
     };
@@ -117,7 +126,7 @@ const AuthScreen: React.FC = () => {
             }
         } catch (err: any) {
             console.error(err);
-            setError(err.message || 'Ocorreu um erro. Verifique seus dados.');
+            setError(translateError(err.message));
         } finally {
             setLoading(false);
         }

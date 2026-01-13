@@ -76,21 +76,21 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800">
         
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center dark:border-gray-800">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Parâmetros & Métricas</h2>
-            <p className="text-sm text-gray-500">Os dados salvos aqui persistem no seu projeto.</p>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Parâmetros & Métricas</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Os dados salvos aqui persistem no seu projeto.</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 dark:hover:bg-gray-800">
             <IconClose className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex px-6 border-b border-gray-100">
+        <div className="flex px-6 border-b border-gray-100 dark:border-gray-800">
           {[
             { id: 'meta', icon: IconCheck, label: 'Objetivo' },
             { id: 'treino', icon: IconDumbbell, label: 'Treino' },
@@ -102,8 +102,8 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-1 py-4 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id 
-                  ? 'border-blue-500 text-blue-600' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400 dark:border-blue-400' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -118,11 +118,11 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
           {activeTab === 'meta' && (
             <div className="space-y-4">
               <label className="block">
-                <span className="text-sm font-semibold text-gray-700">Objetivo Atual</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Objetivo Atual</span>
                 <select 
                     value={goal} 
                     onChange={(e) => setGoal(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 bg-gray-50 text-gray-900"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 bg-gray-50 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 >
                   <option value="Bulking">Bulking (Ganho de Massa)</option>
                   <option value="Cutting">Cutting (Perda de Gordura)</option>
@@ -130,7 +130,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
                   <option value="Manutencao">Manutenção / Longevidade</option>
                 </select>
               </label>
-              <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
+              <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-100 dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-900/30">
                 A IA usará este objetivo para calibrar sugestões de dieta e treino.
               </div>
             </div>
@@ -139,15 +139,15 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
           {activeTab === 'treino' && (
             <div className="space-y-4">
               <label className="block">
-                <span className="text-sm font-semibold text-gray-700">Registro do Treino / Rotina Atual</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Registro do Treino / Rotina Atual</span>
                 <textarea
                   value={trainingNotes}
                   onChange={(e) => setTrainingNotes(e.target.value)}
                   placeholder="Ex: Treino de Perna. Agachamento 140kg 3x5. Senti desconforto no joelho. Volume total alto."
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 bg-gray-50 h-40 text-gray-900 placeholder-gray-400"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-3 bg-gray-50 h-40 text-gray-900 placeholder-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 />
               </label>
-              <div className="bg-green-50 p-4 rounded-lg text-sm text-green-800">
+              <div className="bg-green-50 p-4 rounded-lg text-sm text-green-800 border border-green-100 dark:bg-green-900/20 dark:text-green-200 dark:border-green-900/30">
                 Nota: Este campo agora salva sua rotina ou observações para análise contínua da IA.
               </div>
             </div>
@@ -156,7 +156,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
           {activeTab === 'dieta' && (
             <div className="space-y-4">
               <label className="block">
-                <span className="text-sm font-semibold text-gray-700">Calorias Diárias (Média Atual)</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Calorias Diárias (Média Atual)</span>
                 <div className="relative mt-1 rounded-md shadow-sm">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                         <IconFlame className="h-4 w-4 text-gray-400" />
@@ -165,33 +165,33 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
                         type="number"
                         value={calories}
                         onChange={(e) => setCalories(e.target.value)}
-                        className="block w-full rounded-md border-gray-300 pl-10 p-3 bg-gray-50 focus:border-blue-500 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
+                        className="block w-full rounded-md border-gray-300 pl-10 p-3 bg-gray-50 focus:border-blue-500 focus:ring-blue-500 text-gray-900 placeholder-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                         placeholder="Ex: 2500"
                     />
                 </div>
               </label>
-              <p className="text-xs text-gray-500">Você pode detalhar macros no campo de notas de treino se preferir.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Você pode detalhar macros no campo de notas de treino se preferir.</p>
             </div>
           )}
 
           {activeTab === 'protocolo' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                 <h3 className="text-sm font-semibold text-gray-700">Compostos / Ergogênicos</h3>
-                 <button onClick={handleAddProtocolItem} className="text-xs text-blue-600 font-medium flex items-center gap-1 hover:underline">
+                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Compostos / Ergogênicos</h3>
+                 <button onClick={handleAddProtocolItem} className="text-xs text-blue-600 font-medium flex items-center gap-1 hover:underline dark:text-blue-400">
                     <IconPlus className="w-3 h-3" /> Adicionar
                  </button>
               </div>
               
               {protocol.map((item, idx) => (
-                <div key={idx} className="flex gap-2 items-start bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div key={idx} className="flex gap-2 items-start bg-gray-50 p-3 rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
                    <div className="flex-1 space-y-2">
                       <input 
                         type="text" 
                         placeholder="Composto (Ex: Testosterona)"
                         value={item.compound}
                         onChange={(e) => handleUpdateProtocol(idx, 'compound', e.target.value)}
-                        className="w-full text-sm border-gray-300 rounded p-1.5 bg-white text-gray-900 placeholder-gray-400"
+                        className="w-full text-sm border-gray-300 rounded p-1.5 bg-white text-gray-900 placeholder-gray-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-500"
                       />
                       <div className="flex gap-2">
                         <input 
@@ -199,26 +199,26 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
                             placeholder="Dose (Ex: 250mg)"
                             value={item.dosage}
                             onChange={(e) => handleUpdateProtocol(idx, 'dosage', e.target.value)}
-                            className="w-1/2 text-sm border-gray-300 rounded p-1.5 bg-white text-gray-900 placeholder-gray-400"
+                            className="w-1/2 text-sm border-gray-300 rounded p-1.5 bg-white text-gray-900 placeholder-gray-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-500"
                         />
                         <input 
                             type="text" 
                             placeholder="Freq (Ex: 1x/sem)"
                             value={item.frequency}
                             onChange={(e) => handleUpdateProtocol(idx, 'frequency', e.target.value)}
-                            className="w-1/2 text-sm border-gray-300 rounded p-1.5 bg-white text-gray-900 placeholder-gray-400"
+                            className="w-1/2 text-sm border-gray-300 rounded p-1.5 bg-white text-gray-900 placeholder-gray-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-500"
                         />
                       </div>
                    </div>
-                   <button onClick={() => handleRemoveProtocol(idx)} className="text-gray-400 hover:text-red-500 p-1">
+                   <button onClick={() => handleRemoveProtocol(idx)} className="text-gray-400 hover:text-red-500 p-1 dark:hover:text-red-400">
                       <IconClose className="w-4 h-4" />
                    </button>
                 </div>
               ))}
               
-              <div className="bg-yellow-50 p-3 rounded-md border border-yellow-100 flex gap-2 items-start">
-                 <div className="text-yellow-600 mt-0.5"><IconCheck className="w-4 h-4" /></div>
-                 <p className="text-xs text-yellow-800">
+              <div className="bg-yellow-50 p-3 rounded-md border border-yellow-100 flex gap-2 items-start dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
+                 <div className="text-yellow-600 mt-0.5 dark:text-yellow-400"><IconCheck className="w-4 h-4" /></div>
+                 <p className="text-xs text-yellow-800 dark:text-yellow-200">
                     Estes dados são salvos no banco e usados para calcular interações medicamentosas com seu perfil.
                  </p>
               </div>
@@ -228,9 +228,9 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Cancelar</button>
-            <button onClick={handleSave} className="px-6 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800">Salvar & Analisar</button>
+        <div className="p-6 border-t border-gray-100 flex justify-end gap-3 dark:border-gray-800">
+            <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg dark:text-gray-300 dark:hover:bg-gray-800">Cancelar</button>
+            <button onClick={handleSave} className="px-6 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700">Salvar & Analisar</button>
         </div>
       </div>
     </div>
