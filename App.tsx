@@ -373,108 +373,123 @@ const App: React.FC = () => {
       });
   };
 
-  const handleAddSourceFile = async (file: File) => {
+  // NEW: Batch Processor Wrapper
+  const handleBatchAddSources = async (files: File[]) => {
       if (!project || !session?.user?.id) return;
       
-      // 1. Initial State for UI (Optimistic)
       setIsProcessing(true);
-      const isImage = file.type.startsWith('image/');
-      const todayStr = new Date().toLocaleDateString('pt-BR');
       
-      // 2. Upload to Storage
-      const filePath = await dataService.uploadFileToStorage(file, session.user.id, project.id);
-      
-      if (!filePath) {
-          alert("Erro ao fazer upload do arquivo. Tente novamente.");
-          setIsProcessing(false);
-          return;
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const tempId = `proc-${i}`;
+          
+          // Temporary status message
+          const statusMsg: ChatMessage = {
+              id: tempId, 
+              role: 'model', 
+              text: `🔄 Processando arquivo ${i+1} de ${files.length}: **${file.name}**...`, 
+              timestamp: Date.now()
+          };
+          setMessages(prev => [...prev, statusMsg]);
+
+          try {
+              // Process Single File Logic
+              const isImage = file.type.startsWith('image/');
+              const todayStr = new Date().toLocaleDateString('pt-BR');
+              
+              // 1. Upload to Storage
+              const filePath = await dataService.uploadFileToStorage(file, session.user.id, project.id);
+              
+              if (!filePath) {
+                  // If upload fails, just show error and continue loop
+                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: `❌ Erro ao enviar **${file.name}**.` } : m));
+                  continue;
+              }
+              
+              const tempUrl = URL.createObjectURL(file);
+              
+              // 2. PROCESS DOCUMENT (OCR + METRICS)
+              let finalContent = "";
+              let extractedMetrics: { category: string; data: MetricPoint }[] = [];
+
+              if (file.type.startsWith('text/') || file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
+                  finalContent = await readFileContent(file);
+              } else {
+                  const result = await processDocument(file, todayStr);
+                  finalContent = result.extractedText;
+                  extractedMetrics = result.metrics;
+              }
+
+              // 3. Create Source Object with REAL CONTENT (OCR)
+              const newSource: Source = {
+                  id: crypto.randomUUID(),
+                  title: file.name,
+                  type: isImage ? SourceType.IMAGE : SourceType.PDF,
+                  date: todayStr,
+                  selected: true,
+                  content: finalContent, 
+                  filePath: filePath
+              };
+
+              // 4. Save Source to DB
+              const dbError = await dataService.addSource(project.id, newSource);
+              if (dbError) {
+                  console.error("Database Error:", dbError);
+                  setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: `❌ Erro ao salvar **${file.name}** no banco de dados.` } : m));
+                  continue;
+              }
+
+              // 5. Save Metrics to DB
+              for (const m of extractedMetrics) {
+                  await dataService.addMetric(project.id, m.category, m.data);
+              }
+
+              // 6. Update Local State (Optimistic)
+              // Note: We use functional update to ensure we don't lose state from previous iterations in the loop
+              setSources(prev => [...prev, { ...newSource, fileUrl: tempUrl }]);
+              setProject(prev => {
+                  if (!prev) return null;
+                  const updatedMetrics = { ...prev.metrics };
+                  extractedMetrics.forEach(m => {
+                      if (!updatedMetrics[m.category]) updatedMetrics[m.category] = [];
+                      updatedMetrics[m.category].push(m.data);
+                  });
+                  return { ...prev, metrics: updatedMetrics };
+              });
+              
+              // 7. Success Feedback
+              let extractionDetails = "";
+              if (extractedMetrics.length > 0) {
+                  const metricsList = extractedMetrics.map(m => `${m.category}: ${m.data.value}`).join(', ');
+                  extractionDetails = `\nExtraí: ${metricsList}`;
+              }
+              
+              // Replace temporary message with permanent success
+              const sysMsg: ChatMessage = {
+                  id: Date.now().toString() + i, // Ensure unique ID
+                  role: 'model',
+                  text: `✅ **${file.name}** processado.${extractionDetails}`,
+                  timestamp: Date.now()
+              };
+              
+              // Remove temp, add final
+              setMessages(prev => [...prev.filter(m => m.id !== tempId), sysMsg]);
+              await dataService.addMessage(project.id, sysMsg);
+
+          } catch (error) {
+              console.error(`Error processing file ${file.name}:`, error);
+              setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: `❌ Erro crítico ao processar **${file.name}**.` } : m));
+          }
       }
-      
-      const tempUrl = URL.createObjectURL(file);
-      
-      // 3. PROCESS DOCUMENT (OCR + METRICS)
-      // This is the heavy lifting using Gemini Vision
-      const processingMsg: ChatMessage = {
-          id: 'proc', role: 'model', text: '🔄 Analisando imagem e extraindo dados (OCR)...', timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, processingMsg]);
-
-      let finalContent = "";
-      let extractedMetrics: { category: string; data: MetricPoint }[] = [];
-
-      // If it's a text file, just read it. If it's an image/pdf, Process it.
-      if (file.type.startsWith('text/') || file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
-           finalContent = await readFileContent(file);
-      } else {
-           const result = await processDocument(file, todayStr);
-           finalContent = result.extractedText;
-           extractedMetrics = result.metrics;
-      }
-
-      // 4. Create Source Object with REAL CONTENT (OCR)
-      const newSource: Source = {
-        id: crypto.randomUUID(),
-        title: file.name,
-        type: isImage ? SourceType.IMAGE : SourceType.PDF,
-        date: todayStr,
-        selected: true,
-        content: finalContent, // Persisting the OCR Text!
-        filePath: filePath
-      };
-
-      // 5. Save Source to DB
-      const dbError = await dataService.addSource(project.id, newSource);
-      if (dbError) {
-          console.error("Database Error:", dbError);
-          // CRITICAL: Stop here if DB fails, so we don't think we succeeded
-          setMessages(prev => prev.filter(m => m.id !== 'proc'));
-          alert(`Erro de Persistência: Não foi possível salvar o arquivo no banco de dados.\n\nDetalhe: ${dbError.message}\n\nPor favor, rode o script SQL fornecido no Supabase para corrigir.`);
-          setIsProcessing(false);
-          return;
-      }
-
-      // 6. Save Metrics to DB
-      for (const m of extractedMetrics) {
-          await dataService.addMetric(project.id, m.category, m.data);
-      }
-
-      // 7. Update Local State
-      setSources(prev => [...prev, { ...newSource, fileUrl: tempUrl }]);
-      setProject(prev => {
-        if (!prev) return null;
-        const updatedMetrics = { ...prev.metrics };
-        extractedMetrics.forEach(m => {
-            if (!updatedMetrics[m.category]) updatedMetrics[m.category] = [];
-            updatedMetrics[m.category].push(m.data);
-        });
-        return { ...prev, metrics: updatedMetrics };
-      });
-      
-      // 8. Chat Feedback
-      setMessages(prev => prev.filter(m => m.id !== 'proc')); // Remove loading msg
-      
-      let extractionDetails = "";
-      if (extractedMetrics.length > 0) {
-           const metricsList = extractedMetrics.map(m => `${m.category}: ${m.data.value}`).join(', ');
-           extractionDetails = `\n\n📊 **Extraí os seguintes dados:** ${metricsList}`;
-      }
-
-      const sysMsg: ChatMessage = {
-          id: Date.now().toString(),
-          role: 'model',
-          text: `Arquivo **${file.name}** processado com sucesso.${extractionDetails}\n\nO conteúdo do arquivo foi transcrito e salvo para futuras análises.`,
-          timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, sysMsg]);
-      await dataService.addMessage(project.id, sysMsg);
       
       setIsProcessing(false);
   };
   
+  // Handler for mobile input (Single file from camera, usually, but can be multiple)
   const handleMobileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          handleAddSourceFile(file);
+      if (e.target.files && e.target.files.length > 0) {
+          const files = Array.from(e.target.files);
+          handleBatchAddSources(files);
       }
       if (e.target) e.target.value = '';
   };
@@ -966,7 +981,7 @@ const App: React.FC = () => {
           <SourceSidebar 
             sources={sources} 
             onToggleSource={handleToggleSource}
-            onAddSource={handleAddSourceFile}
+            onAddSource={handleBatchAddSources}
             currentView={currentView}
             onViewChange={setCurrentView}
             isOpen={isSidebarOpen} 
@@ -1268,7 +1283,7 @@ const App: React.FC = () => {
              <SourceSidebar 
                 sources={sources} 
                 onToggleSource={handleToggleSource}
-                onAddSource={handleAddSourceFile}
+                onAddSource={handleBatchAddSources}
                 currentView={currentView}
                 onViewChange={setCurrentView}
                 isOpen={isSidebarOpen}
@@ -1340,7 +1355,7 @@ const App: React.FC = () => {
                 project={project}
                 onUpdateProfile={handleUpdateProfile}
                 onUpdateProject={(p) => setProject(p)}
-                onUpload={async (f) => { await handleAddSourceFile(f); }}
+                onUpload={handleBatchAddSources}
             />
         )}
 

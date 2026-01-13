@@ -7,7 +7,7 @@ import { Tooltip } from './Tooltip';
 interface SourceSidebarProps {
   sources: Source[];
   onToggleSource: (id: string) => void;
-  onAddSource: (file: File) => void;
+  onAddSource: (files: File[]) => void; // Updated to accept array
   currentView: AppView;
   onViewChange: (view: AppView) => void;
   isOpen?: boolean;
@@ -15,7 +15,7 @@ interface SourceSidebarProps {
   onLogout?: () => void;
   onViewSummary?: (source: Source) => void; 
   onDeleteSource?: (id: string) => void;
-  onOpenWizard?: () => void; // New Prop
+  onOpenWizard?: () => void;
 }
 
 const SourceSidebar: React.FC<SourceSidebarProps> = ({ 
@@ -38,11 +38,12 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onAddSource(file);
+    if (e.target.files && e.target.files.length > 0) {
+      // Convert FileList to Array
+      const files = Array.from(e.target.files);
+      onAddSource(files);
     }
-    // Reset to allow selecting same file again
+    // Reset to allow selecting same files again
     if (e.target) e.target.value = '';
   };
 
@@ -91,7 +92,6 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
   const baseClasses = "bg-gray-50 border-r border-gray-200 h-screen flex flex-col transition-transform duration-300 ease-in-out z-[100] dark:bg-gray-900 dark:border-gray-800";
   
   // Mobile vs Desktop logic
-  // REMOVIDO 'hidden' das classes desktop para não conflitar com a visibilidade mobile
   const mobileClasses = `fixed inset-y-0 left-0 w-80 shadow-2xl ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
   const desktopClasses = "md:flex md:translate-x-0 md:static md:w-80 md:shadow-none";
 
@@ -272,20 +272,21 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
                         className="w-full py-3 border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-lg text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-all flex items-center justify-center gap-2 text-sm font-bold active:scale-95 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/40"
                     >
                         <IconPlus className="w-4 h-4" />
-                        Upload de Arquivo
+                        Upload de Arquivos
                     </button>
                     <p className="text-[9px] text-gray-400 mt-1.5 text-center leading-tight px-2">
-                        Suporta: <strong>Exames (PDF)</strong>, <strong>Fotos do Físico/Dieta (JPG)</strong> ou <strong>Treinos (TXT)</strong>. A IA analisará o conteúdo.
+                        Suporta Múltiplos: <strong>Exames (PDF)</strong>, <strong>Fotos do Físico/Dieta (JPG)</strong> ou <strong>Treinos (TXT)</strong>. A IA analisará o conteúdo.
                     </p>
                 </div>
                 
-                {/* Hidden File Input */}
+                {/* Hidden File Input with Multiple */}
                 <input 
                     type="file" 
                     ref={fileInputRef} 
                     className="hidden" 
                     onChange={handleFileChange} 
                     accept=".pdf,.jpg,.jpeg,.png,.txt,.csv"
+                    multiple 
                 />
 
                 <div 

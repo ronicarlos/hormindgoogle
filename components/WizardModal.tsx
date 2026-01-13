@@ -12,7 +12,7 @@ interface WizardModalProps {
     project: Project;
     onUpdateProfile: (profile: UserProfile) => void;
     onUpdateProject: (project: Project) => void;
-    onUpload: (file: File) => Promise<void>; // NEW PROP
+    onUpload: (files: File[]) => Promise<void>; // Updated type
 }
 
 const steps = [
@@ -20,7 +20,7 @@ const steps = [
     { id: 'anthro', title: 'Antropometria', icon: IconActivity, description: 'Peso e altura para cálculos metabólicos.' },
     { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Cintura e quadril (Risco Cardíaco).' },
     { id: 'health', title: 'Saúde', icon: IconAlert, description: 'Histórico médico e medicamentos.' },
-    { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' }, // NEW STEP
+    { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' },
     { id: 'routine', title: 'Rotina & Dieta', icon: IconDumbbell, description: 'Contexto de treino e calorias.' },
     { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' },
     { id: 'goal', title: 'Objetivo Final', icon: IconScience, description: 'Onde vamos chegar?' }
@@ -110,19 +110,19 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        try {
-            await onUpload(file);
-            setUploadedFiles(prev => [...prev, file.name]);
-        } catch (error) {
-            console.error("Upload error inside wizard", error);
-            alert("Erro ao processar arquivo. Tente novamente.");
-        } finally {
-            setIsUploading(false);
-            if (e.target) e.target.value = '';
+        if (e.target.files && e.target.files.length > 0) {
+            setIsUploading(true);
+            const files = Array.from(e.target.files);
+            try {
+                await onUpload(files);
+                setUploadedFiles(prev => [...prev, ...files.map(f => f.name)]);
+            } catch (error) {
+                console.error("Upload error inside wizard", error);
+                alert("Erro ao processar arquivos.");
+            } finally {
+                setIsUploading(false);
+                if (e.target) e.target.value = '';
+            }
         }
     };
 
@@ -137,7 +137,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     onUpdateProfile(profileData);
                 }
                 
-                // Step 4 is Upload (handled immediately by onUpload), so no explicit save needed here.
+                // Step 4 is Upload (handled immediately by onUpload)
 
                 // 2. Save Routine & Diet (Step 5 - moved index)
                 if (currentStep === 5) {
@@ -359,7 +359,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                         disabled={isUploading}
                                         className="bg-white border border-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg text-xs hover:bg-gray-50 transition-colors shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700"
                                     >
-                                        {isUploading ? 'Processando...' : 'Selecionar Arquivo'}
+                                        {isUploading ? 'Processando...' : 'Selecionar Arquivos'}
                                     </button>
                                     <input 
                                         type="file" 
@@ -367,6 +367,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                         className="hidden" 
                                         onChange={handleFileUpload}
                                         accept=".pdf,.jpg,.jpeg,.png,.txt,.csv"
+                                        multiple
                                     />
                                 </div>
 
