@@ -15,9 +15,17 @@ import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, Metri
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { supabase } from './lib/supabase';
-import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose, IconWizard } from './components/Icons';
+import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose, IconWizard, IconMic, IconCopy, IconShare, IconList } from './components/Icons';
 import ReactMarkdown from 'react-markdown';
 import { Tooltip } from './components/Tooltip';
+
+// Add type definition for SpeechRecognition
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 const MOCK_RISKS: RiskFlag[] = [
     { category: 'Health', level: 'HIGH', message: 'AST/ALT elevados + Protocolo. Monitore o fígado.' },
@@ -47,6 +55,46 @@ const HighlightText = ({ text, highlight }: { text: string, highlight: string })
     );
 };
 
+const MobileBottomNav = ({ currentView, onViewChange, onOpenFiles }: { currentView: AppView, onViewChange: (view: AppView) => void, onOpenFiles: () => void }) => (
+    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-gray-200 flex justify-around items-center z-50 md:hidden pb-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:bg-gray-900 dark:border-gray-800">
+        <button 
+            onClick={() => onViewChange('dashboard')}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+        >
+            <IconMessage className={`w-6 h-6 ${currentView === 'dashboard' ? 'fill-current' : ''}`} />
+            <span className="text-[10px] font-bold tracking-tight">Chat</span>
+        </button>
+        <button 
+            onClick={() => onViewChange('metrics')}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'metrics' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+        >
+            <IconActivity className={`w-6 h-6 ${currentView === 'metrics' ? 'fill-current' : ''}`} />
+            <span className="text-[10px] font-bold tracking-tight">Métricas</span>
+        </button>
+        <button 
+            onClick={() => onViewChange('training_library')}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'training_library' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+        >
+            <IconDumbbell className={`w-6 h-6 ${currentView === 'training_library' ? 'fill-current' : ''}`} />
+            <span className="text-[10px] font-bold tracking-tight">Treinos</span>
+        </button>
+        <button 
+            onClick={() => onViewChange('protocol_library')}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'protocol_library' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+        >
+            <IconScience className={`w-6 h-6 ${currentView === 'protocol_library' ? 'fill-current' : ''}`} />
+            <span className="text-[10px] font-bold tracking-tight">Pharma</span>
+        </button>
+        <button 
+            onClick={onOpenFiles}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 text-gray-400 dark:text-gray-600 hover:text-blue-600 dark:hover:text-blue-400`}
+        >
+            <IconFolder className="w-6 h-6" />
+            <span className="text-[10px] font-bold tracking-tight">Arquivos</span>
+        </button>
+    </div>
+);
+
 const App: React.FC = () => {
   // Auth State
   const [session, setSession] = useState<any>(null);
@@ -63,6 +111,13 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // Voice Input State
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Message Actions State
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
   // Disclaimer & Legal State
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false); // Controls the per-session modal
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false); // Controls the "Contract" modal
@@ -568,6 +623,86 @@ const App: React.FC = () => {
     setIsProcessing(false);
   };
 
+  // --- MIC LOGIC FIXED (Interim Results) ---
+  const handleMicClick = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta reconhecimento de voz.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false; 
+    recognition.interimResults = true; // IMPORTANT: Enables realtime text feedback
+
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.onerror = (event: any) => {
+        console.error("Speech error", event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+            alert("Permissão de microfone negada. Clique no ícone de cadeado/permissões no seu navegador e permita o uso do microfone.");
+        }
+    };
+    
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      // Update input: append final, show interim
+      // Simple logic: We just replace input with final for now to keep it simple, or append if we want continuous dictation history.
+      // Here we append if it's new
+      if (finalTranscript) {
+          setInputValue(prev => (prev ? prev + ' ' : '') + finalTranscript);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  // --- COPY & SHARE LOGIC ---
+  const handleCopy = (text: string, id: string) => {
+      navigator.clipboard.writeText(text).then(() => {
+          setCopiedMessageId(id);
+          setTimeout(() => setCopiedMessageId(null), 2000);
+      });
+  };
+
+  const handleShare = async (text: string) => {
+      if (navigator.share) {
+          try {
+              await navigator.share({
+                  title: 'FitLM Insight',
+                  text: text,
+              });
+          } catch (error) {
+              console.log('Error sharing', error);
+          }
+      } else {
+          // Fallback if native share not supported
+          alert("Compartilhamento não suportado neste navegador. O texto foi copiado.");
+          navigator.clipboard.writeText(text);
+      }
+  };
+
   // --- SEMANTIC SEARCH LOGIC (HYBRID) ---
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -579,7 +714,6 @@ const App: React.FC = () => {
         const semanticResults = await dataService.searchMessagesSemantic(project.id, searchQuery);
 
         // 2. Busca Keyword Exata (Frontend - Local Filter)
-        // Isso garante que se a palavra existe, ela aparece, mesmo que o vetor falhe ou mensagens antigas não tenham vetor.
         const keywordResults = messages.filter(msg => 
             msg.text.toLowerCase().includes(searchQuery.toLowerCase())
         );
@@ -717,7 +851,6 @@ const App: React.FC = () => {
   };
 
   // --- MARKDOWN HIGHLIGHT HELPER FOR AI MESSAGES ---
-  // Recursively process children to find strings and highlight them
   const processChildrenWithHighlight = (children: any, highlight: string): any => {
     if (typeof children === 'string') {
         return <HighlightText text={children} highlight={highlight} />;
@@ -729,7 +862,6 @@ const App: React.FC = () => {
             </React.Fragment>
         ));
     }
-    // If it's a React Element, clone and process its children
     if (React.isValidElement(children)) {
         const props: any = children.props;
         if (props.children) {
@@ -758,12 +890,10 @@ const App: React.FC = () => {
 
   // --- RENDERING MODALS & SCREENS ---
 
-  // 1. LEGAL CONTRACT (HIGHEST PRIORITY)
   if (isLegalModalOpen) {
       return <LegalContractModal isOpen={true} onAccept={handleLegalAccept} />;
   }
 
-  // 2. DISCLAIMER (IF NOT ACCEPTED/HIDDEN)
   if (!disclaimerAccepted) {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -816,7 +946,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-[100dvh] bg-white overflow-hidden dark:bg-gray-950">
-      {/* DESKTOP SIDEBAR - Hidden on Mobile unless triggered, but now we have a dedicated mobile view */}
       <div className="hidden md:block">
           <SourceSidebar 
             sources={sources} 
@@ -824,12 +953,12 @@ const App: React.FC = () => {
             onAddSource={handleAddSourceFile}
             currentView={currentView}
             onViewChange={setCurrentView}
-            isOpen={isSidebarOpen} // Only relevant if we kept the old toggle, but responsive CSS hides it
+            isOpen={isSidebarOpen} 
             onClose={() => setIsSidebarOpen(false)}
             onLogout={handleLogout}
             onViewSummary={handleViewSummary} 
-            onDeleteSource={handleRequestDelete} // Calls the Modal Opener
-            onOpenWizard={() => setIsWizardOpen(true)} // Open Wizard Manually
+            onDeleteSource={handleRequestDelete} 
+            onOpenWizard={() => setIsWizardOpen(true)} 
           />
       </div>
 
@@ -837,10 +966,9 @@ const App: React.FC = () => {
         
         {currentView === 'dashboard' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* Fixed Header (Flex Item) */}
+                {/* Fixed Header */}
                 <div className="h-16 border-b border-gray-100 flex items-center justify-between px-4 md:px-6 bg-white/95 backdrop-blur-md shrink-0 z-40 transition-all dark:bg-gray-900/95 dark:border-gray-800">
                     
-                    {/* SEARCH HEADER MODE */}
                     {isSearchActive ? (
                          <form onSubmit={handleSearch} className="flex-1 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                              <button 
@@ -879,16 +1007,14 @@ const App: React.FC = () => {
                              </button>
                          </form>
                     ) : (
-                        // NORMAL HEADER MODE
                         <>
                             <div className="flex items-center gap-3">
-                                {/* Mobile Profile Trigger */}
                                 <button 
                                     onClick={() => setCurrentView('profile')}
                                     className="md:hidden w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 active:scale-95 transition-transform overflow-hidden dark:bg-gray-800 dark:border-gray-700"
                                 >
                                     {project?.userProfile?.avatarUrl ? (
-                                        <img src={project.userProfile.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                                        <img src={project.userProfile.avatarUrl} alt="Menu" className="w-full h-full object-cover" />
                                     ) : (
                                         <IconUser className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                                     )}
@@ -897,7 +1023,6 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="flex gap-2">
-                                {/* Search Toggle */}
                                 <Tooltip content="Pesquisar no histórico (Busca Semântica)" position="bottom">
                                     <button 
                                         onClick={() => setIsSearchActive(true)}
@@ -907,7 +1032,6 @@ const App: React.FC = () => {
                                     </button>
                                 </Tooltip>
                                 
-                                {/* Bookmarks Filter */}
                                 <Tooltip content={showBookmarksOnly ? "Ver todas as mensagens" : "Ver apenas favoritos"} position="bottom">
                                     <button 
                                         onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
@@ -984,17 +1108,43 @@ const App: React.FC = () => {
                                                 </div>
                                             )}
                                             
-                                            {/* Bookmark Action - Visible on Hover or if Bookmarked */}
-                                            <div className={`flex items-center gap-2 ml-auto ${msg.isBookmarked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}>
+                                            {/* ACTIONS: Copy, Share, Bookmark - Visible on Hover or if active */}
+                                            <div className={`flex items-center gap-1 ml-auto transition-opacity ${msg.isBookmarked || copiedMessageId === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                
+                                                {/* Copy Button */}
+                                                <Tooltip content="Copiar texto" position="top">
+                                                    <button 
+                                                        onClick={() => handleCopy(msg.text, msg.id)}
+                                                        className="p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-800"
+                                                    >
+                                                        {copiedMessageId === msg.id ? (
+                                                            <IconCheck className="w-3.5 h-3.5 text-green-500" />
+                                                        ) : (
+                                                            <IconCopy className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400" />
+                                                        )}
+                                                    </button>
+                                                </Tooltip>
+
+                                                {/* Share Button */}
+                                                <Tooltip content="Compartilhar" position="top">
+                                                    <button 
+                                                        onClick={() => handleShare(msg.text)}
+                                                        className="p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-800"
+                                                    >
+                                                        <IconShare className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400" />
+                                                    </button>
+                                                </Tooltip>
+
+                                                {/* Bookmark Button */}
                                                 <Tooltip content={msg.isBookmarked ? "Remover dos favoritos" : "Salvar esta mensagem"} position="left">
                                                     <button 
                                                         onClick={() => toggleBookmark(msg)}
                                                         className="p-1 hover:bg-gray-100 rounded-full dark:hover:bg-gray-800"
                                                     >
                                                         {msg.isBookmarked ? (
-                                                            <IconBookmarkFilled className="w-4 h-4 text-yellow-500" />
+                                                            <IconBookmarkFilled className="w-3.5 h-3.5 text-yellow-500" />
                                                         ) : (
-                                                            <IconBookmark className="w-4 h-4 text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400" />
+                                                            <IconBookmark className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400" />
                                                         )}
                                                     </button>
                                                 </Tooltip>
@@ -1054,295 +1204,134 @@ const App: React.FC = () => {
                 </div>
 
                 {!isSearchActive && !showBookmarksOnly && (
-                    <div className="p-4 bg-white border-t border-gray-100 z-20 shrink-0 dark:bg-gray-900 dark:border-gray-800">
-                        <div className="max-w-3xl mx-auto relative">
-                            <div className="absolute top-1/2 -translate-y-1/2 left-4 text-gray-400">
-                                <IconMessage className="w-5 h-5" />
+                    <div className="p-4 bg-white border-t border-gray-100 z-20 shrink-0 dark:bg-gray-900 dark:border-gray-800 md:mb-0 mb-[76px]">
+                        <div className="max-w-3xl mx-auto relative flex items-center gap-2">
+                            <div className="relative w-full">
+                                <div className="absolute top-1/2 -translate-y-1/2 left-4 text-gray-400">
+                                    <IconMessage className="w-5 h-5" />
+                                </div>
+                                <Tooltip content="A IA usa suas fontes ativas (exames, inputs) para responder." position="top">
+                                    <input
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                        placeholder={isListening ? "Ouvindo..." : "Pergunte sobre sua evolução..."}
+                                        className={`w-full pl-12 pr-24 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all shadow-sm text-gray-700 placeholder-gray-400 text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-900 dark:placeholder-gray-500 ${isListening ? 'ring-2 ring-red-100 border-red-200 dark:ring-red-900/30 dark:border-red-900' : ''}`}
+                                    />
+                                </Tooltip>
+                                
+                                <div className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-2">
+                                    {/* Mic Button */}
+                                    <button
+                                        onClick={handleMicClick}
+                                        className={`p-2 rounded-xl transition-all active:scale-95 touch-manipulation ${isListening ? 'bg-red-50 text-red-500 animate-pulse dark:bg-red-900/50' : 'text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700'}`}
+                                        title="Falar"
+                                    >
+                                        <IconMic className="w-4 h-4" />
+                                    </button>
+
+                                    {/* Send Button */}
+                                    <button 
+                                        onClick={handleSendMessage}
+                                        disabled={!inputValue.trim() || isProcessing}
+                                        className="p-2 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-all active:scale-95 touch-manipulation dark:bg-blue-600 dark:hover:bg-blue-700"
+                                    >
+                                        <IconSend className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
-                            <Tooltip content="A IA usa suas fontes ativas (exames, inputs) para responder." position="top">
-                                <input
-                                    type="text"
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                    placeholder="Pergunte sobre sua evolução..."
-                                    className="w-full pl-12 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all shadow-sm text-gray-700 placeholder-gray-400 text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-900 dark:placeholder-gray-500"
-                                />
-                            </Tooltip>
-                            <button 
-                                onClick={handleSendMessage}
-                                disabled={!inputValue.trim() || isProcessing}
-                                className="absolute top-1/2 -translate-y-1/2 right-3 p-2 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-all active:scale-95 touch-manipulation dark:bg-blue-600 dark:hover:bg-blue-700"
-                            >
-                                <IconSend className="w-4 h-4" />
-                            </button>
                         </div>
                     </div>
                 )}
             </div>
         )}
 
-        {/* --- DEDICATED MOBILE SOURCES VIEW --- */}
-        {currentView === 'sources' && (
-             <div className="flex-1 flex flex-col h-full bg-gray-50 overflow-hidden dark:bg-gray-950">
-                {/* Header */}
-                <div className="p-5 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10 flex justify-between items-center dark:bg-gray-900 dark:border-gray-800">
-                    <div className="flex items-center gap-3">
-                         {/* Mobile Profile Trigger (Sources View) */}
-                         <button 
-                            onClick={() => setCurrentView('profile')}
-                            className="md:hidden w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 active:scale-95 transition-transform overflow-hidden dark:bg-gray-800 dark:border-gray-700"
-                        >
-                            {project?.userProfile?.avatarUrl ? (
-                                <img src={project.userProfile.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-                            ) : (
-                                <IconUser className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                            )}
-                        </button>
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Fontes Ativas</h2>
-                            <p className="text-xs text-gray-500 font-medium dark:text-gray-400">Gerencie seus arquivos e exames</p>
-                        </div>
-                    </div>
-                     <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-bold dark:bg-gray-800 dark:text-gray-300">{sources.length}</span>
-                </div>
+        {/* --- DEDICATED MOBILE SOURCES VIEW HANDLER --- */}
+        <div className="md:hidden">
+             <SourceSidebar 
+                sources={sources} 
+                onToggleSource={handleToggleSource}
+                onAddSource={handleAddSourceFile}
+                currentView={currentView}
+                onViewChange={setCurrentView}
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
+                onLogout={handleLogout}
+                onViewSummary={handleViewSummary} 
+                onDeleteSource={handleRequestDelete}
+                onOpenWizard={() => setIsWizardOpen(true)}
+            />
+        </div>
 
-                {/* Upload Area */}
-                <div className="p-4">
-                     <button 
-                        onClick={() => setIsWizardOpen(true)}
-                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white font-bold text-sm shadow-lg shadow-blue-500/30 active:scale-95 transition-all mb-3 flex items-center justify-center gap-2"
-                    >
-                        <IconWizard className="w-4 h-4" />
-                        Completar Dados (Wizard)
-                    </button>
-
-                     <button 
-                        onClick={() => mobileFileInputRef.current?.click()}
-                        className="w-full py-4 border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl text-blue-700 hover:bg-blue-50 transition-all flex flex-col items-center justify-center gap-2 active:scale-95 shadow-sm dark:bg-gray-900 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-gray-800"
-                    >
-                        <div className="bg-blue-100 p-3 rounded-full dark:bg-blue-900/50">
-                            <IconPlus className="w-6 h-6" />
-                        </div>
-                        <span className="text-sm font-bold">Fazer Upload de Arquivo</span>
-                        <span className="text-[10px] text-blue-500 font-medium dark:text-blue-400">PDF, JPG, PNG ou TXT</span>
-                    </button>
-                    <input 
-                        type="file" 
-                        ref={mobileFileInputRef} 
-                        className="hidden" 
-                        onChange={handleMobileFileChange} 
-                        accept=".pdf,.jpg,.jpeg,.png,.txt,.csv"
-                    />
-                </div>
-
-                {/* List */}
-                <div className="flex-1 overflow-y-auto px-4 pb-32 space-y-3">
-                    {sources.map((source) => (
-                        <div 
-                            key={source.id}
-                            onClick={() => handleToggleSource(source.id)}
-                            className={`group relative p-4 rounded-xl border transition-all duration-200 shadow-sm flex items-start gap-4 active:scale-[0.98] ${
-                                source.selected 
-                                ? 'bg-white border-blue-500 ring-1 ring-blue-500/20 dark:bg-gray-800 dark:border-blue-600' 
-                                : 'bg-white border-gray-200 opacity-80 grayscale dark:bg-gray-900 dark:border-gray-800'
-                            }`}
-                        >
-                            {/* Icon Box */}
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${getSourceIconColor(source.type)}`}>
-                                <IconFile className="w-6 h-6" />
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                                <h3 className="text-sm font-bold text-gray-900 truncate mb-1 dark:text-white">{source.title}</h3>
-                                <div className="flex items-center gap-2">
-                                     <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-wide dark:bg-gray-700 dark:text-gray-300">{source.type}</span>
-                                     <span className="text-[10px] text-gray-400">{source.date}</span>
-                                </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex flex-col gap-2 shrink-0">
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleViewSummary(source); }}
-                                    className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 active:scale-90 transition-transform dark:bg-indigo-900/30 dark:text-indigo-400"
-                                >
-                                    <IconSparkles className="w-5 h-5" />
-                                </button>
-                                
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleRequestDelete(source.id); }}
-                                    className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 active:scale-90 transition-transform dark:bg-red-900/30 dark:text-red-400"
-                                >
-                                    <IconTrash className="w-5 h-5" />
-                                </button>
-                                
-                                {source.selected && (
-                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center dark:bg-blue-900/30 dark:text-blue-400">
-                                        <IconCheck className="w-5 h-5" />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                    {sources.length === 0 && (
-                        <div className="text-center py-12 text-gray-400 dark:text-gray-600">
-                            <p>Nenhum arquivo encontrado.</p>
-                        </div>
-                    )}
-                </div>
-             </div>
+        {/* --- CONTENT VIEWS --- */}
+        
+        {currentView === 'metrics' && project && (
+            <MetricDashboard 
+                project={project}
+                risks={MOCK_RISKS} 
+                onGenerateProntuario={handleGenerateProntuario}
+                isMobileView={true}
+                isProcessing={isProcessing}
+            />
         )}
-
+        
+        {currentView === 'training_library' && project && (
+            <ExerciseLibrary 
+                project={project}
+                onAddExercise={handleAddExerciseToRoutine}
+            />
+        )}
+        
+        {currentView === 'protocol_library' && (
+            <ProtocolLibrary />
+        )}
+        
         {currentView === 'profile' && (
             <ProfileView 
-                profile={project?.userProfile} 
-                onSave={handleUpdateProfile} 
+                profile={project?.userProfile}
+                onSave={handleUpdateProfile}
                 onOpenWizard={() => setIsWizardOpen(true)}
             />
         )}
 
-        {currentView === 'training_library' && project && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-                <ExerciseLibrary project={project} onAddExercise={handleAddExerciseToRoutine} />
-            </div>
+        {/* --- MODALS --- */}
+        <InputModal 
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSave={handleSaveInputData}
+            initialData={project}
+        />
+        
+        <SourceDetailModal 
+            isOpen={!!viewingSource}
+            onClose={() => setViewingSource(null)}
+            source={viewingSource}
+            isLoading={isGeneratingSummary}
+        />
+        
+        <ProntuarioModal 
+            isOpen={isProntuarioOpen}
+            onClose={() => setIsProntuarioOpen(false)}
+            markdownContent={prontuarioContent}
+            profile={project?.userProfile}
+        />
+
+        {project && (
+            <WizardModal 
+                isOpen={isWizardOpen}
+                onClose={() => setIsWizardOpen(false)}
+                project={project}
+                onUpdateProfile={handleUpdateProfile}
+                onUpdateProject={(p) => setProject(p)}
+                onUpload={async (f) => { await handleAddSourceFile(f); }}
+            />
         )}
 
-        {currentView === 'protocol_library' && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-                <ProtocolLibrary />
-            </div>
-        )}
+        {/* NEW: MOBILE BOTTOM NAVIGATION */}
+        <MobileBottomNav currentView={currentView} onViewChange={setCurrentView} onOpenFiles={() => setIsSidebarOpen(true)} />
 
-        {currentView === 'metrics' && project && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden lg:hidden w-full">
-                <MetricDashboard 
-                    project={project} 
-                    risks={MOCK_RISKS} 
-                    onGenerateProntuario={handleGenerateProntuario}
-                    isMobileView={true}
-                    isProcessing={isProcessing} // Pass processing state
-                />
-            </div>
-        )}
       </main>
-
-      {project && (
-        <MetricDashboard 
-            project={project} 
-            risks={MOCK_RISKS} 
-            onGenerateProntuario={handleGenerateProntuario}
-            isProcessing={isProcessing} // Pass processing state
-        />
-      )}
-
-      {/* Nav - UPDATED WITH FILES TAB */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 flex justify-around items-center py-2 px-2 z-[90] shadow-[0_-5px_30px_rgba(0,0,0,0.08)] md:hidden transition-all safe-area-pb dark:bg-gray-900/95 dark:border-gray-800">
-          <button 
-            onClick={() => setCurrentView('dashboard')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90 touch-manipulation w-16 ${currentView === 'dashboard' ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-gray-400 font-medium dark:text-gray-500'}`}
-          >
-              <IconLayout className={`w-6 h-6 ${currentView === 'dashboard' ? 'fill-blue-100 dark:fill-blue-900' : ''}`} />
-              <span className="text-[9px] uppercase tracking-wider">Chat</span>
-          </button>
-
-          {/* NEW FILES TAB */}
-          <button 
-            onClick={() => setCurrentView('sources')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90 touch-manipulation w-16 md:hidden ${currentView === 'sources' ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-gray-400 font-medium dark:text-gray-500'}`}
-          >
-              <IconFolder className={`w-6 h-6 ${currentView === 'sources' ? 'fill-blue-100 dark:fill-blue-900' : ''}`} />
-              <span className="text-[9px] uppercase tracking-wider">Arquivos</span>
-          </button>
-          
-          <button 
-            onClick={() => setCurrentView('training_library')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90 touch-manipulation w-16 ${currentView === 'training_library' ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-gray-400 font-medium dark:text-gray-500'}`}
-          >
-              <IconDumbbell className={`w-6 h-6 ${currentView === 'training_library' ? 'fill-blue-100 dark:fill-blue-900' : ''}`} />
-              <span className="text-[9px] uppercase tracking-wider">Treinos</span>
-          </button>
-          
-          <button 
-            onClick={() => setCurrentView('protocol_library')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90 touch-manipulation w-16 ${currentView === 'protocol_library' ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-gray-400 font-medium dark:text-gray-500'}`}
-          >
-              <IconScience className={`w-6 h-6 ${currentView === 'protocol_library' ? 'fill-blue-100 dark:fill-blue-900' : ''}`} />
-              <span className="text-[9px] uppercase tracking-wider">Pharma</span>
-          </button>
-          
-          <button 
-            onClick={() => setCurrentView('metrics')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90 touch-manipulation w-16 lg:hidden ${currentView === 'metrics' ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-gray-400 font-medium dark:text-gray-500'}`}
-          >
-              <IconActivity className={`w-6 h-6 ${currentView === 'metrics' ? 'fill-blue-100 dark:fill-blue-900' : ''}`} />
-              <span className="text-[9px] uppercase tracking-wider">Painel</span>
-          </button>
-      </nav>
-
-      {/* MODALS */}
-      {project && (
-        <WizardModal 
-            isOpen={isWizardOpen && !isLegalModalOpen} // Ensure Legal modal is priority
-            onClose={() => setIsWizardOpen(false)}
-            project={project}
-            onUpdateProfile={handleUpdateProfile}
-            onUpdateProject={p => setProject(p)}
-            onUpload={handleAddSourceFile} // PASSANDO A FUNÇÃO DE UPLOAD PARA O WIZARD
-        />
-      )}
-
-      <InputModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveInputData}
-        initialData={project}
-      />
-
-      <ProntuarioModal 
-        isOpen={isProntuarioOpen}
-        onClose={() => setIsProntuarioOpen(false)}
-        markdownContent={prontuarioContent}
-        profile={project?.userProfile}
-      />
-      
-      <SourceDetailModal 
-        isOpen={!!viewingSource}
-        onClose={() => setViewingSource(null)}
-        source={viewingSource}
-        isLoading={isGeneratingSummary}
-      />
-
-      {/* DELETE CONFIRMATION MODAL */}
-      {sourceToDelete && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
-              <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4 text-red-600 mx-auto dark:bg-red-900/30 dark:text-red-400">
-                      <IconTrash className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-center text-gray-900 mb-2 dark:text-white">Excluir Arquivo?</h3>
-                  <p className="text-sm text-center text-gray-500 mb-6 leading-relaxed dark:text-gray-400">
-                      Você está prestes a excluir <strong>{sourceToDelete.title}</strong>. A Inteligência Artificial deixará de considerar os dados deste arquivo nas análises futuras.
-                  </p>
-                  <div className="flex gap-3">
-                      <button 
-                        onClick={() => setSourceToDelete(null)}
-                        className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors active:scale-95 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                      >
-                          Cancelar
-                      </button>
-                      <button 
-                        onClick={confirmDeleteSource}
-                        disabled={isDeleting}
-                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-red-500/30 active:scale-95 flex items-center justify-center gap-2"
-                      >
-                          {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
     </div>
   );
 };

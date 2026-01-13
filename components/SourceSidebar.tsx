@@ -87,19 +87,20 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
   };
 
   // Base classes always applied 
-  // IMPORTANT: pb-24 md:pb-6 (increased padding) to prevent bottom cutoff on desktop/tablet
-  const baseClasses = "bg-gray-50 border-r border-gray-200 h-screen flex flex-col transition-transform duration-300 ease-in-out z-50 dark:bg-gray-900 dark:border-gray-800";
+  // Z-Index aumentado para 100 para sobrepor a MobileBottomNav (que é z-50)
+  const baseClasses = "bg-gray-50 border-r border-gray-200 h-screen flex flex-col transition-transform duration-300 ease-in-out z-[100] dark:bg-gray-900 dark:border-gray-800";
   
   // Mobile vs Desktop logic
-  const mobileClasses = `fixed inset-0 w-80 shadow-2xl ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
-  const desktopClasses = "hidden md:flex md:translate-x-0 md:static md:w-80 md:shadow-none";
+  // REMOVIDO 'hidden' das classes desktop para não conflitar com a visibilidade mobile
+  const mobileClasses = `fixed inset-y-0 left-0 w-80 shadow-2xl ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
+  const desktopClasses = "md:flex md:translate-x-0 md:static md:w-80 md:shadow-none";
 
   return (
     <>
         {/* Mobile Overlay Backdrop */}
         {isOpen && (
             <div 
-                className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+                className="fixed inset-0 bg-black/50 z-[90] md:hidden backdrop-blur-sm"
                 onClick={onClose}
             />
         )}
@@ -258,7 +259,7 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
             </div>
 
             {/* FIXED BOTTOM SECTION (Upload & Profile) */}
-            <div className="p-4 border-t border-gray-200 bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10 shrink-0 pb-20 md:pb-6 dark:bg-gray-900 dark:border-gray-800">
+            <div className="p-4 border-t border-gray-200 bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10 shrink-0 pb-6 dark:bg-gray-900 dark:border-gray-800">
                 
                 {/* Visible Upload Call-to-Action */}
                 <div className="mb-4">

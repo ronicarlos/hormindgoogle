@@ -1,5 +1,7 @@
 {
   "name": "FitLM",
   "description": "A NotebookLM-inspired fitness intelligence platform. Analyze training, labs, diet, and protocols with AI grounded in your data.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

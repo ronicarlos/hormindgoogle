@@ -28,21 +28,53 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
         return;
     }
 
+    // 1. FORÇAR MODO CLARO (BRANCO) PARA O PDF
+    // Removemos temporariamente as classes 'dark' do elemento clonado ou aplicamos estilos inline de override
+    // A biblioteca html2pdf usa html2canvas que lê o DOM atual.
+    // Estratégia: Adicionar uma classe temporária 'pdf-print-mode' que força bg-white e text-black via CSS inline ou style
+    
+    const originalStyle = element.getAttribute('style');
+    element.style.backgroundColor = '#ffffff';
+    element.style.color = '#000000';
+    element.classList.remove('dark:bg-gray-950', 'dark:text-gray-200');
+    element.classList.add('light-mode-forced');
+    
+    // Forçar cor preta em todos os textos internos
+    const allText = element.querySelectorAll('*');
+    allText.forEach((el: any) => {
+        el.style.color = '#000000';
+        if(el.classList.contains('prose-invert')) el.classList.remove('prose-invert');
+    });
+
     const opt = {
       margin:       [15, 15, 15, 15], // Increased margins (Top, Left, Bottom, Right) in mm
       filename:     `Prontuario_FitLM_${profile?.name || 'Atleta'}_${new Date().toISOString().split('T')[0]}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // Crucial: Prevents cutting elements in half
+      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } 
     };
 
     // Gera o PDF e salva
     html2pdf().set(opt).from(element).save().then(() => {
+        // REVERTER ESTILOS
+        if (originalStyle) element.setAttribute('style', originalStyle);
+        else element.removeAttribute('style');
+        
+        // Remove forced styles on children
+        allText.forEach((el: any) => {
+             el.style.color = '';
+        });
+        
+        // Restore dark classes implicitly by re-rendering or removing overrides
         setIsGenerating(false);
     }).catch((err: any) => {
         console.error("Erro ao gerar PDF", err);
         setIsGenerating(false);
+        // Ensure restore on error too
+        if (originalStyle) element.setAttribute('style', originalStyle);
+        else element.removeAttribute('style');
+        allText.forEach((el: any) => el.style.color = '');
         alert("Erro ao gerar o PDF. Tente novamente.");
     });
   };
@@ -67,8 +99,8 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
       <div className="w-full max-w-4xl min-h-screen md:min-h-[80vh] flex flex-col relative">
         
         {/* Toolbar */}
-        <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white md:rounded-t-xl sticky top-0 z-50 shadow-sm">
-            <h2 className="font-bold text-gray-800 flex items-center gap-2">
+        <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white md:rounded-t-xl sticky top-0 z-50 shadow-sm dark:bg-gray-900 dark:border-gray-800">
+            <h2 className="font-bold text-gray-800 flex items-center gap-2 dark:text-white">
                 Documento Médico Gerado
             </h2>
             <div className="flex gap-2">
@@ -80,7 +112,7 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
                     {isGenerating ? (
                         <>
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                            Gerando...
+                            Gerando PDF...
                         </>
                     ) : (
                         <>
@@ -91,7 +123,7 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
                 </button>
                 <button 
                     onClick={onClose}
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors dark:hover:bg-gray-800"
                 >
                     <IconClose className="w-5 h-5" />
                 </button>
@@ -100,12 +132,12 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
 
         {/* 
             Area a ser impressa (ID: prontuario-content).
-            Fundo branco forçado para garantir contraste no PDF.
-            Padding adequado para A4.
+            DARK MODE: Visualização em tela escura (dark:bg-gray-950, dark:text-gray-200).
+            PRINT MODE: O script acima força BG branco e texto preto na hora de gerar o PDF.
         */}
         <div 
             id="prontuario-content" 
-            className="bg-white p-8 md:p-12 md:rounded-b-xl shadow-2xl font-serif text-gray-900 leading-relaxed text-sm md:text-base min-h-[297mm]" 
+            className="bg-white p-8 md:p-12 md:rounded-b-xl shadow-2xl font-serif text-gray-900 leading-relaxed text-sm md:text-base min-h-[297mm] dark:bg-gray-950 dark:text-gray-200" 
         >
             <style>
               {`
@@ -123,12 +155,12 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
             </style>
             
             {/* Header / Letterhead */}
-            <div className="border-b-2 border-black pb-6 mb-8 flex justify-between items-end">
+            <div className="border-b-2 border-black pb-6 mb-8 flex justify-between items-end dark:border-white">
                 <div>
-                    <h1 className="text-3xl font-bold uppercase tracking-widest text-black">FITLM</h1>
-                    <p className="text-xs uppercase font-bold text-gray-500 mt-1">Intelligence System • Medical & Sports Analytics</p>
+                    <h1 className="text-3xl font-bold uppercase tracking-widest text-black dark:text-white">FITLM</h1>
+                    <p className="text-xs uppercase font-bold text-gray-500 mt-1 dark:text-gray-400">Intelligence System • Medical & Sports Analytics</p>
                 </div>
-                <div className="text-right text-xs text-gray-600">
+                <div className="text-right text-xs text-gray-600 dark:text-gray-400">
                     <p>Data de Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
                     <p>ID do Protocolo: {Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
                 </div>
@@ -136,27 +168,27 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
 
             {/* Patient Info Block */}
             {profile && (
-                <div className="bg-gray-50 p-4 border border-gray-200 mb-8 text-sm avoid-break">
+                <div className="bg-gray-50 p-4 border border-gray-200 mb-8 text-sm avoid-break dark:bg-gray-900 dark:border-gray-800">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <span className="font-bold block uppercase text-xs text-gray-500">Paciente/Atleta</span>
-                            <span className="font-serif text-lg">{profile.name}</span>
+                            <span className="font-bold block uppercase text-xs text-gray-500 dark:text-gray-400">Paciente/Atleta</span>
+                            <span className="font-serif text-lg dark:text-white">{profile.name}</span>
                         </div>
                          <div>
-                            <span className="font-bold block uppercase text-xs text-gray-500">Dados</span>
-                            <span>{age} anos • {profile.gender} • {profile.weight}kg • {profile.height}cm</span>
+                            <span className="font-bold block uppercase text-xs text-gray-500 dark:text-gray-400">Dados</span>
+                            <span className="dark:text-gray-300">{age} anos • {profile.gender} • {profile.weight}kg • {profile.height}cm</span>
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Markdown Body */}
-            <div className="prose prose-slate max-w-none prose-headings:font-serif prose-headings:uppercase prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:text-justify prose-li:marker:text-black">
+            <div className="prose prose-slate max-w-none prose-headings:font-serif prose-headings:uppercase prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:text-justify prose-li:marker:text-black dark:prose-invert dark:prose-li:marker:text-white">
                  <ReactMarkdown>{markdownContent}</ReactMarkdown>
             </div>
 
             {/* Footer */}
-            <div className="mt-16 pt-8 border-t border-gray-200 text-center text-xs text-gray-400 avoid-break">
+            <div className="mt-16 pt-8 border-t border-gray-200 text-center text-xs text-gray-400 avoid-break dark:border-gray-800 dark:text-gray-600">
                 <p>Este documento foi gerado por Inteligência Artificial (FitLM) com base em dados fornecidos pelo usuário.</p>
                 <p>Não substitui avaliação médica presencial. Uso estritamente informativo.</p>
             </div>

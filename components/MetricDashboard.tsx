@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience } from './Icons';
+import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface MetricDashboardProps {
@@ -27,6 +27,30 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             </div>
         ))}
       </div>
+    );
+  }
+  return null;
+};
+
+// --- CUSTOM LABEL COMPONENT (SHOWS VALUE ON LAST POINT) ---
+const CustomizedLabel = (props: any) => {
+  const { x, y, stroke, value, index, dataLength, color } = props;
+  
+  // Show only the last point to avoid clutter
+  if (index === dataLength - 1) {
+    return (
+      <text 
+        x={x} 
+        y={y} 
+        dy={-12} 
+        fill={color || stroke} 
+        fontSize={11} 
+        textAnchor="middle" 
+        fontWeight="bold"
+        className="drop-shadow-sm filter"
+      >
+        {typeof value === 'number' ? value : value}
+      </text>
     );
   }
   return null;
@@ -87,7 +111,7 @@ const BiomarkerChart = ({
             <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     {type === 'area' ? (
-                        <AreaChart data={cleanData}>
+                        <AreaChart data={cleanData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                             <defs>
                                 <linearGradient id={`grad-${title}`} x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor={color} stopOpacity={0.3}/>
@@ -107,12 +131,13 @@ const BiomarkerChart = ({
                                 fill={`url(#grad-${title})`} 
                                 strokeWidth={2}
                                 isAnimationActive={true}
+                                label={<CustomizedLabel dataLength={cleanData.length} color={color} />}
                             />
                              {minRef && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
                              {maxRef && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
                         </AreaChart>
                     ) : (
-                        <LineChart data={cleanData}>
+                        <LineChart data={cleanData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={yDomain || ['auto', 'auto']} />
@@ -128,6 +153,7 @@ const BiomarkerChart = ({
                                 dot={dotConfig} 
                                 activeDot={activeDotConfig}
                                 isAnimationActive={true}
+                                label={<CustomizedLabel dataLength={cleanData.length} color={color} />}
                             />
                         </LineChart>
                     )}
@@ -187,7 +213,7 @@ const HormonalBalanceChart = ({
             ) : (
                 <div className="h-48 w-full pl-3">
                     <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={mergedData}>
+                        <ComposedChart data={mergedData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis yAxisId="left" orientation="left" hide />
@@ -195,8 +221,26 @@ const HormonalBalanceChart = ({
                             <RechartsTooltip content={<CustomTooltip />} />
                             <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: '10px' }}/>
                             
-                            <Area yAxisId="left" type="monotone" dataKey="testo" name="Testosterona" fill="#3b82f6" stroke="#2563eb" fillOpacity={0.1} />
-                            <Line yAxisId="right" type="monotone" dataKey="e2" name="Estradiol" stroke="#ec4899" strokeWidth={2} dot={{r:3}} />
+                            <Area 
+                                yAxisId="left" 
+                                type="monotone" 
+                                dataKey="testo" 
+                                name="Testosterona" 
+                                fill="#3b82f6" 
+                                stroke="#2563eb" 
+                                fillOpacity={0.1}
+                                label={<CustomizedLabel dataLength={mergedData.length} color="#2563eb" />} 
+                            />
+                            <Line 
+                                yAxisId="right" 
+                                type="monotone" 
+                                dataKey="e2" 
+                                name="Estradiol" 
+                                stroke="#ec4899" 
+                                strokeWidth={2} 
+                                dot={{r:3}}
+                                label={<CustomizedLabel dataLength={mergedData.length} color="#ec4899" />} 
+                            />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </div>
@@ -264,7 +308,7 @@ const CastelliChart = ({
             
             <div className="h-40 w-full pl-3">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={ratioData}>
+                    <AreaChart data={ratioData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor={isDanger ? '#ef4444' : '#10b981'} stopOpacity={0.3}/>
@@ -283,6 +327,7 @@ const CastelliChart = ({
                             stroke={isDanger ? '#ef4444' : '#10b981'} 
                             fill="url(#colorRisk)" 
                             strokeWidth={2}
+                            label={<CustomizedLabel dataLength={ratioData.length} color={isDanger ? '#ef4444' : '#10b981'} />}
                         />
                     </AreaChart>
                 </ResponsiveContainer>
@@ -348,7 +393,7 @@ const EfficiencyChart = ({
             ) : (
                 <div className="h-40 w-full pl-3">
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={ratioData}>
+                        <LineChart data={ratioData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={['auto', 'auto']} />
@@ -360,6 +405,7 @@ const EfficiencyChart = ({
                                 stroke="#2563eb" 
                                 strokeWidth={3}
                                 dot={{r: 4, fill: '#2563eb'}}
+                                label={<CustomizedLabel dataLength={ratioData.length} color="#2563eb" />}
                             />
                         </LineChart>
                     </ResponsiveContainer>
@@ -401,13 +447,15 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         Inteligência de Decisão & Saúde
                     </p>
                 </div>
+                
+                {/* BUTTON (Desktop/Tablet) - EXPLICIT 'PRONTUARIO PDF' */}
                 {!isProcessing && (
                     <button 
                         onClick={onGenerateProntuario}
-                        className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                        className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"
                     >
-                        <IconAlert className="w-3 h-3" />
-                        Gerar Prontuário
+                        <IconReportPDF className="w-4 h-4" />
+                        PRONTUÁRIO PDF
                     </button>
                 )}
             </div>
@@ -503,14 +551,18 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 </div>
             )}
 
-            {/* Mobile Fab for Report */}
+            {/* Mobile Fab for Report - UPDATED ICON & TOOLTIP */}
             {isMobileView && !isProcessing && (
-                 <button 
-                    onClick={onGenerateProntuario}
-                    className="fixed bottom-24 right-4 bg-black text-white p-4 rounded-full shadow-2xl z-40 active:scale-90 transition-transform md:hidden dark:bg-blue-600"
-                >
-                    <IconAlert className="w-6 h-6" />
-                </button>
+                <div className="md:hidden fixed bottom-24 right-4 z-40">
+                    <Tooltip content="Gerar Prontuário PDF" position="left">
+                        <button 
+                            onClick={onGenerateProntuario}
+                            className="bg-black text-white p-4 rounded-full shadow-2xl active:scale-90 transition-transform dark:bg-blue-600 border border-gray-800 dark:border-blue-500"
+                        >
+                            <IconReportPDF className="w-6 h-6" />
+                        </button>
+                    </Tooltip>
+                </div>
             )}
         </div>
     );
