@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Project, UserProfile, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
-import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder } from './Icons';
+import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder, IconInfo } from './Icons';
+import { Tooltip } from './Tooltip';
 
 interface WizardModalProps {
     isOpen: boolean;
@@ -233,7 +234,12 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                         <input type="date" value={profileData.birthDate} onChange={e => handleProfileChange('birthDate', e.target.value)} className={inputClass} />
                                     </label>
                                     <label className="block">
-                                        <span className="text-sm font-bold text-gray-700">Gênero</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-sm font-bold text-gray-700">Gênero</span>
+                                            <Tooltip content="Usado para selecionar a fórmula correta de Taxa Metabólica Basal (Mifflin-St Jeor) e faixas de risco." position="top">
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                            </Tooltip>
+                                        </div>
                                         <select value={profileData.gender} onChange={e => handleProfileChange('gender', e.target.value as any)} className={inputClass}>
                                             <option value="Masculino">Masculino</option>
                                             <option value="Feminino">Feminino</option>
@@ -248,36 +254,67 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             <>
                                 <div className="grid grid-cols-2 gap-4">
                                      <label className="block">
-                                        <span className="text-sm font-bold text-gray-700">Altura (cm)</span>
-                                        <input type="number" value={profileData.height} onChange={e => handleProfileChange('height', e.target.value)} className={inputClass} placeholder="175" autoFocus />
+                                        <span className="text-sm font-bold text-gray-700 block mb-1">Altura</span>
+                                        <div className="relative">
+                                            <input type="number" value={profileData.height} onChange={e => handleProfileChange('height', e.target.value)} className={`${inputClass} pr-8`} placeholder="175" autoFocus />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">cm</span>
+                                        </div>
                                     </label>
                                     <label className="block">
-                                        <span className="text-sm font-bold text-gray-700">Peso (kg)</span>
-                                        <input type="number" value={profileData.weight} onChange={e => handleProfileChange('weight', e.target.value)} className={inputClass} placeholder="80" />
+                                        <span className="text-sm font-bold text-gray-700 block mb-1">Peso</span>
+                                        <div className="relative">
+                                            <input type="number" value={profileData.weight} onChange={e => handleProfileChange('weight', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">kg</span>
+                                        </div>
                                     </label>
                                 </div>
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700">BF % Estimado (Opcional)</span>
-                                    <input type="number" value={profileData.bodyFat} onChange={e => handleProfileChange('bodyFat', e.target.value)} className={inputClass} placeholder="15" />
+                                    <div className="flex items-center gap-1 mb-1">
+                                        <span className="text-sm font-bold text-gray-700">BF (Percentual de Gordura)</span>
+                                        <Tooltip content="Body Fat %. Se não souber exato, estime visualmente: ~15% (gomos aparecendo levemente), ~20% (sem definição), ~10% (muito definido)." position="top">
+                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                        </Tooltip>
+                                    </div>
+                                    <div className="relative">
+                                        <input type="number" value={profileData.bodyFat} onChange={e => handleProfileChange('bodyFat', e.target.value)} className={`${inputClass} pr-8`} placeholder="15" />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
+                                    </div>
                                 </label>
-                                <p className="text-xs text-gray-500 bg-gray-100 p-2 rounded">Isso permite o cálculo automático do seu IMC e TMB (Metabolismo Basal).</p>
+                                <p className="text-xs text-gray-500 bg-gray-100 p-2 rounded">O percentual de gordura corporal total é essencial para calcular sua Massa Magra real e TMB precisa.</p>
                             </>
                         )}
 
                         {/* STEP 2: Medidas Críticas */}
                         {currentStep === 2 && (
                             <>
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mb-2">
-                                    <strong>Importante:</strong> Usamos a Cintura e Quadril para calcular seu risco cardíaco (RCQ).
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mb-2 flex gap-2 items-start">
+                                    <IconInfo className="w-4 h-4 mt-0.5 shrink-0" />
+                                    <span>Usamos a relação entre Cintura e Quadril para calcular seu risco cardíaco (RCQ) automaticamente.</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                      <label className="block">
-                                        <span className="text-sm font-bold text-gray-700">Cintura (Umbigo)</span>
-                                        <input type="number" value={profileData.measurements.waist} onChange={e => handleMeasurementChange('waist', e.target.value)} className={inputClass} placeholder="cm" autoFocus />
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700">Cintura</span>
+                                            <Tooltip content="Meça a circunferência na altura do umbigo, relaxado." position="top">
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                            </Tooltip>
+                                        </div>
+                                        <div className="relative">
+                                            <input type="number" value={profileData.measurements.waist} onChange={e => handleMeasurementChange('waist', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" autoFocus />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">cm</span>
+                                        </div>
                                     </label>
                                     <label className="block">
-                                        <span className="text-sm font-bold text-gray-700">Quadril (Maior porção)</span>
-                                        <input type="number" value={profileData.measurements.hips} onChange={e => handleMeasurementChange('hips', e.target.value)} className={inputClass} placeholder="cm" />
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700">Quadril</span>
+                                            <Tooltip content="Meça a maior circunferência na região dos glúteos." position="top">
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                            </Tooltip>
+                                        </div>
+                                        <div className="relative">
+                                            <input type="number" value={profileData.measurements.hips} onChange={e => handleMeasurementChange('hips', e.target.value)} className={`${inputClass} pr-8`} placeholder="100" />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">cm</span>
+                                        </div>
                                     </label>
                                 </div>
                             </>
@@ -287,7 +324,12 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                         {currentStep === 3 && (
                             <>
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700">Doenças / Comorbidades</span>
+                                    <div className="flex items-center gap-1 mb-1">
+                                        <span className="text-sm font-bold text-gray-700">Doenças / Comorbidades</span>
+                                        <Tooltip content="A IA usa isso para evitar sugerir treinos ou dietas perigosas para sua condição." position="top">
+                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                        </Tooltip>
+                                    </div>
                                     <textarea value={profileData.comorbidities} onChange={e => handleProfileChange('comorbidities', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Hipertensão, Diabetes, Lesão no joelho..." />
                                 </label>
                                 <label className="block">
@@ -350,15 +392,22 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                         {currentStep === 5 && (
                             <>
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700">Dieta: Média Calórica (Kcal/dia)</span>
-                                    <input 
-                                        type="number" 
-                                        value={calories} 
-                                        onChange={e => setCalories(e.target.value)} 
-                                        className={inputClass} 
-                                        placeholder="Ex: 2500" 
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1">Se não souber, deixe em branco. A IA calculará sua TMB.</p>
+                                    <div className="flex items-center gap-1 mb-1">
+                                        <span className="text-sm font-bold text-gray-700">Dieta: Média Calórica</span>
+                                        <Tooltip content="Quantas calorias você consome em média por dia atualmente? Se não souber, deixe em branco para a IA estimar." position="top">
+                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                        </Tooltip>
+                                    </div>
+                                    <div className="relative">
+                                        <input 
+                                            type="number" 
+                                            value={calories} 
+                                            onChange={e => setCalories(e.target.value)} 
+                                            className={`${inputClass} pr-12`} 
+                                            placeholder="2500" 
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">kcal/dia</span>
+                                    </div>
                                 </label>
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700">Resumo do Treino / Rotina</span>
@@ -376,7 +425,12 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                         {currentStep === 6 && (
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm font-bold text-gray-700">O que você está usando?</span>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-sm font-bold text-gray-700">O que você está usando?</span>
+                                        <Tooltip content="Liste tudo que usa para performance: Testosterona, Creatina, Whey, etc." position="top">
+                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                                        </Tooltip>
+                                    </div>
                                     <button onClick={addProtocolRow} className="text-xs text-blue-600 font-bold flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded transition-colors">
                                         <IconPlus className="w-3 h-3" /> Adicionar Item
                                     </button>
@@ -400,14 +454,14 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                             <div className="flex gap-2">
                                                 <input 
                                                     type="text" 
-                                                    placeholder="Dose"
+                                                    placeholder="Dose (Ex: 250mg)"
                                                     value={item.dosage}
                                                     onChange={(e) => handleProtocolChange(idx, 'dosage', e.target.value)}
                                                     className="w-1/2 text-xs border-gray-300 rounded p-1.5"
                                                 />
                                                 <input 
                                                     type="text" 
-                                                    placeholder="Freq"
+                                                    placeholder="Freq (Ex: 1x/sem)"
                                                     value={item.frequency}
                                                     onChange={(e) => handleProtocolChange(idx, 'frequency', e.target.value)}
                                                     className="w-1/2 text-xs border-gray-300 rounded p-1.5"
