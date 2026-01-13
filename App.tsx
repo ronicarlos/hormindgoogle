@@ -11,7 +11,7 @@ import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
 import AuthScreen from './components/AuthScreen';
-import { IOSInstallPrompt } from './components/IOSInstallPrompt'; // NEW IMPORT
+import { IOSInstallPrompt } from './components/IOSInstallPrompt'; 
 import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, MetricPoint, AppView, UserProfile, Exercise } from './types';
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
@@ -199,26 +199,26 @@ const App: React.FC = () => {
                     setMessages([initialMsg]);
                 }
 
-                // --- LEGAL CHECKS ---
+                // --- LEGAL CHECKS & WIZARD TRIGGER ---
                 if (loadedProject.userProfile) {
                     const p = loadedProject.userProfile;
                     
                     // 1. Check if Contract Signed
                     if (!p.termsAcceptedAt) {
                         setIsLegalModalOpen(true);
+                        // NOTE: We do NOT open wizard here to avoid conflict. 
+                        // It will trigger inside handleLegalAccept.
                     } else {
-                        // 2. Check Disclaimer Preference (Only if Contract Signed)
+                        // 2. Already signed? Check if critical data is missing
+                        const isMissingCritical = !p.name || !p.height || !p.weight || !p.measurements.waist;
+                        if (isMissingCritical) {
+                            setIsWizardOpen(true);
+                        }
+
+                        // 3. Check Disclaimer Preference
                         if (p.hideStartupDisclaimer) {
                             setDisclaimerAccepted(true); // Skip disclaimer
                         }
-                    }
-
-                    // 3. Wizard Logic (After Legal)
-                    const isMissingCritical = !p.name || !p.height || !p.weight || !p.measurements.waist;
-                    // Only show wizard if terms accepted OR will be accepted
-                    if (isMissingCritical) {
-                        // We set wizard open, but it will be visually behind the Legal Modal due to z-index if needed
-                        setIsWizardOpen(true);
                     }
                 }
             }
@@ -276,14 +276,25 @@ const App: React.FC = () => {
       await dataService.acceptLegalTerms(session.user.id);
       
       // Update Local State
+      const updatedProfile = { ...project.userProfile!, termsAcceptedAt: new Date().toISOString() };
+      
       if (project.userProfile) {
           setProject({
               ...project,
-              userProfile: { ...project.userProfile, termsAcceptedAt: new Date().toISOString() }
+              userProfile: updatedProfile
           });
       }
       
       setIsLegalModalOpen(false);
+
+      // --- WIZARD TRIGGER (IMMEDIATE AFTER SIGNING) ---
+      // Check if data is missing on the updated profile
+      const p = updatedProfile;
+      const isMissingCritical = !p.name || !p.height || !p.weight || !p.measurements.waist;
+      if (isMissingCritical) {
+          // Open Wizard right after closing Legal Modal
+          setIsWizardOpen(true);
+      }
   };
 
   const handleDisclaimerAccept = async () => {
