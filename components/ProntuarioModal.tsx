@@ -29,26 +29,43 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
     }
 
     // 1. FORÇAR MODO CLARO (BRANCO) PARA O PDF
-    // Removemos temporariamente as classes 'dark' do elemento clonado ou aplicamos estilos inline de override
-    // A biblioteca html2pdf usa html2canvas que lê o DOM atual.
-    // Estratégia: Adicionar uma classe temporária 'pdf-print-mode' que força bg-white e text-black via CSS inline ou style
-    
+    // Armazena estilo original para reverter depois
     const originalStyle = element.getAttribute('style');
+    
+    // Força container principal
     element.style.backgroundColor = '#ffffff';
     element.style.color = '#000000';
     element.classList.remove('dark:bg-gray-950', 'dark:text-gray-200');
     element.classList.add('light-mode-forced');
     
-    // Forçar cor preta em todos os textos internos
-    const allText = element.querySelectorAll('*');
-    allText.forEach((el: any) => {
+    // 2. CORRIGIR ELEMENTOS INTERNOS (CRÍTICO PARA EVITAR TARJAS PRETAS)
+    const allElements = element.querySelectorAll('*');
+    allElements.forEach((el: any) => {
+        // Força Texto Preto
         el.style.color = '#000000';
-        if(el.classList.contains('prose-invert')) el.classList.remove('prose-invert');
+        
+        // Remove inversão de cores do Markdown (Prose)
+        if(el.classList.contains('prose-invert')) {
+            el.classList.remove('prose-invert');
+        }
+
+        // CORREÇÃO DA TARJA PRETA:
+        // Se o elemento tiver a classe 'bg-gray-50' (usada no bloco de dados do paciente),
+        // forçamos o background para cinza claro via style inline (sobrescreve o dark mode css).
+        if (el.classList.contains('bg-gray-50')) {
+            el.style.backgroundColor = '#f9fafb'; // Cinza muito claro
+            el.style.borderColor = '#e5e7eb';     // Borda clara
+        }
+
+        // Força bordas para preto (ex: linha do cabeçalho)
+        if (el.classList.contains('border-black') || el.classList.contains('dark:border-white')) {
+            el.style.borderColor = '#000000';
+        }
     });
 
     const opt = {
-      margin:       [15, 15, 15, 15], // Increased margins (Top, Left, Bottom, Right) in mm
-      filename:     `Prontuario_FitLM_${profile?.name || 'Atleta'}_${new Date().toISOString().split('T')[0]}.pdf`,
+      margin:       [15, 15, 15, 15], // Margens (Topo, Esq, Baixo, Dir) em mm
+      filename:     `Prontuario_FitLM_${profile?.name?.replace(/ /g, '_') || 'Atleta'}_${new Date().toISOString().split('T')[0]}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -57,24 +74,31 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
 
     // Gera o PDF e salva
     html2pdf().set(opt).from(element).save().then(() => {
-        // REVERTER ESTILOS
+        // REVERTER ESTILOS PARA O USUÁRIO (Voltar ao Dark Mode se estiver ativo)
         if (originalStyle) element.setAttribute('style', originalStyle);
         else element.removeAttribute('style');
         
-        // Remove forced styles on children
-        allText.forEach((el: any) => {
+        // Limpar overrides dos filhos
+        allElements.forEach((el: any) => {
              el.style.color = '';
+             el.style.backgroundColor = '';
+             el.style.borderColor = '';
+             // Nota: Não readicionamos 'prose-invert' aqui pois o React re-renderiza rápido, 
+             // mas se necessário, a navegação ou atualização de estado resolveria.
         });
         
-        // Restore dark classes implicitly by re-rendering or removing overrides
         setIsGenerating(false);
     }).catch((err: any) => {
         console.error("Erro ao gerar PDF", err);
         setIsGenerating(false);
-        // Ensure restore on error too
+        // Reverter em caso de erro também
         if (originalStyle) element.setAttribute('style', originalStyle);
         else element.removeAttribute('style');
-        allText.forEach((el: any) => el.style.color = '');
+        allElements.forEach((el: any) => {
+            el.style.color = '';
+            el.style.backgroundColor = '';
+            el.style.borderColor = '';
+        });
         alert("Erro ao gerar o PDF. Tente novamente.");
     });
   };
