@@ -6,11 +6,12 @@ import InputModal from './components/InputModal';
 import ProntuarioModal from './components/ProntuarioModal';
 import SourceDetailModal from './components/SourceDetailModal'; 
 import WizardModal from './components/WizardModal'; 
-import LegalContractModal from './components/LegalContractModal'; // NEW IMPORT
+import LegalContractModal from './components/LegalContractModal'; 
 import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
 import AuthScreen from './components/AuthScreen';
+import { IOSInstallPrompt } from './components/IOSInstallPrompt'; // NEW IMPORT
 import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, MetricPoint, AppView, UserProfile, Exercise } from './types';
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
@@ -946,6 +947,10 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-[100dvh] bg-white overflow-hidden dark:bg-gray-950">
+      
+      {/* iOS INSTALL PROMPT */}
+      <IOSInstallPrompt />
+
       <div className="hidden md:block">
           <SourceSidebar 
             sources={sources} 
