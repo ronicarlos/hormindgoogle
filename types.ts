@@ -36,6 +36,14 @@ export interface UserProfile {
     thigh: string;
     calf: string;
   };
+  // NEW: Calculated fields (Not necessarily saved to DB, but computed on fly)
+  calculatedStats?: {
+      bmi: string; // Índice de Massa Corporal
+      bmr: string; // Taxa Metabólica Basal (Mifflin-St Jeor)
+      whr: string; // Waist-to-Hip Ratio (Relação Cintura-Quadril)
+      bmiClassification?: string;
+      whrRisk?: string;
+  };
 }
 
 export interface Source {
@@ -115,7 +123,7 @@ export interface Exercise {
 export interface Compound {
     id: string;
     name: string;
-    category: 'Testosterona' | '19-Nor' | 'DHT' | 'Oral' | 'Peptídeo' | 'SERM/IA' | 'Termogênico' | 'Nootrópico' | 'Mitocondrial' | 'Protocolo Exemplo' | 'Outros' | 'Metabólico';
+    category: 'Testosterona' | '19-Nor' | 'DHT' | 'Oral' | 'Peptídeo' | 'SERM/IA' | 'Termogênico' | 'Nootrópico' | 'Mitocondrial' | 'Protocolo Exemplo' | 'Outros' | 'Metabólico' | 'Suplemento';
     type: 'Injetável' | 'Oral' | 'Subcutâneo' | 'Topico' | 'Combo' | 'Transdérmico';
     halfLife: string;
     anabolicRating: string; 

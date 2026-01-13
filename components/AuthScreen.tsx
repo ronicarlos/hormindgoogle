@@ -130,8 +130,8 @@ const AuthScreen: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Google Login Section - Visible in Login & Signup */}
-                    {mode !== 'recovery' && (
+                    {/* Google Login Section - HIDDEN TEMPORARILY UNTIL CONFIGURED */}
+                    {false && mode !== 'recovery' && (
                         <div className="mb-6">
                             <button
                                 type="button"

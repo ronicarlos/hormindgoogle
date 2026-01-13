@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar } from './Icons';
+import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience } from './Icons';
 import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
 
@@ -39,10 +39,95 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
             hips: '',
             thigh: '',
             calf: ''
+        },
+        calculatedStats: {
+            bmi: '',
+            bmr: '',
+            whr: '',
+            bmiClassification: '',
+            whrRisk: ''
         }
     };
 
     const [formData, setFormData] = useState<UserProfile>(profile || defaultProfile);
+
+    // Calculate Age helper
+    const calculateAge = (dateString: string) => {
+        if (!dateString) return null;
+        const today = new Date();
+        const birthDate = new Date(dateString);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
+    const currentAge = calculateAge(formData.birthDate);
+
+    // --- REAL-TIME CALCULATIONS (METABOLIC ENGINE) ---
+    useEffect(() => {
+        const heightM = parseFloat(formData.height) / 100;
+        const weightKg = parseFloat(formData.weight);
+        const waistCm = parseFloat(formData.measurements.waist);
+        const hipCm = parseFloat(formData.measurements.hips);
+        const age = currentAge || 30; // Default fallback for calc if age missing
+        
+        let newStats = {
+            bmi: '',
+            bmr: '',
+            whr: '',
+            bmiClassification: '',
+            whrRisk: ''
+        };
+
+        // 1. BMI Calculation
+        if (heightM > 0 && weightKg > 0) {
+            const bmi = weightKg / (heightM * heightM);
+            newStats.bmi = bmi.toFixed(1);
+            
+            if (bmi < 18.5) newStats.bmiClassification = 'Abaixo do Peso';
+            else if (bmi < 24.9) newStats.bmiClassification = 'Eutrófico (Normal)';
+            else if (bmi < 29.9) newStats.bmiClassification = 'Sobrepeso';
+            else newStats.bmiClassification = 'Obesidade';
+        }
+
+        // 2. BMR (Basal Metabolic Rate) - Mifflin-St Jeor Equation
+        if (weightKg > 0 && heightM > 0) {
+            // Men: (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) + 5
+            // Women: (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) - 161
+            let bmr = (10 * weightKg) + (6.25 * (heightM * 100)) - (5 * age);
+            
+            if (formData.gender === 'Masculino') {
+                bmr += 5;
+            } else {
+                bmr -= 161;
+            }
+            newStats.bmr = Math.round(bmr).toString();
+        }
+
+        // 3. Waist-to-Hip Ratio (RCQ)
+        if (waistCm > 0 && hipCm > 0) {
+            const whr = waistCm / hipCm;
+            newStats.whr = whr.toFixed(2);
+            
+            // Risk thresholds
+            if (formData.gender === 'Masculino') {
+                newStats.whrRisk = whr > 0.90 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
+            } else {
+                newStats.whrRisk = whr > 0.85 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
+            }
+        }
+
+        // Only update if something changed to avoid loop, 
+        // using stringify for simple deep comparison of the small stats object
+        if (JSON.stringify(newStats) !== JSON.stringify(formData.calculatedStats)) {
+            setFormData(prev => ({ ...prev, calculatedStats: newStats }));
+        }
+
+    }, [formData.height, formData.weight, formData.measurements.waist, formData.measurements.hips, formData.gender, currentAge]);
+
 
     // Sync state when prop changes (e.g. after DB load)
     useEffect(() => {
@@ -53,7 +138,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
                 measurements: {    // Deep merge measurements
                     ...defaultProfile.measurements,
                     ...(profile.measurements || {})
-                }
+                },
+                // Keep calculatedStats handled by the other useEffect
+                calculatedStats: prev.calculatedStats 
             }));
         }
     }, [profile]);
@@ -74,6 +161,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
+                // We pass formData which now includes calculatedStats, 
+                // dataService will strip it before saving to DB or userProfile table needs to ignore extra fields.
+                // Assuming dataService handles explicit mapping.
                 await dataService.saveUserProfile(session.user.id, formData);
                 onSave(formData);
                 setSuccessMsg('Perfil atualizado com sucesso! A IA agora usará estes dados.');
@@ -167,21 +257,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
         }
     };
 
-    // Calculate Age helper
-    const calculateAge = (dateString: string) => {
-        if (!dateString) return null;
-        const today = new Date();
-        const birthDate = new Date(dateString);
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-        }
-        return age;
-    };
-
-    const currentAge = calculateAge(formData.birthDate);
-
     // Shared input class to ensure consistent visibility and contrast
     const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border";
 
@@ -191,7 +266,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
              <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-6 py-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <IconUser className="w-6 h-6 text-blue-600" />
-                    Ficha Biométrica
+                    Ficha Biométrico
                 </h2>
                 <button 
                     onClick={handleSave}
@@ -263,6 +338,52 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
                         accept="image/png, image/jpeg, image/jpg"
                         onChange={handleAvatarChange}
                     />
+                </div>
+
+                {/* CALCULATED STATS CARD (NEW) */}
+                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 md:p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <IconScience className="w-24 h-24 text-indigo-900" />
+                    </div>
+                    <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
+                        <IconFlame className="w-4 h-4 text-orange-500" />
+                        Índices Metabólicos (Estimados)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm">
+                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">TMB (Basal)</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-black text-gray-900">{formData.calculatedStats?.bmr || '--'}</span>
+                                <span className="text-xs font-bold text-gray-500">kcal</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-1">Fórmula Mifflin-St Jeor</p>
+                        </div>
+                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm">
+                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">IMC</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-black text-gray-900">{formData.calculatedStats?.bmi || '--'}</span>
+                            </div>
+                            <p className={`text-[10px] font-bold mt-1 ${
+                                formData.calculatedStats?.bmiClassification === 'Eutrófico (Normal)' ? 'text-green-600' : 'text-orange-500'
+                            }`}>
+                                {formData.calculatedStats?.bmiClassification || 'Aguardando dados'}
+                            </p>
+                        </div>
+                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm">
+                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">Relação Cintura-Quadril</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-black text-gray-900">{formData.calculatedStats?.whr || '--'}</span>
+                            </div>
+                            <p className={`text-[10px] font-bold mt-1 ${
+                                formData.calculatedStats?.whrRisk === 'Risco Baixo' ? 'text-green-600' : 'text-red-500'
+                            }`}>
+                                {formData.calculatedStats?.whrRisk || 'Aguardando medidas'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="mt-4 text-[10px] text-indigo-800/60 font-medium">
+                        * Estes valores são calculados com base na sua antropometria básica. A bioimpedância (se enviada) terá prioridade na análise da IA.
+                    </div>
                 </div>
 
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200">

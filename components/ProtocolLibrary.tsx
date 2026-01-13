@@ -14,7 +14,7 @@ const ProtocolLibrary: React.FC = () => {
         fetchCompounds().then(setCompounds);
     }, []);
 
-    const categories = ['Todos', 'Protocolo Exemplo', 'Testosterona', '19-Nor', 'DHT', 'Oral', 'Peptídeo', 'Mitocondrial', 'Nootrópico', 'Termogênico', 'SERM/IA'];
+    const categories = ['Todos', 'Protocolo Exemplo', 'Suplemento', 'Testosterona', '19-Nor', 'DHT', 'Oral', 'Peptídeo', 'Mitocondrial', 'Nootrópico', 'Termogênico', 'SERM/IA'];
 
     const filteredCompounds = compounds.filter(c => {
         const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -36,6 +36,7 @@ const ProtocolLibrary: React.FC = () => {
     const getCategoryColorClass = (cat: string) => {
         switch(cat) {
             case 'Protocolo Exemplo': return 'bg-gray-900';
+            case 'Suplemento': return 'bg-cyan-600';
             case 'Testosterona': return 'bg-blue-600';
             case '19-Nor': return 'bg-red-600';
             case 'DHT': return 'bg-purple-600';
@@ -50,6 +51,7 @@ const ProtocolLibrary: React.FC = () => {
     const getCategoryBadgeStyle = (cat: string) => {
         switch(cat) {
              case 'Protocolo Exemplo': return 'text-white bg-gray-900';
+            case 'Suplemento': return 'text-cyan-600 bg-cyan-50';
             case 'Testosterona': return 'text-blue-600 bg-blue-50';
             case '19-Nor': return 'text-red-600 bg-red-50';
             case 'DHT': return 'text-purple-600 bg-purple-50';

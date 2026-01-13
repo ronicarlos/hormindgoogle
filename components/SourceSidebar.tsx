@@ -1,7 +1,7 @@
 
 import React, { useRef } from 'react';
 import { Source, SourceType, AppView } from '../types';
-import { IconFile, IconPlus, IconCheck, IconDumbbell, IconLayout, IconDownload, IconScience, IconUser, IconClose, IconInfo, IconSparkles, IconActivity, IconTrash } from './Icons';
+import { IconFile, IconPlus, IconCheck, IconDumbbell, IconLayout, IconDownload, IconScience, IconUser, IconClose, IconInfo, IconSparkles, IconActivity, IconTrash, IconWizard } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface SourceSidebarProps {
@@ -13,8 +13,9 @@ interface SourceSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   onLogout?: () => void;
-  onViewSummary?: (source: Source) => void; // New prop
+  onViewSummary?: (source: Source) => void; 
   onDeleteSource?: (id: string) => void;
+  onOpenWizard?: () => void; // New Prop
 }
 
 const SourceSidebar: React.FC<SourceSidebarProps> = ({ 
@@ -27,7 +28,8 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
     onClose,
     onLogout,
     onViewSummary,
-    onDeleteSource
+    onDeleteSource,
+    onOpenWizard
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +170,19 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
                     Painel de Métricas
                 </button>
             </div>
+            
+            {/* WIZARD BUTTON (NEW) */}
+             <div className="px-4 py-2 shrink-0">
+                 <button 
+                    onClick={() => { onOpenWizard?.(); onClose?.(); }}
+                    className="w-full text-left px-3 py-3 rounded-xl text-sm font-bold flex items-center gap-3 transition-all bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-95 group"
+                >
+                    <div className="bg-white/20 p-1.5 rounded-lg group-hover:bg-white/30 transition-colors">
+                         <IconWizard className="w-4 h-4" />
+                    </div>
+                    Completar Dados
+                </button>
+             </div>
 
             {/* SCROLLABLE LIST OF SOURCES */}
             <div className="flex-1 overflow-y-auto p-4 min-h-0">

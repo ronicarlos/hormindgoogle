@@ -45,6 +45,72 @@ interface DBSource {
     file_path: string | null;
 }
 
+// Helper para calcular idade
+const calculateAge = (dateString: string) => {
+    if (!dateString) return 30; // Fallback
+    const today = new Date();
+    const birthDate = new Date(dateString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+};
+
+// Helper para realizar a matemática metabólica no Backend/Service Layer
+const calculateMetabolicStats = (
+    weight: number, 
+    heightCm: number, 
+    birthDate: string, 
+    gender: string, 
+    waist: number, 
+    hips: number
+) => {
+    const stats = {
+        bmi: '',
+        bmr: '',
+        whr: '',
+        bmiClassification: '',
+        whrRisk: ''
+    };
+
+    if (!weight || !heightCm) return stats;
+
+    const heightM = heightCm / 100;
+    const age = calculateAge(birthDate);
+
+    // 1. BMI
+    const bmi = weight / (heightM * heightM);
+    stats.bmi = bmi.toFixed(1);
+    if (bmi < 18.5) stats.bmiClassification = 'Abaixo do Peso';
+    else if (bmi < 24.9) stats.bmiClassification = 'Eutrófico (Normal)';
+    else if (bmi < 29.9) stats.bmiClassification = 'Sobrepeso';
+    else stats.bmiClassification = 'Obesidade';
+
+    // 2. BMR (Mifflin-St Jeor)
+    let bmr = (10 * weight) + (6.25 * heightCm) - (5 * age);
+    if (gender === 'Masculino') {
+        bmr += 5;
+    } else {
+        bmr -= 161;
+    }
+    stats.bmr = Math.round(bmr).toString();
+
+    // 3. WHR (Cintura-Quadril)
+    if (waist > 0 && hips > 0) {
+        const whr = waist / hips;
+        stats.whr = whr.toFixed(2);
+        if (gender === 'Masculino') {
+            stats.whrRisk = whr > 0.90 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
+        } else {
+            stats.whrRisk = whr > 0.85 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
+        }
+    }
+
+    return stats;
+};
+
 export const dataService = {
     /**
      * Busca ou cria um projeto padrão para o usuário atual
@@ -189,6 +255,18 @@ export const dataService = {
              if (signedData) avatarUrl = signedData.signedUrl;
         }
 
+        // --- MATH ENGINE: CALCULAR ESTATÍSTICAS NO LOAD ---
+        // Isso garante que a IA sempre tenha acesso a BMI/TMB/WHR, mesmo se o usuário não abrir a tela de perfil
+        const measurements = data.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' };
+        const calculatedStats = calculateMetabolicStats(
+            data.weight || 0,
+            data.height || 0,
+            data.birth_date || '',
+            data.gender || 'Masculino',
+            parseFloat(measurements.waist || '0'),
+            parseFloat(measurements.hips || '0')
+        );
+
         return {
             name: data.name || '',
             avatarUrl: avatarUrl, // URL assinada
@@ -199,7 +277,8 @@ export const dataService = {
             bodyFat: data.body_fat?.toString() || '',
             comorbidities: data.comorbidities || '',
             medications: data.medications || '',
-            measurements: data.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' }
+            measurements: measurements,
+            calculatedStats: calculatedStats // Injected Calculated Stats
         };
     },
 

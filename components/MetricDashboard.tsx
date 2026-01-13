@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, ReferenceArea, AreaChart, Area } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
 import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser } from './Icons';
@@ -54,6 +54,16 @@ const BiomarkerChart = ({
     yDomain?: [number | string, number | string];
     type?: 'line' | 'area';
 }) => {
+    // Memoize data cleaning to maintain reference stability across renders
+    const cleanData = useMemo(() => {
+        if (!data || data.length === 0) return [];
+        return data.map(d => ({...d, value: Number(d.value)}));
+    }, [data]);
+
+    // Stable config objects to prevent Recharts internal update loops
+    const dotConfig = useMemo(() => ({ r: 3, fill: color, strokeWidth: 2, stroke: '#fff' }), [color]);
+    const activeDotConfig = useMemo(() => ({ r: 5, strokeWidth: 0 }), []);
+
     if (!data || data.length === 0) return (
         <div className="mb-6">
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight mb-2">{title}</h3>
@@ -61,18 +71,19 @@ const BiomarkerChart = ({
         </div>
     );
 
-    // Ensure numeric values for Recharts
-    const cleanData = data.map(d => ({...d, value: Number(d.value)}));
-
     return (
-        <div className="mb-8">
+        <div className="mb-8 w-full">
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight">{title}</h3>
                 {data[0].unit && <span className="text-[10px] text-gray-400 font-medium">{data[0].unit}</span>}
                 {minRef && maxRef && <span className="text-[10px] text-gray-400 font-medium">Ref: {minRef} - {maxRef}</span>}
             </div>
-            <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm">
-                <ResponsiveContainer width="100%" height="100%">
+            <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative">
+                {/* 
+                   Fix: Added minWidth={0} to allow shrinking in flex containers.
+                   The container div has explicit height (h-40) and w-full.
+                */}
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     {type === 'area' ? (
                         <AreaChart data={cleanData}>
                             <defs>
@@ -92,6 +103,7 @@ const BiomarkerChart = ({
                                 fillOpacity={1} 
                                 fill={`url(#grad-${title})`} 
                                 strokeWidth={2}
+                                isAnimationActive={false}
                             />
                         </AreaChart>
                     ) : (
@@ -116,8 +128,9 @@ const BiomarkerChart = ({
                                 dataKey="value" 
                                 stroke={color} 
                                 strokeWidth={3} 
-                                dot={{ r: 3, fill: color, strokeWidth: 2, stroke: '#fff' }} 
-                                activeDot={{ r: 5, strokeWidth: 0 }}
+                                dot={dotConfig} 
+                                activeDot={activeDotConfig}
+                                isAnimationActive={false}
                             />
                         </LineChart>
                     )}
@@ -138,7 +151,6 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
   const bodyFatData = project.metrics['BodyFat'] || [];       // New: Supports Bioimpedance BF%
   const muscleMassData = project.metrics['MuscleMass'] || []; // New: Supports Bioimpedance Muscle
   const strengthData = project.metrics['Strength'] || [];
-  const calorieData = project.metrics['Calories'] || [];
 
   return (
     <div className={`${isMobileView ? 'w-full' : 'w-96 border-l hidden lg:flex'} bg-white border-gray-200 h-screen flex flex-col overflow-y-auto`}>
@@ -205,11 +217,11 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
       )}
 
       {/* Charts Section */}
-      <div className="p-6 space-y-2 pb-24">
+      <div className="p-6 space-y-2 pb-24 w-full">
         
         {activeTab === 'health' && (
-            <>
-                <div className="mb-6">
+            <div className="w-full">
+                <div className="mb-6 w-full">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 text-sm">
                         <IconActivity className="w-4 h-4 text-blue-500" />
                         Hormônios & Lipídios
@@ -224,7 +236,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         yDomain={[0, 'auto']}
                     />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 w-full">
                          <BiomarkerChart 
                             title="HDL (Bom)"
                             data={hdlData}
@@ -241,12 +253,12 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         />
                     </div>
                 </div>
-            </>
+            </div>
         )}
 
         {activeTab === 'performance' && (
-            <>
-                <div>
+            <div className="w-full">
+                <div className="w-full">
                      <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 text-sm">
                         <IconUser className="w-4 h-4 text-indigo-500" />
                         Composição Corporal (Bioimpedância)
@@ -281,7 +293,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
 
                 </div>
 
-                <div className="border-t border-gray-100 pt-6 mt-6">
+                <div className="border-t border-gray-100 pt-6 mt-6 w-full">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 text-sm">
                         <IconDumbbell className="w-4 h-4 text-purple-500" />
                         Força (Cargas)
@@ -294,7 +306,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         yDomain={['auto', 'auto']}
                     />
                 </div>
-            </>
+            </div>
         )}
 
         <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-xl border border-indigo-100 mt-6 shadow-sm">
@@ -314,4 +326,4 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
   );
 };
 
-export default MetricDashboard;
+export default React.memo(MetricDashboard);

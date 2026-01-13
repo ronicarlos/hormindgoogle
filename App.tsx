@@ -4,7 +4,8 @@ import SourceSidebar from './components/SourceSidebar';
 import MetricDashboard from './components/MetricDashboard';
 import InputModal from './components/InputModal';
 import ProntuarioModal from './components/ProntuarioModal';
-import SourceDetailModal from './components/SourceDetailModal'; // NEW IMPORT
+import SourceDetailModal from './components/SourceDetailModal'; 
+import WizardModal from './components/WizardModal'; // NEW IMPORT
 import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
@@ -77,6 +78,9 @@ const App: React.FC = () => {
   const [viewingSource, setViewingSource] = useState<Source | null>(null);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
+  // Wizard State
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+
   // Delete Confirmation State
   const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -132,11 +136,14 @@ const App: React.FC = () => {
                     const initialMsg: ChatMessage = { id: Date.now().toString(), role: 'model', text: welcomeText, timestamp: Date.now() };
                     await dataService.addMessage(loadedProject.id, initialMsg);
                     setMessages([initialMsg]);
+                }
 
-                    if (!loadedProject.userProfile || !loadedProject.userProfile.weight) {
-                         const warningMsg: ChatMessage = { id: (Date.now() + 10).toString(), role: 'model', text: '⚠️ **Aviso de Performance:** Sua Ficha Biométrica está incompleta. Por favor, acesse a aba **Perfil Biométrico** e preencha seus dados para que eu possa analisar riscos com precisão.', timestamp: Date.now() + 10 };
-                         await dataService.addMessage(loadedProject.id, warningMsg);
-                         setMessages(prev => [...prev, warningMsg]);
+                // Check for Missing Data (Auto-Open Wizard)
+                if (loadedProject.userProfile) {
+                    const p = loadedProject.userProfile;
+                    const isMissingCritical = !p.name || !p.height || !p.weight || !p.measurements.waist;
+                    if (isMissingCritical) {
+                        setIsWizardOpen(true);
                     }
                 }
             }
@@ -730,6 +737,7 @@ const App: React.FC = () => {
             onLogout={handleLogout}
             onViewSummary={handleViewSummary} 
             onDeleteSource={handleRequestDelete} // Calls the Modal Opener
+            onOpenWizard={() => setIsWizardOpen(true)} // Open Wizard Manually
           />
       </div>
 
@@ -782,6 +790,17 @@ const App: React.FC = () => {
                         // NORMAL HEADER MODE
                         <>
                             <div className="flex items-center gap-3">
+                                {/* Mobile Profile Trigger */}
+                                <button 
+                                    onClick={() => setCurrentView('profile')}
+                                    className="md:hidden w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 active:scale-95 transition-transform overflow-hidden"
+                                >
+                                    {project?.userProfile?.avatarUrl ? (
+                                        <img src={project.userProfile.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <IconUser className="w-4 h-4 text-gray-500" />
+                                    )}
+                                </button>
                                 <h2 className="font-bold text-gray-800 truncate text-sm md:text-base">Notebook & Chat</h2>
                             </div>
 
@@ -976,9 +995,22 @@ const App: React.FC = () => {
              <div className="flex-1 flex flex-col h-full bg-gray-50 overflow-hidden">
                 {/* Header */}
                 <div className="p-5 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10 flex justify-between items-center">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900">Fontes Ativas</h2>
-                        <p className="text-xs text-gray-500 font-medium">Gerencie seus arquivos e exames</p>
+                    <div className="flex items-center gap-3">
+                         {/* Mobile Profile Trigger (Sources View) */}
+                         <button 
+                            onClick={() => setCurrentView('profile')}
+                            className="md:hidden w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 active:scale-95 transition-transform overflow-hidden"
+                        >
+                            {project?.userProfile?.avatarUrl ? (
+                                <img src={project.userProfile.avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                                <IconUser className="w-4 h-4 text-gray-500" />
+                            )}
+                        </button>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">Fontes Ativas</h2>
+                            <p className="text-xs text-gray-500 font-medium">Gerencie seus arquivos e exames</p>
+                        </div>
                     </div>
                      <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-bold">{sources.length}</span>
                 </div>
@@ -1146,6 +1178,16 @@ const App: React.FC = () => {
       </nav>
 
       {/* MODALS */}
+      {project && (
+        <WizardModal 
+            isOpen={isWizardOpen}
+            onClose={() => setIsWizardOpen(false)}
+            project={project}
+            onUpdateProfile={handleUpdateProfile}
+            onUpdateProject={p => setProject(p)}
+        />
+      )}
+
       <InputModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

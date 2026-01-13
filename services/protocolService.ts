@@ -3,6 +3,114 @@ import { Compound } from '../types';
 
 export const COMPOUNDS_DB: Compound[] = [
     // ========================================================================
+    // SUPLEMENTOS (BASICS)
+    // ========================================================================
+    {
+        id: 'sup-creatina',
+        name: 'Creatina Monohidratada',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: '3 horas (Saturação muscular leva dias)',
+        anabolicRating: 'Ergogênico',
+        description: 'O suplemento mais estudado do mundo. Aumenta os estoques de fosfocreatina (CP), permitindo rápida ressíntese de ATP. Essencial para força e explosão.',
+        commonDosages: { beginner: '3-5g todos os dias', advanced: '5g todos os dias (Saturação opcional)' },
+        sideEffects: ['Retenção hídrica INTRA-muscular (Benéfico)', 'Desconforto gástrico (se dose alta)'],
+        benefits: ['Aumento de força', 'Volume muscular', 'Neuroproteção'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sup-whey',
+        name: 'Whey Protein (Concentrado/Isolado)',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: 'Rápida absorção',
+        anabolicRating: 'Nutricional',
+        description: 'Proteína do soro do leite. Alto valor biológico e rápida absorção. Prático para bater a meta de proteínas do dia.',
+        commonDosages: { beginner: '30g (1 scoop) pós-treino ou lanche', advanced: 'Conforme macro diário' },
+        sideEffects: ['Gases/Estufamento (se intolerante a lactose)'],
+        benefits: ['Síntese proteica', 'Praticidade', 'Recuperação'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sup-beta',
+        name: 'Beta-Alanina',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: 'Saturação (Carnosina)',
+        anabolicRating: 'Resistência',
+        description: 'Aumenta os níveis de carnosina no músculo, agindo como tamponante de ácido lático (reduz a queimação). Ideal para séries longas ou HIIT.',
+        commonDosages: { beginner: '3g a 5g por dia (dividido)', advanced: '6g por dia' },
+        sideEffects: ['Parestesia (Formigamento na pele) - Inofensivo'],
+        benefits: ['Resistência muscular', 'Adia a fadiga'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sup-omega3',
+        name: 'Ômega 3 (Fish Oil)',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: 'N/A',
+        anabolicRating: 'Saúde',
+        description: 'Ácidos graxos essenciais (EPA/DHA). Potente anti-inflamatório sistêmico, melhora perfil lipídico e sensibilidade à insulina.',
+        commonDosages: { beginner: '1g a 2g (EPA+DHA somados)', advanced: '3g a 4g (se colesterol alterado)' },
+        sideEffects: ['Hálito de peixe', 'Afinamento do sangue (em doses extremas)'],
+        benefits: ['Saúde cardíaca', 'Cérebro', 'Anti-inflamatório'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sup-gluta',
+        name: 'Glutamina',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: 'Curta',
+        anabolicRating: 'Imunidade',
+        description: 'Aminoácido mais abundante no corpo. Pouco efeito em hipertrofia direta, mas crucial para saúde intestinal (enterócitos) e imunidade.',
+        commonDosages: { beginner: '5g pós-treino ou antes dormir', advanced: '10g a 20g (divisões)' },
+        sideEffects: ['Nenhum significativo'],
+        benefits: ['Saúde intestinal', 'Imunidade'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sup-cafeina',
+        name: 'Cafeína Anidra',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: '5-6 horas',
+        anabolicRating: 'Estimulante',
+        description: 'Estimulante do SNC. Reduz percepção de esforço e aumenta termogênese. O "pré-treino" base.',
+        commonDosages: { beginner: '100mg - 200mg', advanced: '300mg - 420mg (Cuidado)' },
+        sideEffects: ['Ansiedade', 'Insônia', 'Taquicardia', 'Dependência'],
+        benefits: ['Foco', 'Energia', 'Performance'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'sup-multi',
+        name: 'Multivitamínico',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: 'N/A',
+        anabolicRating: 'Saúde',
+        description: 'Seguro nutricional para garantir micronutrientes que faltam na dieta. Dê preferência a marcas com minerais quelados.',
+        commonDosages: { beginner: '1 dose junto com refeição gorda', advanced: 'Conforme carências' },
+        sideEffects: ['Urina neon (Excesso de Vit B)', 'Náusea (se estômago vazio)'],
+        benefits: ['Metabolismo eficiente', 'Saúde geral'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sup-pre',
+        name: 'Pré-Treino (Blend)',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: '2-4 horas',
+        anabolicRating: 'Performance',
+        description: 'Mix de estimulantes (Cafeína) e vasodilatadores (Arginina, Citrulina, Beta-Alanina). Foco em pump e energia.',
+        commonDosages: { beginner: 'Meia dose (testar tolerância)', advanced: '1 dose cheia' },
+        sideEffects: ['Taquicardia', 'Formigamento', 'Insônia', 'Crash pós-treino'],
+        benefits: ['Vontade de treinar', 'Vasodilatação (Pump)'],
+        riskLevel: 'Médio'
+    },
+
+    // ========================================================================
     // EXEMPLOS DE PROTOCOLOS (COMBOS)
     // ========================================================================
     {
