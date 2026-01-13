@@ -45,6 +45,19 @@ export const COMPOUNDS_DB: Compound[] = [
         riskLevel: 'Baixo'
     },
     {
+        id: 'sup-citrulina',
+        name: 'Citrulina Malato',
+        category: 'Suplemento',
+        type: 'Oral',
+        halfLife: '1 hora',
+        anabolicRating: 'Performance',
+        description: 'Precursor de Arginina com biodisponibilidade superior. Aumenta drasticamente o Óxido Nítrico (NO), melhorando o fluxo sanguíneo (pump) e remove amônia (fadiga).',
+        commonDosages: { beginner: '6g pré-treino', advanced: '8g - 10g pré-treino' },
+        sideEffects: ['Desconforto gástrico leve (raro)'],
+        benefits: ['Pump extremo', 'Vascularização', 'Recuperação entre séries', 'Redução de fadiga'],
+        riskLevel: 'Baixo'
+    },
+    {
         id: 'sup-omega3',
         name: 'Ômega 3 (Fish Oil)',
         category: 'Suplemento',
@@ -108,6 +121,19 @@ export const COMPOUNDS_DB: Compound[] = [
         sideEffects: ['Taquicardia', 'Formigamento', 'Insônia', 'Crash pós-treino'],
         benefits: ['Vontade de treinar', 'Vasodilatação (Pump)'],
         riskLevel: 'Médio'
+    },
+    {
+        id: 'sup-glutationa',
+        name: 'Glutationa (Glutathione)',
+        category: 'Outros',
+        type: 'Injetável', // Ou oral lipossomal
+        halfLife: 'Curta',
+        anabolicRating: 'Saúde',
+        description: 'O "Mestre Antioxidante". Essencial para detoxificação hepática (fígado), saúde da pele e combate ao estresse oxidativo.',
+        commonDosages: { beginner: '600mg injetável/sem', advanced: '1200mg - 2400mg (Protocolos estéticos/detox)' },
+        sideEffects: ['Clareamento da pele (efeito colateral comum)', 'Dor na injeção'],
+        benefits: ['Proteção hepática', 'Pele radiante', 'Imunidade'],
+        riskLevel: 'Baixo'
     },
 
     // ========================================================================
@@ -179,10 +205,81 @@ export const COMPOUNDS_DB: Compound[] = [
         benefits: ['Perda de peso massiva', 'Controle glicêmico'],
         riskLevel: 'Baixo'
     },
+    {
+        id: 'proto-glow',
+        name: 'Protocolo: Glow Stack (Pele & Cabelo)',
+        category: 'Protocolo Exemplo',
+        type: 'Subcutâneo',
+        halfLife: 'Variável',
+        anabolicRating: 'Cosmético',
+        description: 'Combo focado em estética dermatológica e reparo tecidual. BPC-157 + TB-500 + GHK-Cu.',
+        commonDosages: { 
+            beginner: 'Blend pronto (10mg/10mg/50mg) - dose conforme fabricante', 
+            advanced: 'Uso diário para recuperação de cicatrizes ou pós-cirúrgico'
+        },
+        sideEffects: ['Irritação local (GHK-Cu arde)'],
+        benefits: ['Pele elástica', 'Crescimento capilar', 'Cura de lesões'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'proto-cagrireta',
+        name: 'Protocolo: CagriReta (Stack Perda Peso)',
+        category: 'Protocolo Exemplo',
+        type: 'Subcutâneo',
+        halfLife: 'Semanal',
+        anabolicRating: 'Metabólico',
+        description: 'A "Bomba Atômica" da perda de gordura. Combina Cagrilintida (Amilina) com Retatrutida (Triplo Agonista).',
+        commonDosages: { 
+            beginner: 'Não iniciar por este', 
+            advanced: 'Doses baixas de ambos (Ex: 2mg Reta + 0.5mg Cagri)'
+        },
+        sideEffects: ['Náusea severa', 'Risco de hipoglicemia se não comer', 'Taquicardia'],
+        benefits: ['A maior perda de peso possível farmacologicamente hoje'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'cut-stack',
+        name: 'Cut Stack (Trembo + Prop + Masteron)',
+        category: 'Protocolo Exemplo', // Blend Injetável
+        type: 'Injetável',
+        halfLife: '2-3 dias (Ésteres curtos)',
+        anabolicRating: 'Alta',
+        description: 'Blend pronto para definição extrema (Pre-Contest). Combina Testo Propionato, Trembolona Acetato e Masteron. Exige aplicações frequentes e dieta rigorosa.',
+        commonDosages: { beginner: 'Não recomendado', advanced: '1ml DSDN ou TSD' },
+        sideEffects: ['Todos da Trembolona', 'Dor na aplicação'],
+        benefits: ['Físico de palco', 'Dureza', 'Vascularização'],
+        riskLevel: 'Alto'
+    },
+    {
+        id: 'blend-oral',
+        name: 'Blend Oral (Stano + Oxan + Testo)',
+        category: 'Protocolo Exemplo',
+        type: 'Oral',
+        halfLife: '9 horas',
+        anabolicRating: 'Alta',
+        description: 'Combo oral agressivo. Mistura Stanozolol, Oxandrolona e Testosterona oral. Prático, mas altamente hepatotóxico.',
+        commonDosages: { beginner: 'Não recomendado', advanced: 'Conforme fabricante (Geralmente 2-3 caps/dia)' },
+        sideEffects: ['Hepatotoxicidade alta', 'Queda de cabelo', 'Colesterol'],
+        benefits: ['Mudança rápida de estética', 'Praticidade'],
+        riskLevel: 'Alto'
+    },
 
     // ========================================================================
-    // PROTEÇÃO & TPC (SERMs / IAs)
+    // PROTEÇÃO & TPC (SERMs / IAs / HCG)
     // ========================================================================
+    {
+        id: 'hcg',
+        name: 'HCG (Gonadotrofina Coriônica Humana)',
+        category: 'SERM/IA',
+        type: 'Injetável',
+        halfLife: '24-36 horas',
+        anabolicRating: 'Fertilidade',
+        description: 'Mimetiza o LH (Hormônio Luteinizante). Mantém os testículos funcionando (produzindo testo e esperma) durante o ciclo ou recupera atrofia.',
+        commonDosages: { beginner: '250ui - 500ui 2x na semana (Intra-ciclo)', advanced: '2000ui+ em TPC de choque' },
+        sideEffects: ['Aumento de aromatização (Estrogênio)', 'Dessensibilização (se dose muito alta por muito tempo)'],
+        benefits: ['Fertilidade', 'Volume testicular', 'Recuperação do eixo'],
+        riskLevel: 'Baixo'
+    },
     {
         id: 'tamox',
         name: 'Tamoxifeno',
@@ -261,13 +358,39 @@ export const COMPOUNDS_DB: Compound[] = [
         benefits: ['Reduz prolactina', 'Melhora libido e orgasmo', 'Reduz período refratário'],
         riskLevel: 'Médio'
     },
+    {
+        id: 'gonadorelin',
+        name: 'Gonadorelin',
+        category: 'SERM/IA',
+        type: 'Injetável',
+        halfLife: 'Muito curta (minutos)',
+        anabolicRating: 'TPC',
+        description: 'GnRH sintético. Estimula a hipófise a produzir LH e FSH. Usado como alternativa ao HCG para manter a fertilidade e evitar atrofia testicular durante o ciclo ou na TPC.',
+        commonDosages: { beginner: '100mcg pré-treino (pulsátil)', advanced: 'Uso frequente (várias vezes ao dia)' },
+        sideEffects: ['Dessensibilização da hipófise se usado errado (dose contínua)'],
+        benefits: ['Fertilidade', 'Volume testicular', 'Produção natural de testo'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'kisspeptin',
+        name: 'Kisspeptin-10',
+        category: 'SERM/IA',
+        type: 'Injetável',
+        halfLife: 'Curta',
+        anabolicRating: 'TPC',
+        description: 'Neuropeptídeo que inicia a cascata do eixo HPTA. Mais seguro que o GnRH/HCG pois não causa dessensibilização fácil. Excelente para TPC.',
+        commonDosages: { beginner: '100mcg - 200mcg 3x na semana', advanced: 'Uso contínuo em TPC' },
+        sideEffects: ['Aumento de libido intenso', 'Rubor'],
+        benefits: ['Restauração rápida do eixo', 'Segurança testicular'],
+        riskLevel: 'Baixo'
+    },
 
     // ========================================================================
     // TERMOGÊNICOS & METABÓLICOS
     // ========================================================================
     {
         id: 'clembuterol',
-        name: 'Clembuterol (Pulmonil)',
+        name: 'Clembuterol (Pulmonil/Gel)',
         category: 'Termogênico',
         type: 'Oral', // Ou Gel Lavizoo
         halfLife: '36 horas',
@@ -277,6 +400,32 @@ export const COMPOUNDS_DB: Compound[] = [
         sideEffects: ['Tremedeira (mãos)', 'Taquicardia', 'Cãibras (Taurina ajuda)', 'Ansiedade'],
         benefits: ['Aumenta TMB', 'Preserva massa magra'],
         riskLevel: 'Alto'
+    },
+    {
+        id: 'firebox',
+        name: 'Firebox Gel (Localizado)',
+        category: 'Termogênico',
+        type: 'Topico',
+        halfLife: 'Local',
+        anabolicRating: 'N/A',
+        description: 'Gel termogênico transdérmico. Geralmente composto por Ioimbina, Aminofilina e Capsaicina. Ajuda a mobilizar gordura em áreas difíceis (flancos/abdômen) via aumento de fluxo sanguíneo local.',
+        commonDosages: { beginner: 'Aplicação local pré-cardio', advanced: '2x ao dia' },
+        sideEffects: ['Vermelhidão intensa', 'Ardência na pele'],
+        benefits: ['Gordura teimosa', 'Vascularização local'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'sibutramina',
+        name: 'Sibutramina',
+        category: 'Termogênico',
+        type: 'Oral',
+        halfLife: '14-16 horas',
+        anabolicRating: 'N/A',
+        description: 'Inibidor de recaptação de serotonina e noradrenalina. Focado em controle de apetite (anorexígeno) e leve aumento do metabolismo.',
+        commonDosages: { beginner: '10mg pela manhã', advanced: '15mg (dose máxima segura)' },
+        sideEffects: ['Boca seca', 'Insônia', 'Aumento da pressão arterial', 'Taquicardia'],
+        benefits: ['Supressão de fome forte', 'Controle de compulsão'],
+        riskLevel: 'Médio'
     },
     {
         id: 't3',
@@ -328,6 +477,32 @@ export const COMPOUNDS_DB: Compound[] = [
         commonDosages: { beginner: '5mg - 10mg (Jejum)', advanced: '0.2mg/kg' },
         sideEffects: ['Ansiedade', 'Taquicardia', 'Sudorese fria'],
         benefits: ['Mobilização de gordura teimosa'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'aicar',
+        name: 'AICAR',
+        category: 'Metabólico',
+        type: 'Injetável', // Geralmente injetável ou oral (menos biodisponível)
+        halfLife: 'Curta',
+        anabolicRating: 'Endurance',
+        description: 'Ativador da AMPK. "Exercício em uma pílula". Aumenta drasticamente a resistência e a oxidação de gordura sem exercício, mas custa muito caro e requer doses altas.',
+        commonDosages: { beginner: '10mg-25mg dia', advanced: '50mg-100mg dia' },
+        sideEffects: ['Acúmulo de ácido lático', 'Custo proibitivo'],
+        benefits: ['Resistência cardiovascular', 'Queima de gordura passiva'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'slu-pp-332',
+        name: 'SLU-PP-332',
+        category: 'Metabólico',
+        type: 'Injetável',
+        halfLife: 'Em estudo',
+        anabolicRating: 'Metabólico',
+        description: 'Novo mimético de exercício. Agonista de ERR-alpha. Aumenta a queima de gordura e resistência preservando músculo tipo II. Potencial superior ao AICAR/GW501516.',
+        commonDosages: { beginner: '10mg - 20mg dia (Experimental)', advanced: 'Doses de estudo variam' },
+        sideEffects: ['Desconhecidos (Experimental)'],
+        benefits: ['Oxidação lipídica', 'Performance aeróbica'],
         riskLevel: 'Médio'
     },
 
@@ -399,10 +574,36 @@ export const COMPOUNDS_DB: Compound[] = [
         benefits: ['Ganhos secos', 'Sai rápido do corpo'],
         riskLevel: 'Baixo'
     },
+    {
+        id: 'testo-oral',
+        name: 'Testosterona Oral',
+        category: 'Testosterona',
+        type: 'Oral',
+        halfLife: 'Curta',
+        anabolicRating: '100:100',
+        description: 'Testosterona em comprimido (Geralmente Undecanoato ou Metil). Opção para quem tem fobia de agulhas, mas com biodisponibilidade inferior e maior custo/tixicidade hepática que injetáveis.',
+        commonDosages: { beginner: '40mg - 80mg/dia', advanced: 'Variável' },
+        sideEffects: ['Fígado (se Metil)', 'Gastrointestinal'],
+        benefits: ['Sem agulhas', 'Manutenção de libido'],
+        riskLevel: 'Médio'
+    },
 
     // ========================================================================
     // PEPTÍDEOS GLP-1/GIP (PERDA DE PESO)
     // ========================================================================
+    {
+        id: 'semaglutida',
+        name: 'Semaglutida (Ozempic/Wegovy)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: '7 dias',
+        anabolicRating: 'Metabólico',
+        description: 'Agonista GLP-1 puro. Reduz apetite, retarda esvaziamento gástrico. Padrão ouro atual para emagrecimento inicial.',
+        commonDosages: { beginner: '0.25mg/sem (4 semanas)', advanced: '1mg - 2.4mg/sem' },
+        sideEffects: ['Náusea', 'Constipação', 'Fadiga'],
+        benefits: ['Perda de peso consistente', 'Controle da glicemia'],
+        riskLevel: 'Baixo'
+    },
     {
         id: 'reta',
         name: 'Retatrutide (Triple Agonist)',
@@ -525,6 +726,84 @@ export const COMPOUNDS_DB: Compound[] = [
     // PEPTÍDEOS DE CRESCIMENTO & RECUPERAÇÃO (GH Secretagogues + Repair)
     // ========================================================================
     {
+        id: 'hgh-gen',
+        name: 'HGH (Somatropina)',
+        category: 'Peptídeo', // Hormônio, mas agrupado aqui pela praticidade
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Hormonal',
+        description: 'Hormônio do Crescimento Humano bioidêntico. O padrão ouro para queima de gordura, qualidade de pele, sono e, em doses altas, hiperplasia muscular.',
+        commonDosages: { beginner: '2iu - 4iu (Anti-aging/Fat loss)', advanced: '4iu - 10iu (Bodybuilding)' },
+        sideEffects: ['Síndrome do Túnel do Carpo', 'Resistência à Insulina', 'Retenção Hídrica'],
+        benefits: ['Rejuvenescimento total', 'Lipólise potente'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'gh-pens',
+        name: 'HGH Canetas (Eurogold/Somatex/Nordiflex)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Hormonal',
+        description: 'Hormônio do Crescimento em canetas aplicadoras de alta precisão. Marcas premium (Eurogold, Nordiflex). Maior pureza e facilidade de dosagem (UI) que o pó liofilizado comum.',
+        commonDosages: { beginner: '2ui - 4ui dia', advanced: '4ui - 10ui dia' },
+        sideEffects: ['Retenção', 'Formigamento mãos', 'Resistência insulina'],
+        benefits: ['Anti-aging', 'Queima de gordura', 'Sono', 'Pele'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'hgh-frag',
+        name: 'HGH Fragment 176-191',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Lipolítico',
+        description: 'Fragmento final da cadeia do GH responsável apenas pela queima de gordura. Não afeta a glicemia nem causa crescimento celular.',
+        commonDosages: { beginner: '250mcg 2x dia (Jejum)', advanced: '500mcg 2x dia' },
+        sideEffects: ['Irritação no local da injeção'],
+        benefits: ['Queima de gordura pura', 'Sem risco de diabetes'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'bpc157',
+        name: 'BPC-157 (Body Protection Compound)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo', // Ou oral para estômago
+        halfLife: '4 horas',
+        anabolicRating: 'Cura',
+        description: 'Peptídeo derivado do suco gástrico. Acelera drasticamente a cura de tendões, ligamentos, músculos e intestino (Leaky Gut).',
+        commonDosages: { beginner: '250mcg 2x dia', advanced: '500mcg - 1mg dia (Local da lesão)' },
+        sideEffects: ['Nenhum notável'],
+        benefits: ['Cura de lesões antigas', 'Proteção gástrica'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'tb500',
+        name: 'TB-500 (Thymosin Beta 4)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Longo',
+        anabolicRating: 'Cura',
+        description: 'Promove angiogênese (novos vasos sanguíneos) e mobilidade celular. Atua sistemicamente na cura de lesões musculares e flexibilidade.',
+        commonDosages: { beginner: '2.5mg 2x na semana (Carga)', advanced: 'Manutenção mensal' },
+        sideEffects: ['Cansaço no dia da aplicação'],
+        benefits: ['Flexibilidade', 'Cura muscular sistêmica'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'kpv',
+        name: 'KPV',
+        category: 'Peptídeo',
+        type: 'Subcutâneo', // Ou oral/creme
+        halfLife: 'Curta',
+        anabolicRating: 'Anti-inflamatório',
+        description: 'Tripeptídeo (Lisina-Prolina-Valina). Potente anti-inflamatório natural. Ótimo para saúde intestinal (colite), psoríase e acne.',
+        commonDosages: { beginner: '200mcg - 500mcg dia', advanced: 'Variável' },
+        sideEffects: ['Nenhum conhecido'],
+        benefits: ['Redução de inflamação', 'Saúde da pele/intestino'],
+        riskLevel: 'Baixo'
+    },
+    {
         id: 'bpc-tb',
         name: 'Combo: BPC-157 + TB-500',
         category: 'Peptídeo',
@@ -535,6 +814,32 @@ export const COMPOUNDS_DB: Compound[] = [
         commonDosages: { beginner: '5mg/5mg Blend (Dose: 500mcg dia)', advanced: 'Dose dobrada em lesão aguda' },
         sideEffects: ['Nenhum notável'],
         benefits: ['Cura acelerada', 'Anti-inflamatório sistêmico'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'cjc-dac',
+        name: 'CJC-1295 (Com DAC)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: '6-8 dias',
+        anabolicRating: 'GH',
+        description: 'Análogo de GHRH de longa duração (Drug Affinity Complex). Mantém níveis de GH elevados continuamente ("sangramento" de GH).',
+        commonDosages: { beginner: '1mg - 2mg por semana', advanced: 'Variável' },
+        sideEffects: ['Pode prejudicar a pulsatilidade natural do GH'],
+        benefits: ['Níveis constantes de GH e IGF-1'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'ipamorelin',
+        name: 'Ipamorelin',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: '2 horas',
+        anabolicRating: 'GH',
+        description: 'O secretagogo de GH mais "limpo". Estimula o pulso de GH sem aumentar cortisol ou prolactina significativamente.',
+        commonDosages: { beginner: '100mcg - 200mcg antes de dormir', advanced: '3x ao dia' },
+        sideEffects: ['Nenhum significativo'],
+        benefits: ['Sono', 'Recuperação', 'Sem fome excessiva'],
         riskLevel: 'Baixo'
     },
     {
@@ -549,6 +854,19 @@ export const COMPOUNDS_DB: Compound[] = [
         sideEffects: ['Rubor (Flush)', 'Sono profundo'],
         benefits: ['Pele', 'Sono', 'Anti-aging', 'Queima de gordura'],
         riskLevel: 'Baixo'
+    },
+    {
+        id: 'ghrp2',
+        name: 'GHRP-2',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'GH',
+        description: 'Secretagogo de GH potente. Aumenta GH mais que o Ipamorelin, mas aumenta um pouco a fome e prolactina (menos que o GHRP-6).',
+        commonDosages: { beginner: '100mcg 2-3x dia', advanced: 'Variável' },
+        sideEffects: ['Aumento de apetite moderado', 'Leve aumento de cortisol'],
+        benefits: ['Liberação forte de GH', 'Custo-benefício'],
+        riskLevel: 'Médio'
     },
     {
         id: 'mk677',
@@ -577,6 +895,32 @@ export const COMPOUNDS_DB: Compound[] = [
         riskLevel: 'Médio'
     },
     {
+        id: 'hexarelin',
+        name: 'Hexarelin',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'GH',
+        description: 'O secretagogo de GH mais potente mg por mg, mas com dessensibilização rápida. Aumenta prolactina e cortisol.',
+        commonDosages: { beginner: '100mcg pré-treino', advanced: 'Ciclos curtos (4 semanas)' },
+        sideEffects: ['Aumento de Cortisol/Prolactina', 'Fadiga'],
+        benefits: ['Pico massivo de GH', 'Força'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'sermorelin',
+        name: 'Sermorelin',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Muito curta',
+        anabolicRating: 'GH',
+        description: 'Versão mais antiga do CJC-1295. Estimula GH natural. Meia-vida muito curta, exige várias aplicações.',
+        commonDosages: { beginner: '200mcg - 500mcg antes dormir', advanced: 'Múltiplas vezes ao dia' },
+        sideEffects: ['Irritação no local'],
+        benefits: ['Anti-aging', 'Bem-estar'],
+        riskLevel: 'Baixo'
+    },
+    {
         id: 'igf1-lr3',
         name: 'IGF-1 LR3',
         category: 'Peptídeo',
@@ -601,6 +945,97 @@ export const COMPOUNDS_DB: Compound[] = [
         sideEffects: ['Dor local'],
         benefits: ['Melhora de pontos fracos'],
         riskLevel: 'Médio'
+    },
+    {
+        id: 'ace-031',
+        name: 'ACE-031',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Variável',
+        anabolicRating: 'Extrema',
+        description: 'Proteína de fusão solúvel do receptor de ativina tipo IIB. Atua como um potente inibidor de miostatina "decoy". Permite crescimento muscular além do limite genético.',
+        commonDosages: { beginner: '1mg a cada 1-2 semanas', advanced: 'Variável' },
+        sideEffects: ['Sangramento nasal/gengival (dilatação vasos)', 'Dor articular'],
+        benefits: ['Hipertrofia extrema rápida'],
+        riskLevel: 'Alto'
+    },
+    {
+        id: 'fst-344',
+        name: 'FST-344 (Follistatin)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo', // Ou intramuscular
+        halfLife: 'Curta',
+        anabolicRating: 'Extrema',
+        description: 'Folistatina 344. Inibe a miostatina e aumenta a massa muscular rapidamente. Muitas vezes usado localmente.',
+        commonDosages: { beginner: '100mcg por dia por 10 dias', advanced: 'Protocolos de carga' },
+        sideEffects: ['Enfraquecimento de tendões (músculo cresce mais rápido que tendão)'],
+        benefits: ['Quebra de platô genético'],
+        riskLevel: 'Alto'
+    },
+    {
+        id: 'thymosin-alpha-1',
+        name: 'Thymosin Alpha 1',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: '2 horas',
+        anabolicRating: 'Imunidade',
+        description: 'Peptídeo modulador do sistema imune. Aumenta células T. Usado para combater infecções crônicas, pós-ciclo ou para saúde geral.',
+        commonDosages: { beginner: '1.6mg 2x na semana', advanced: 'Uso diário em doença aguda' },
+        sideEffects: ['Nenhum conhecido (muito seguro)'],
+        benefits: ['Imunidade blindada', 'Anti-viral'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'thymalin',
+        name: 'Thymalin',
+        category: 'Peptídeo',
+        type: 'Injetável',
+        halfLife: 'Curta',
+        anabolicRating: 'Imunidade',
+        description: 'Bioregulador do Timo. Restaura a função imunológica e regula a relação de células T/B. Popular na Rússia para longevidade.',
+        commonDosages: { beginner: '10mg por dia por 10 dias', advanced: 'Ciclos semestrais' },
+        sideEffects: ['Nenhum significativo'],
+        benefits: ['Rejuvenescimento do sistema imune'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'll-37',
+        name: 'LL-37',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Saúde',
+        description: 'Peptídeo antimicrobiano potente. Atua contra bactérias, vírus e fungos. Também ajuda na cicatrização intestinal.',
+        commonDosages: { beginner: '100mcg - 200mcg dia', advanced: 'Ciclos curtos' },
+        sideEffects: ['Reação herxheimer (die-off) se houver infecção'],
+        benefits: ['Combate infecções resistentes', 'Saúde intestinal'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'ara-290',
+        name: 'ARA-290 (Cibinetide)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Recuperação',
+        description: 'Peptídeo focado em reparo de nervos (Neuropatia) e redução de inflamação e dor crônica. Ativa o receptor de reparo inato.',
+        commonDosages: { beginner: '4mg por dia', advanced: 'Uso contínuo por 30 dias' },
+        sideEffects: ['Nenhum significativo'],
+        benefits: ['Cura de neuropatia', 'Alívio da dor'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'pnc-27',
+        name: 'PNC-27',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'N/A',
+        description: 'Peptídeo experimental estudado por suas propriedades anti-cancerígenas (necrose de células tumorais). Uso off-label extremo.',
+        commonDosages: { beginner: 'Não recomendado', advanced: 'Protocolos experimentais' },
+        sideEffects: ['Lise tumoral (Risco renal)'],
+        benefits: ['Experimental'],
+        riskLevel: 'Extremo'
     },
 
     // ========================================================================
@@ -633,6 +1068,19 @@ export const COMPOUNDS_DB: Compound[] = [
         riskLevel: 'Baixo'
     },
     {
+        id: 'humanin',
+        name: 'Humanin',
+        category: 'Mitocondrial',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Saúde',
+        description: 'Peptídeo mitocondrial citoprotetor. Protege as células contra estresse oxidativo e morte (apoptose). Potente neuroprotetor.',
+        commonDosages: { beginner: 'Consultar especialista', advanced: 'Protocolos de longevidade' },
+        sideEffects: ['Pouco estudado em humanos saudáveis'],
+        benefits: ['Proteção celular', 'Saúde cardíaca'],
+        riskLevel: 'Baixo'
+    },
+    {
         id: 'epithalon',
         name: 'Epithalon',
         category: 'Peptídeo',
@@ -643,6 +1091,32 @@ export const COMPOUNDS_DB: Compound[] = [
         commonDosages: { beginner: '5mg-10mg dia por 10-20 dias (Ciclo)', advanced: '2x ao ano' },
         sideEffects: ['Nenhum'],
         benefits: ['Alongamento de telômeros', 'Sono', 'Rejuvenescimento'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'fox04-dri',
+        name: 'FOX04-DRI',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Longevidade',
+        description: 'Peptídeo Senolítico. Induz apoptose (morte) apenas em células senescentes ("zumbis") que causam envelhecimento, poupando células saudáveis.',
+        commonDosages: { beginner: 'Protocolos de pulso (curtos)', advanced: 'Experimental' },
+        sideEffects: ['Fadiga temporária (morte celular massiva)'],
+        benefits: ['Rejuvenescimento sistêmico', 'Cabelo/Pele'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'nad-plus',
+        name: 'NAD+ (Injetável)',
+        category: 'Mitocondrial',
+        type: 'Subcutâneo', // Ou IV
+        halfLife: 'Muito curta',
+        anabolicRating: 'Energia',
+        description: 'Coenzima essencial para produção de ATP. Níveis caem com a idade. Injeção repõe energia celular instantânea.',
+        commonDosages: { beginner: '50mg - 100mg dia', advanced: 'Doses maiores (IV)' },
+        sideEffects: ['Náusea/Aperto no peito se injetado rápido'],
+        benefits: ['Clareza mental', 'Energia física', 'Anti-aging'],
         riskLevel: 'Baixo'
     },
 
@@ -676,6 +1150,45 @@ export const COMPOUNDS_DB: Compound[] = [
         riskLevel: 'Baixo'
     },
     {
+        id: 'adamax',
+        name: 'Adamax',
+        category: 'Nootrópico',
+        type: 'Subcutâneo', // Nasal comum
+        halfLife: 'Média',
+        anabolicRating: 'Mental',
+        description: 'Versão superpotente do Semax com grupo adamantano. Aumenta BDNF massivamente. O nootrópico "God Mode".',
+        commonDosages: { beginner: '100mcg - 300mcg (Nasal/SubQ)', advanced: 'Cuidado com superestimulação' },
+        sideEffects: ['Insônia', 'Irritabilidade'],
+        benefits: ['Performance cognitiva extrema'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'p21',
+        name: 'P21',
+        category: 'Nootrópico',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Mental',
+        description: 'Mimetiza o CNTF (Fator Neurotrófico Ciliar). Focado em neurogênese e plasticidade cerebral. Melhora aprendizado.',
+        commonDosages: { beginner: '1mg por dia', advanced: 'Ciclos de aprendizado' },
+        sideEffects: ['Fadiga leve inicial'],
+        benefits: ['Neuroplasticidade', 'Aprendizado de novas skills'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'pinealon',
+        name: 'Pinealon',
+        category: 'Nootrópico',
+        type: 'Oral', // Ou SubQ
+        halfLife: 'Curta',
+        anabolicRating: 'Mental',
+        description: 'Bioregulador curto da glândula pineal. Melhora ritmo circadiano e funções cognitivas profundas.',
+        commonDosages: { beginner: '10mg oral / 5mg injetável', advanced: 'Ciclos curtos' },
+        sideEffects: ['Nenhum'],
+        benefits: ['Foco limpo', 'Proteção cerebral'],
+        riskLevel: 'Baixo'
+    },
+    {
         id: 'dihexa',
         name: 'Dihexa',
         category: 'Nootrópico',
@@ -688,10 +1201,49 @@ export const COMPOUNDS_DB: Compound[] = [
         benefits: ['Aprendizado', 'Reparo cerebral'],
         riskLevel: 'Alto'
     },
+    {
+        id: 'dsip',
+        name: 'DSIP (Delta Sleep Inducing Peptide)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Recuperação',
+        description: 'Peptídeo indutor do sono Delta (profundo). Reduz cortisol basal. Usado para insônia ou estresse crônico.',
+        commonDosages: { beginner: '100mcg antes de dormir', advanced: 'Variável' },
+        sideEffects: ['Sonolência diurna (se dose errada)'],
+        benefits: ['Sono reparador', 'Redução de estresse'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'pe-22-28',
+        name: 'PE-22-28',
+        category: 'Nootrópico',
+        type: 'Subcutâneo', // Nasal
+        halfLife: 'Curta',
+        anabolicRating: 'Mental',
+        description: 'Antagonista do canal TREK-1. Potencial antidepressivo e neurogênico (criação de neurônios).',
+        commonDosages: { beginner: 'Experimental', advanced: 'Protocolos de estudo' },
+        sideEffects: ['Pouco conhecidos'],
+        benefits: ['Humor', 'Neurogênese'],
+        riskLevel: 'Médio'
+    },
 
     // ========================================================================
     // SEXUAL & PELE
     // ========================================================================
+    {
+        id: 'mt1',
+        name: 'Melanotan I',
+        category: 'Peptídeo',
+        type: 'Subcutâneo',
+        halfLife: 'Curta',
+        anabolicRating: 'Cosmético',
+        description: 'Versão mais suave e segura do Melanotan II. Bronzeamento sem a náusea intensa ou ereções incontroláveis.',
+        commonDosages: { beginner: '500mcg dia', advanced: '1mg dia' },
+        sideEffects: ['Rubor facial', 'Menos colaterais que MT2'],
+        benefits: ['Bronzeado natural', 'Fotoproteção'],
+        riskLevel: 'Baixo'
+    },
     {
         id: 'mt2',
         name: 'Melanotan II',
@@ -729,6 +1281,19 @@ export const COMPOUNDS_DB: Compound[] = [
         commonDosages: { beginner: '1mg-2mg dia', advanced: 'Protocolos intensivos' },
         sideEffects: ['Dor no local (Cobre arde)', 'Acúmulo de cobre (tomar Zinco)'],
         benefits: ['Pele jovem', 'Cabelo', 'Cicatriz'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'snap-8',
+        name: 'Snap-8',
+        category: 'Peptídeo',
+        type: 'Topico', // Geralmente cosmético
+        halfLife: 'Local',
+        anabolicRating: 'Cosmético',
+        description: 'Octapeptídeo anti-rugas. Reduz a profundidade das rugas causadas pela contração muscular facial (efeito botox tópico).',
+        commonDosages: { beginner: 'Uso tópico em cremes', advanced: 'Formulação manipulada' },
+        sideEffects: ['Irritação local (raro)'],
+        benefits: ['Redução de rugas de expressão'],
         riskLevel: 'Baixo'
     },
 
@@ -775,6 +1340,19 @@ export const COMPOUNDS_DB: Compound[] = [
         riskLevel: 'Extremo'
     },
     {
+        id: 'trem-a',
+        name: 'Trembolona Acetato',
+        category: '19-Nor',
+        type: 'Injetável',
+        halfLife: '1 dia',
+        anabolicRating: '500:500',
+        description: 'Trembolona de ação rápida. A mais potente mg por mg. Exige aplicações diárias ou DSDN. Se der colateral, sai rápido.',
+        commonDosages: { beginner: 'Não recomendado', advanced: '50mg - 100mg DSDN' },
+        sideEffects: ['Tosse tren', 'Suores noturnos', 'Agressividade'],
+        benefits: ['Dureza muscular instantânea', 'Força'],
+        riskLevel: 'Extremo'
+    },
+    {
         id: 'bold',
         name: 'Boldenona (Undecilenato)',
         category: 'Testosterona', // Estruturalmente similar
@@ -786,6 +1364,84 @@ export const COMPOUNDS_DB: Compound[] = [
         sideEffects: ['Sangue grosso (Trombose)', 'Ansiedade (GABA)', 'Acne'],
         benefits: ['Vascularização', 'Apetite', 'Endurance'],
         riskLevel: 'Médio'
+    },
+    {
+        id: 'masteron',
+        name: 'Masteron (Drostanolona)',
+        category: 'DHT',
+        type: 'Injetável',
+        halfLife: '1-2 dias (Prop) / 5 dias (Enan)',
+        anabolicRating: '62:25',
+        description: 'O esteroide estético. Derivado de DHT. Não aromatiza, pelo contrário, ajuda a controlar estrogênio. Dá aspecto de pedra ao músculo se o BF estiver baixo.',
+        commonDosages: { beginner: '300mg/sem', advanced: '400-600mg/sem' },
+        sideEffects: ['Queda de cabelo (agressivo)', 'Próstata'],
+        benefits: ['Dureza muscular', 'Libido', 'Efeito anti-estrogênico'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'stano-inj',
+        name: 'Stanozolol Injetável (Winstrol)',
+        category: 'DHT',
+        type: 'Injetável',
+        halfLife: '24 horas',
+        anabolicRating: '320:30',
+        description: 'Famoso por "secar". Aumenta muito a síntese de colágeno (mas pode deixar tendões quebradiços). Injeção aquosa costuma doer.',
+        commonDosages: { beginner: '50mg DSDN', advanced: '50mg-100mg TSD' },
+        sideEffects: ['Dor articular (resseca)', 'Perfil lipídico (destrói HDL)', 'Abscesso'],
+        benefits: ['Performance atlética', 'Estética seca'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'stano-oral',
+        name: 'Stanozolol Oral',
+        category: 'Oral',
+        type: 'Oral',
+        halfLife: '9 horas',
+        anabolicRating: '320:30',
+        description: 'Versão oral do Winstrol. Hepatotóxico (17aa). Reduz SHBG, deixando mais testo livre.',
+        commonDosages: { beginner: '30mg/dia', advanced: '50-60mg/dia' },
+        sideEffects: ['Fígado', 'Colesterol ruim', 'Articulações'],
+        benefits: ['Força', 'Estética'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'oxan',
+        name: 'Oxandrolona (Anavar)',
+        category: 'DHT',
+        type: 'Oral',
+        halfLife: '9 horas',
+        anabolicRating: '322-630:24',
+        description: 'O esteroide oral mais seguro. Derivado de DHT. Não aromatiza. Ganhos de força significativos e efeito lipolítico (queima de gordura), especialmente visceral. Muito usado por mulheres.',
+        commonDosages: { beginner: '40mg - 60mg/dia (Homens)', advanced: '80mg/dia (Homens)', women: '5mg - 20mg/dia' },
+        sideEffects: ['Queda de libido (em homens, se sem testo)', 'Alteração perfil lipídico'],
+        benefits: ['Força sem peso', 'Definição', 'Segurança relativa'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'dianabol',
+        name: 'Dianabol (Metandrostenolona)',
+        category: 'Oral',
+        type: 'Oral',
+        halfLife: '4-6 horas',
+        anabolicRating: '210:60',
+        description: 'O pai dos anabolizantes. Ganhos de peso e força massivos e rápidos. Muita retenção hídrica (Look inchado).',
+        commonDosages: { beginner: '20-30mg/dia', advanced: '50mg+/dia' },
+        sideEffects: ['Retenção severa', 'Pressão alta', 'Ginecomastia rápida', 'Fígado'],
+        benefits: ['Volume bruto', 'Força', 'Euforia'],
+        riskLevel: 'Médio'
+    },
+    {
+        id: 'hemogenin',
+        name: 'Hemogenin (Oximetolona)',
+        category: 'Oral',
+        type: 'Oral',
+        halfLife: '8-9 horas',
+        anabolicRating: '320:45',
+        description: 'O oral mais potente para volume. Aumenta glóbulos vermelhos drasticamente (pump absurdo). Muito usado em powerlifting.',
+        commonDosages: { beginner: '50mg (pré-treino)', advanced: '100mg/dia' },
+        sideEffects: ['Hepatotóxico', 'Estômago ruim', 'Pressão alta'],
+        benefits: ['Força brutal', 'Volume instantâneo (Fullness)'],
+        riskLevel: 'Alto'
     },
     {
         id: 'proviron',
@@ -854,6 +1510,19 @@ export const COMPOUNDS_DB: Compound[] = [
         commonDosages: { beginner: '100mg antes de dormir', advanced: 'Variável' },
         sideEffects: ['Sonolência'],
         benefits: ['Sono profundo', 'Calma'],
+        riskLevel: 'Baixo'
+    },
+    {
+        id: 'oxytocin',
+        name: 'Oxytocin (Ocitocina)',
+        category: 'Peptídeo',
+        type: 'Subcutâneo', // ou nasal
+        halfLife: 'Muito curta',
+        anabolicRating: 'Social',
+        description: 'Hormônio do amor/vínculo. Reduz cortisol, melhora o orgasmo e a conexão social.',
+        commonDosages: { beginner: '10iu - 20iu (Nasal) sob demanda', advanced: 'Variável' },
+        sideEffects: ['Dor de cabeça (se dose alta)'],
+        benefits: ['Bem-estar', 'Orgasmo intenso', 'Vínculo'],
         riskLevel: 'Baixo'
     }
 ];
