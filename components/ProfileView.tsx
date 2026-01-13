@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard } from './Icons';
+import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun } from './Icons';
 import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
 
@@ -47,7 +47,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             whr: '',
             bmiClassification: '',
             whrRisk: ''
-        }
+        },
+        theme: 'light'
     };
 
     const [formData, setFormData] = useState<UserProfile>(profile || defaultProfile);
@@ -141,7 +142,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     ...(profile.measurements || {})
                 },
                 // Keep calculatedStats handled by the other useEffect
-                calculatedStats: prev.calculatedStats 
+                calculatedStats: prev.calculatedStats,
+                theme: profile.theme || 'light'
             }));
         }
     }, [profile]);
@@ -258,21 +260,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         }
     };
 
-    // Shared input class to ensure consistent visibility and contrast
-    const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border";
+    // Shared input class to ensure consistent visibility and contrast - dark mode added
+    const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500";
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 text-gray-900">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
              {/* Header */}
-             <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+             <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-white">
                     <IconUser className="w-6 h-6 text-blue-600" />
                     Ficha Biométrico
                 </h2>
                 <button 
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg"
+                    className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700"
                 >
                     {isSaving ? 'Salvando...' : 'Salvar Perfil'}
                 </button>
@@ -300,20 +302,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                 </div>
 
                 {successMsg && (
-                    <div className="bg-green-50 text-green-800 p-4 rounded-xl border border-green-200 flex items-center gap-3 animate-in slide-in-from-top-4 shadow-sm font-medium">
+                    <div className="bg-green-50 text-green-800 p-4 rounded-xl border border-green-200 flex items-center gap-3 animate-in slide-in-from-top-4 shadow-sm font-medium dark:bg-green-900/20 dark:text-green-300 dark:border-green-800">
                         <IconCheck className="w-5 h-5" />
                         {successMsg}
                     </div>
                 )}
                 
                 {/* AVATAR SECTION */}
-                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center dark:bg-gray-900 dark:border-gray-800">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative">
+                        <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative dark:bg-gray-800 dark:border-gray-700">
                             {formData.avatarUrl ? (
                                 <img src={formData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                             ) : (
-                                <IconUser className="w-12 h-12 text-gray-300" />
+                                <IconUser className="w-12 h-12 text-gray-300 dark:text-gray-600" />
                             )}
                             
                             {/* Loading Overlay */}
@@ -330,7 +332,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         </div>
 
                         {/* Edit Button Badge */}
-                        <div className="absolute bottom-1 right-1 bg-blue-600 text-white p-2 rounded-full shadow-md border-2 border-white transform transition-transform group-hover:scale-110">
+                        <div className="absolute bottom-1 right-1 bg-blue-600 text-white p-2 rounded-full shadow-md border-2 border-white transform transition-transform group-hover:scale-110 dark:border-gray-800">
                              <IconPlus className="w-4 h-4" />
                         </div>
                         
@@ -338,7 +340,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         {formData.avatarUrl && (
                              <button 
                                 onClick={handleDeleteAvatar}
-                                className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-full shadow-md border-2 border-white transform hover:scale-110"
+                                className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-full shadow-md border-2 border-white transform hover:scale-110 dark:border-gray-800"
                                 title="Remover foto"
                             >
                                 <IconClose className="w-3 h-3" />
@@ -347,8 +349,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                     
                     <div className="text-center mt-4">
-                        <h3 className="font-bold text-gray-900">{formData.name || 'Atleta'}</h3>
-                        <p className="text-xs text-gray-500">Toque na imagem para alterar a foto</p>
+                        <h3 className="font-bold text-gray-900 dark:text-white">{formData.name || 'Atleta'}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Toque na imagem para alterar a foto</p>
                     </div>
 
                     <input 
@@ -360,57 +362,86 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     />
                 </div>
 
-                {/* CALCULATED STATS CARD (NEW) */}
-                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 md:p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <IconScience className="w-24 h-24 text-indigo-900" />
+                {/* THEME SELECTION (NEW) */}
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Aparência do App</h3>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => handleChange('theme', 'light')}
+                            className={`flex-1 p-4 rounded-xl border-2 flex items-center justify-center gap-3 transition-all ${
+                                formData.theme !== 'dark' 
+                                ? 'border-blue-600 bg-blue-50 text-blue-900' 
+                                : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
+                            }`}
+                        >
+                            <IconSun className="w-5 h-5" />
+                            <span className="font-bold text-sm">Modo Claro</span>
+                        </button>
+                        <button
+                            onClick={() => handleChange('theme', 'dark')}
+                            className={`flex-1 p-4 rounded-xl border-2 flex items-center justify-center gap-3 transition-all ${
+                                formData.theme === 'dark' 
+                                ? 'border-blue-600 bg-gray-800 text-white' 
+                                : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
+                            }`}
+                        >
+                            <IconMoon className="w-5 h-5" />
+                            <span className="font-bold text-sm">Modo Escuro</span>
+                        </button>
                     </div>
-                    <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
+                </div>
+
+                {/* CALCULATED STATS CARD (NEW) */}
+                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 md:p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden dark:from-gray-900 dark:to-gray-900 dark:border-indigo-900/30">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <IconScience className="w-24 h-24 text-indigo-900 dark:text-indigo-400" />
+                    </div>
+                    <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10 dark:text-indigo-300">
                         <IconFlame className="w-4 h-4 text-orange-500" />
                         Índices Metabólicos (Estimados)
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm">
+                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
                             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">TMB (Basal)</p>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900">{formData.calculatedStats?.bmr || '--'}</span>
-                                <span className="text-xs font-bold text-gray-500">kcal</span>
+                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmr || '--'}</span>
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">kcal</span>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-1">Fórmula Mifflin-St Jeor</p>
+                            <p className="text-[10px] text-gray-400 mt-1 dark:text-gray-500">Fórmula Mifflin-St Jeor</p>
                         </div>
-                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm">
+                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
                             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">IMC</p>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900">{formData.calculatedStats?.bmi || '--'}</span>
+                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmi || '--'}</span>
                             </div>
                             <p className={`text-[10px] font-bold mt-1 ${
-                                formData.calculatedStats?.bmiClassification === 'Eutrófico (Normal)' ? 'text-green-600' : 'text-orange-500'
+                                formData.calculatedStats?.bmiClassification === 'Eutrófico (Normal)' ? 'text-green-600 dark:text-green-400' : 'text-orange-500'
                             }`}>
                                 {formData.calculatedStats?.bmiClassification || 'Aguardando dados'}
                             </p>
                         </div>
-                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm">
+                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
                             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">Relação Cintura-Quadril</p>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900">{formData.calculatedStats?.whr || '--'}</span>
+                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.whr || '--'}</span>
                             </div>
                             <p className={`text-[10px] font-bold mt-1 ${
-                                formData.calculatedStats?.whrRisk === 'Risco Baixo' ? 'text-green-600' : 'text-red-500'
+                                formData.calculatedStats?.whrRisk === 'Risco Baixo' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
                             }`}>
                                 {formData.calculatedStats?.whrRisk || 'Aguardando medidas'}
                             </p>
                         </div>
                     </div>
-                    <div className="mt-4 text-[10px] text-indigo-800/60 font-medium">
+                    <div className="mt-4 text-[10px] text-indigo-800/60 font-medium dark:text-indigo-300/60">
                         * Estes valores são calculados com base na sua antropometria básica. A bioimpedância (se enviada) terá prioridade na análise da IA.
                     </div>
                 </div>
 
-                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2">Dados Vitais</h3>
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Dados Vitais</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700">Nome Completo / Apelido</span>
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nome Completo / Apelido</span>
                             <input 
                                 type="text" 
                                 value={formData.name} 
@@ -421,9 +452,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         </label>
                          <label className="block relative">
                             <div className="flex justify-between">
-                                <span className="text-sm font-bold text-gray-700">Data de Nascimento</span>
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Data de Nascimento</span>
                                 {currentAge !== null && (
-                                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
                                         {currentAge} anos
                                     </span>
                                 )}
@@ -439,7 +470,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                 <button 
                                     type="button"
                                     onClick={handleOpenDatePicker}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors dark:hover:bg-gray-700"
                                     title="Abrir calendário"
                                 >
                                     <IconCalendar className="w-5 h-5" />
@@ -447,7 +478,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                             </div>
                         </label>
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700">Gênero Biológico</span>
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Gênero Biológico</span>
                             <select 
                                 value={formData.gender}
                                 onChange={(e) => handleChange('gender', e.target.value as any)}
@@ -459,23 +490,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         </label>
                         <div className="grid grid-cols-3 gap-3">
                              <label className="block">
-                                <span className="text-sm font-bold text-gray-700">Altura (cm)</span>
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Altura (cm)</span>
                                 <input type="number" value={formData.height} onChange={(e) => handleChange('height', e.target.value)} className={inputClass} placeholder="175" />
                             </label>
                              <label className="block">
-                                <span className="text-sm font-bold text-gray-700">Peso (kg)</span>
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peso (kg)</span>
                                 <input type="number" value={formData.weight} onChange={(e) => handleChange('weight', e.target.value)} className={inputClass} placeholder="80" />
                             </label>
                              <label className="block">
-                                <span className="text-sm font-bold text-gray-700">BF % (Est.)</span>
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF % (Est.)</span>
                                 <input type="number" value={formData.bodyFat} onChange={(e) => handleChange('bodyFat', e.target.value)} className={inputClass} placeholder="15" />
                             </label>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:border-gray-800 dark:text-gray-500">
                         <IconActivity className="w-4 h-4" />
                         Antropometria (Medidas)
                     </h3>
@@ -489,7 +520,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                             calf: 'Panturrilha'
                         }).map(([key, label]) => (
                             <label key={key} className="block">
-                                <span className="text-sm font-bold text-gray-700">{label} (cm)</span>
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{label} (cm)</span>
                                 <input 
                                     type="number" 
                                     value={formData.measurements[key as keyof typeof formData.measurements] || ''} 
@@ -502,14 +533,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
-                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500">
-                     <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-100 pb-2 flex items-center gap-2">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 dark:border-l-red-600">
+                     <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-100 pb-2 flex items-center gap-2 dark:border-red-900/30">
                         <IconAlert className="w-4 h-4" />
                         Histórico Médico (Crítico para a IA)
                     </h3>
                     <div className="space-y-6">
                          <label className="block">
-                            <span className="text-sm font-bold text-gray-700">Comorbidades / Doenças Pré-existentes</span>
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Comorbidades / Doenças Pré-existentes</span>
                             <textarea 
                                 value={formData.comorbidities}
                                 onChange={(e) => handleChange('comorbidities', e.target.value)}
@@ -518,7 +549,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                             />
                         </label>
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700">Medicamentos de Uso Contínuo</span>
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Medicamentos de Uso Contínuo</span>
                             <textarea 
                                 value={formData.medications}
                                 onChange={(e) => handleChange('medications', e.target.value)}
@@ -526,19 +557,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                 className={`${inputClass} h-24`}
                             />
                         </label>
-                        <div className="bg-yellow-50 p-4 rounded-lg text-xs text-yellow-800 leading-relaxed font-medium border border-yellow-100">
-                            <strong className="block mb-1 text-yellow-900">Por que preencher isso?</strong>
+                        <div className="bg-yellow-50 p-4 rounded-lg text-xs text-yellow-800 leading-relaxed font-medium border border-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800">
+                            <strong className="block mb-1 text-yellow-900 dark:text-yellow-200">Por que preencher isso?</strong>
                             A Inteligência Artificial usará esses dados para cruzar riscos. Exemplo: Se você marcar "Hipertensão", a IA alertará sobre riscos cardíacos se você adicionar estimulantes fortes (como Clembuterol) ao seu protocolo.
                         </div>
                     </div>
                 </div>
 
                  {/* Password Update Section */}
-                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2">Segurança da Conta</h3>
+                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-white">Segurança da Conta</h3>
                     <div className="space-y-4">
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700">Nova Senha</span>
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nova Senha</span>
                             <div className="flex gap-2">
                                 <input 
                                     type="password" 
@@ -550,13 +581,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                 <button 
                                     onClick={handleUpdatePassword}
                                     disabled={isUpdatingPassword || !newPassword}
-                                    className="px-6 bg-gray-900 text-white rounded-lg font-bold text-sm hover:bg-black disabled:opacity-50 transition-colors whitespace-nowrap"
+                                    className="px-6 bg-gray-900 text-white rounded-lg font-bold text-sm hover:bg-black disabled:opacity-50 transition-colors whitespace-nowrap dark:bg-gray-700 dark:hover:bg-gray-600"
                                 >
                                     {isUpdatingPassword ? '...' : 'Atualizar'}
                                 </button>
                             </div>
                         </label>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                             Digite sua nova senha e clique em atualizar. 
                         </p>
                     </div>

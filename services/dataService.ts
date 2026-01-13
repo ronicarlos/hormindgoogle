@@ -281,7 +281,9 @@ export const dataService = {
             calculatedStats: calculatedStats,
             // Legal Fields
             termsAcceptedAt: data.terms_accepted_at,
-            hideStartupDisclaimer: data.hide_startup_disclaimer
+            hideStartupDisclaimer: data.hide_startup_disclaimer,
+            // Preference
+            theme: data.theme || 'light'
         };
     },
 
@@ -297,6 +299,7 @@ export const dataService = {
             comorbidities: profile.comorbidities,
             medications: profile.medications,
             measurements: profile.measurements,
+            theme: profile.theme, // Persist theme
             updated_at: new Date().toISOString()
         };
 

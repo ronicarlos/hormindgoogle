@@ -104,8 +104,8 @@ const AuthScreen: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 dark:bg-gray-950">
+            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
                 <div className="p-8 md:p-10">
                     <div className="flex justify-center mb-6">
                         <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
@@ -113,20 +113,20 @@ const AuthScreen: React.FC = () => {
                         </div>
                     </div>
                     
-                    <h2 className="text-3xl font-black text-center text-gray-900 mb-2">FitLM</h2>
-                    <p className="text-center text-gray-500 mb-8 font-medium">Sua inteligência atlética pessoal.</p>
+                    <h2 className="text-3xl font-black text-center text-gray-900 mb-2 dark:text-white">FitLM</h2>
+                    <p className="text-center text-gray-500 mb-8 font-medium dark:text-gray-400">Sua inteligência atlética pessoal.</p>
 
                     {error && (
-                        <div className="mb-4 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 animate-in slide-in-from-top-2">
-                            <IconAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                            <p className="text-sm text-red-700 font-medium">{error}</p>
+                        <div className="mb-4 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 animate-in slide-in-from-top-2 dark:bg-red-900/20 dark:border-red-900/30">
+                            <IconAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5 dark:text-red-400" />
+                            <p className="text-sm text-red-700 font-medium dark:text-red-200">{error}</p>
                         </div>
                     )}
 
                     {message && (
-                        <div className="mb-4 p-4 bg-green-50 border border-green-100 rounded-xl flex items-start gap-3 animate-in slide-in-from-top-2">
-                            <IconCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                            <p className="text-sm text-green-700 font-medium">{message}</p>
+                        <div className="mb-4 p-4 bg-green-50 border border-green-100 rounded-xl flex items-start gap-3 animate-in slide-in-from-top-2 dark:bg-green-900/20 dark:border-green-900/30">
+                            <IconCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5 dark:text-green-400" />
+                            <p className="text-sm text-green-700 font-medium dark:text-green-200">{message}</p>
                         </div>
                     )}
 
@@ -136,7 +136,7 @@ const AuthScreen: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleGoogleLogin}
-                                className="w-full py-3 bg-white border border-gray-300 rounded-xl text-gray-700 font-bold text-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-3 active:scale-[0.98] shadow-sm"
+                                className="w-full py-3 bg-white border border-gray-300 rounded-xl text-gray-700 font-bold text-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-3 active:scale-[0.98] shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700"
                             >
                                 <IconGoogle className="w-5 h-5" />
                                 <span>Continuar com Google</span>
@@ -144,10 +144,10 @@ const AuthScreen: React.FC = () => {
                             
                             <div className="relative my-6">
                                 <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-200"></div>
+                                    <div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
                                 </div>
                                 <div className="relative flex justify-center text-sm">
-                                    <span className="px-2 bg-white text-gray-400 font-medium">ou use seu e-mail</span>
+                                    <span className="px-2 bg-white text-gray-400 font-medium dark:bg-gray-900 dark:text-gray-500">ou use seu e-mail</span>
                                 </div>
                             </div>
                         </div>
@@ -156,12 +156,12 @@ const AuthScreen: React.FC = () => {
                     <form onSubmit={handleAuth} className="space-y-5">
                         {/* Campo de E-mail (Sempre visível) */}
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">E-mail</label>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1 dark:text-gray-400">E-mail</label>
                             <input 
                                 type="email" 
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900"
+                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"
                                 placeholder="seu@email.com"
                                 required
                                 disabled={showOtpInput && mode === 'recovery'} 
@@ -171,13 +171,13 @@ const AuthScreen: React.FC = () => {
                         {/* Campo de Senha (Login/Signup) */}
                         {mode !== 'recovery' && (
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Senha</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1 dark:text-gray-400">Senha</label>
                                 <div className="relative">
                                     <input 
                                         type={showPassword ? "text" : "password"} 
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 pr-12"
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 pr-12 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"
                                         placeholder="••••••••"
                                         required
                                         minLength={6}
@@ -185,7 +185,7 @@ const AuthScreen: React.FC = () => {
                                     <button 
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 dark:text-gray-500 dark:hover:text-gray-300"
                                         tabIndex={-1}
                                     >
                                         {showPassword ? <IconEyeOff className="w-5 h-5" /> : <IconEye className="w-5 h-5" />}
@@ -202,9 +202,9 @@ const AuthScreen: React.FC = () => {
                                     id="remember" 
                                     checked={rememberMe} 
                                     onChange={(e) => setRememberMe(e.target.checked)}
-                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:ring-offset-gray-900"
                                 />
-                                <label htmlFor="remember" className="text-sm text-gray-500 font-medium select-none cursor-pointer">
+                                <label htmlFor="remember" className="text-sm text-gray-500 font-medium select-none cursor-pointer dark:text-gray-400">
                                     Manter conectado
                                 </label>
                             </div>
@@ -213,17 +213,17 @@ const AuthScreen: React.FC = () => {
                         {/* Campos de Recuperação (Etapa 2: OTP + Nova Senha) */}
                         {mode === 'recovery' && showOtpInput && (
                              <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-800 font-medium">
+                                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-800 font-medium dark:bg-yellow-900/20 dark:border-yellow-900/30 dark:text-yellow-200">
                                     <strong className="block mb-1">Atenção:</strong>
                                     Procure no e-mail o <strong>código numérico de 6 dígitos</strong>. Se o link não funcionar, digite o código abaixo manualmente.
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Código OTP (6 dígitos)</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1 dark:text-gray-400">Código OTP (6 dígitos)</label>
                                     <input 
                                         type="text" 
                                         value={otp}
                                         onChange={(e) => setOtp(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 tracking-widest text-center text-lg"
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 tracking-widest text-center text-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"
                                         placeholder="000000"
                                         required
                                         maxLength={6}
@@ -231,13 +231,13 @@ const AuthScreen: React.FC = () => {
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Nova Senha</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1 dark:text-gray-400">Nova Senha</label>
                                     <div className="relative">
                                         <input 
                                             type={showPassword ? "text" : "password"} 
                                             value={newPassword}
                                             onChange={(e) => setNewPassword(e.target.value)}
-                                            className="w-full px-4 py-3 bg-white border-2 border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 pr-12"
+                                            className="w-full px-4 py-3 bg-white border-2 border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 pr-12 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"
                                             placeholder="Nova senha segura"
                                             required
                                             minLength={6}
@@ -258,7 +258,7 @@ const AuthScreen: React.FC = () => {
                         <button 
                             type="submit"
                             disabled={loading}
-                            className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700"
                         >
                             {loading ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -270,11 +270,11 @@ const AuthScreen: React.FC = () => {
                         </button>
                     </form>
 
-                    <div className="mt-8 pt-6 border-t border-gray-100 text-center space-y-3">
+                    <div className="mt-8 pt-6 border-t border-gray-100 text-center space-y-3 dark:border-gray-800">
                         {mode === 'login' && (
                              <button 
                                 onClick={() => { setMode('recovery'); setError(''); setMessage(''); }}
-                                className="block w-full text-xs text-gray-500 hover:text-gray-800 font-semibold mb-2 underline decoration-gray-300 underline-offset-4"
+                                className="block w-full text-xs text-gray-500 hover:text-gray-800 font-semibold mb-2 underline decoration-gray-300 underline-offset-4 dark:text-gray-400 dark:hover:text-gray-200 dark:decoration-gray-700"
                             >
                                 Esqueci minha senha
                             </button>
@@ -290,7 +290,7 @@ const AuthScreen: React.FC = () => {
                                     setOtp('');
                                     setNewPassword('');
                                 }}
-                                className="block w-full text-xs text-gray-500 hover:text-gray-800 font-semibold mb-2"
+                                className="block w-full text-xs text-gray-500 hover:text-gray-800 font-semibold mb-2 dark:text-gray-400 dark:hover:text-gray-200"
                             >
                                 ← Voltar para Login
                             </button>
@@ -298,7 +298,7 @@ const AuthScreen: React.FC = () => {
 
                         {mode !== 'recovery' && (
                             <div className="flex items-center justify-center gap-2 text-sm">
-                                <span className="text-gray-500">
+                                <span className="text-gray-500 dark:text-gray-400">
                                     {mode === 'login' ? 'Não tem conta?' : 'Já tem conta?'}
                                 </span>
                                 <button 
@@ -307,7 +307,7 @@ const AuthScreen: React.FC = () => {
                                         setError('');
                                         setMessage('');
                                     }}
-                                    className="text-blue-600 font-bold hover:underline"
+                                    className="text-blue-600 font-bold hover:underline dark:text-blue-400"
                                 >
                                     {mode === 'login' ? 'Criar agora' : 'Fazer login'}
                                 </button>

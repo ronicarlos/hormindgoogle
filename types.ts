@@ -47,6 +47,8 @@ export interface UserProfile {
   // NEW: Legal fields
   termsAcceptedAt?: string | null;
   hideStartupDisclaimer?: boolean;
+  // NEW: UI Preference
+  theme?: 'light' | 'dark';
 }
 
 export interface Source {

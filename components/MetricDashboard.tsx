@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, ReferenceArea, AreaChart, Area } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser } from './Icons';
+import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface MetricDashboardProps {
@@ -15,15 +15,17 @@ interface MetricDashboardProps {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload as MetricPoint;
     return (
-      <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-lg text-xs z-50">
-        <p className="font-bold text-gray-900 mb-1">{data.date}</p>
-        <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].color }} />
-            <span className="text-gray-600 font-medium">{data.value} {data.unit}</span>
-        </div>
-        {data.label && <p className="text-[10px] text-gray-400 mt-1 italic">{data.label}</p>}
+      <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-lg text-xs z-50 dark:bg-gray-900 dark:border-gray-700">
+        <p className="font-bold text-gray-900 mb-2 border-b border-gray-100 pb-1 dark:text-white dark:border-gray-700">{label}</p>
+        {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 mb-1 last:mb-0">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.stroke || entry.fill }} />
+                <span className="text-gray-600 font-medium dark:text-gray-300">
+                    {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value} {entry.unit}
+                </span>
+            </div>
+        ))}
       </div>
     );
   }
@@ -31,11 +33,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const EmptyChartState = ({ message }: { message: string }) => (
-    <div className="h-40 w-full bg-gray-50/50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 gap-2">
+    <div className="h-32 w-full bg-gray-50/50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 gap-2 dark:bg-gray-800/50 dark:border-gray-700">
         <IconActivity className="w-5 h-5 opacity-20" />
-        <p className="text-[10px] font-medium">{message}</p>
+        <p className="text-[10px] font-medium text-center px-4">{message}</p>
     </div>
 );
+
+// --- COMPONENTES DE GRÁFICO ---
 
 const BiomarkerChart = ({ 
     title, 
@@ -54,35 +58,33 @@ const BiomarkerChart = ({
     yDomain?: [number | string, number | string];
     type?: 'line' | 'area';
 }) => {
-    // Memoize data cleaning to maintain reference stability across renders
     const cleanData = useMemo(() => {
         if (!data || data.length === 0) return [];
-        return data.map(d => ({...d, value: Number(d.value)}));
+        // Sort by date ascending
+        return [...data]
+            .map(d => ({...d, value: Number(d.value)}))
+            .sort((a,b) => {
+                 const da = a.date.split('/').reverse().join('-');
+                 const db = b.date.split('/').reverse().join('-');
+                 return new Date(da).getTime() - new Date(db).getTime();
+            });
     }, [data]);
 
-    // Stable config objects to prevent Recharts internal update loops
     const dotConfig = useMemo(() => ({ r: 3, fill: color, strokeWidth: 2, stroke: '#fff' }), [color]);
     const activeDotConfig = useMemo(() => ({ r: 5, strokeWidth: 0 }), []);
 
-    if (!data || data.length === 0) return (
-        <div className="mb-6">
-            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight mb-2">{title}</h3>
-            <EmptyChartState message="Sem dados suficientes" />
-        </div>
-    );
+    if (!data || data.length === 0) return null;
 
     return (
         <div className="mb-8 w-full">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight">{title}</h3>
-                {data[0].unit && <span className="text-[10px] text-gray-400 font-medium">{data[0].unit}</span>}
-                {minRef && maxRef && <span className="text-[10px] text-gray-400 font-medium">Ref: {minRef} - {maxRef}</span>}
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight dark:text-gray-300">{title}</h3>
+                <div className="flex gap-2">
+                    {data[0].unit && <span className="text-[10px] text-gray-400 font-medium">{data[0].unit}</span>}
+                    {minRef && maxRef && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 rounded dark:bg-gray-800">Ref: {minRef}-{maxRef}</span>}
+                </div>
             </div>
-            <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative">
-                {/* 
-                   Fix: Added minWidth={0} to allow shrinking in flex containers.
-                   The container div has explicit height (h-40) and w-full.
-                */}
+            <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     {type === 'area' ? (
                         <AreaChart data={cleanData}>
@@ -92,45 +94,40 @@ const BiomarkerChart = ({
                                     <stop offset="95%" stopColor={color} stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="date" hide />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
+                            <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={yDomain || ['auto', 'auto']} />
                             <RechartsTooltip content={<CustomTooltip />} />
                             <Area 
                                 type="monotone" 
                                 dataKey="value" 
+                                name={title}
                                 stroke={color} 
                                 fillOpacity={1} 
                                 fill={`url(#grad-${title})`} 
                                 strokeWidth={2}
-                                isAnimationActive={false}
+                                isAnimationActive={true}
                             />
+                             {minRef && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
+                             {maxRef && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
                         </AreaChart>
                     ) : (
                         <LineChart data={cleanData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="date" hide />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
+                            <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={yDomain || ['auto', 'auto']} />
                             <RechartsTooltip content={<CustomTooltip />} />
-                            
-                            {minRef && maxRef && (
-                                <ReferenceArea 
-                                    y1={minRef} 
-                                    y2={maxRef} 
-                                    fill={color} 
-                                    fillOpacity={0.05} 
-                                    stroke="none"
-                                />
-                            )}
-                            
+                            {minRef && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
+                            {maxRef && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
                             <Line 
                                 type="monotone" 
                                 dataKey="value" 
+                                name={title}
                                 stroke={color} 
                                 strokeWidth={3} 
                                 dot={dotConfig} 
                                 activeDot={activeDotConfig}
-                                isAnimationActive={false}
+                                isAnimationActive={true}
                             />
                         </LineChart>
                     )}
@@ -140,190 +137,383 @@ const BiomarkerChart = ({
     );
 };
 
-const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing = false }) => {
-  const [activeTab, setActiveTab] = useState<'health' | 'performance'>('health');
-
-  // Dynamic Data from Project Props - Mapped from the new standardized keys
-  const testosteroneData = project.metrics['Testosterone'] || [];
-  const hdlData = project.metrics['HDL'] || [];
-  const ldlData = project.metrics['LDL'] || [];
-  const bodyWeightData = project.metrics['BodyWeight'] || []; // Supports Bioimpedance Weight
-  const bodyFatData = project.metrics['BodyFat'] || [];       // New: Supports Bioimpedance BF%
-  const muscleMassData = project.metrics['MuscleMass'] || []; // New: Supports Bioimpedance Muscle
-  const strengthData = project.metrics['Strength'] || [];
-
-  return (
-    <div className={`${isMobileView ? 'w-full' : 'w-96 border-l hidden lg:flex'} bg-white border-gray-200 h-screen flex flex-col overflow-y-auto`}>
-      <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-        <div>
-            <h2 className="text-lg font-bold text-gray-800">Painel</h2>
-            <p className="text-sm text-gray-500">{project.name}</p>
-        </div>
-        <Tooltip content="Gera um relatório médico completo (PDF style) analisando todas as suas fontes ativas." position="left">
-            <button 
-                onClick={onGenerateProntuario}
-                disabled={isProcessing}
-                className={`text-[10px] px-3 py-1.5 rounded transition-all font-bold uppercase shadow-sm flex items-center gap-2 border ${
-                    isProcessing 
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
-                    : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-50 active:scale-95'
-                }`}
-            >
-                {isProcessing && (
-                     <div className="w-3 h-3 border-2 border-gray-400 border-t-gray-900 rounded-full animate-spin"></div>
-                )}
-                {isProcessing ? 'Lendo...' : 'Relatório'}
-            </button>
-        </Tooltip>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-100 bg-white sticky top-0 z-10">
-        <button 
-            onClick={() => setActiveTab('health')}
-            className={`flex-1 py-3 text-sm font-semibold transition-all border-b-2 ${activeTab === 'health' ? 'text-blue-600 border-blue-600 bg-blue-50/50' : 'text-gray-400 border-transparent hover:text-gray-600'}`}
-        >
-            Saúde & Bio
-        </button>
-        <button 
-            onClick={() => setActiveTab('performance')}
-            className={`flex-1 py-3 text-sm font-semibold transition-all border-b-2 ${activeTab === 'performance' ? 'text-purple-600 border-purple-600 bg-purple-50/50' : 'text-gray-400 border-transparent hover:text-gray-600'}`}
-        >
-            Físico & Treino
-        </button>
-      </div>
-
-      {/* Risks Section */}
-      {risks.length > 0 && (
-        <div className="p-5 border-b border-gray-100 bg-red-50/30">
-          <div className="flex items-center gap-2 mb-3 text-red-700">
-            <IconAlert className="w-4 h-4" />
-            <h3 className="font-bold text-[11px] uppercase tracking-wider">Alertas Críticos</h3>
-          </div>
-          <div className="space-y-2">
-            {risks.map((risk, idx) => (
-              <div key={idx} className="bg-white p-3 rounded-lg border border-red-100 shadow-sm">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="text-[9px] font-black text-red-500 bg-red-50 px-1.5 py-0.5 rounded uppercase">
-                    {risk.category}
-                  </span>
-                  <span className="text-[9px] text-gray-400 font-bold">{risk.level}</span>
-                </div>
-                <p className="text-[12px] text-gray-800 font-medium leading-tight">{risk.message}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Charts Section */}
-      <div className="p-6 space-y-2 pb-24 w-full">
+// 1. HORMONAL RADAR (Testo vs Estradiol)
+const HormonalBalanceChart = ({ 
+    testoData, 
+    e2Data 
+}: { 
+    testoData: MetricPoint[]; 
+    e2Data: MetricPoint[]; 
+}) => {
+    const mergedData = useMemo(() => {
+        const map = new Map();
+        testoData.forEach(d => map.set(d.date, { date: d.date, testo: Number(d.value) }));
+        e2Data.forEach(d => {
+            const existing = map.get(d.date) || { date: d.date };
+            map.set(d.date, { ...existing, e2: Number(d.value) });
+        });
         
-        {activeTab === 'health' && (
-            <div className="w-full">
-                <div className="mb-6 w-full">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 text-sm">
-                        <IconActivity className="w-4 h-4 text-blue-500" />
-                        Hormônios & Lipídios
-                    </h3>
-                    
-                    <BiomarkerChart 
-                        title="Testosterona Total"
-                        data={testosteroneData}
-                        color="#3b82f6"
-                        minRef={264}
-                        maxRef={916}
-                        yDomain={[0, 'auto']}
-                    />
+        return Array.from(map.values())
+            .filter(d => d.testo !== undefined || d.e2 !== undefined)
+            .sort((a,b) => {
+                const da = a.date.split('/').reverse().join('-');
+                const db = b.date.split('/').reverse().join('-');
+                return new Date(da).getTime() - new Date(db).getTime();
+            });
+    }, [testoData, e2Data]);
 
-                    <div className="grid grid-cols-2 gap-4 w-full">
-                         <BiomarkerChart 
-                            title="HDL (Bom)"
-                            data={hdlData}
-                            color="#10b981"
-                            minRef={40}
-                            yDomain={[0, 100]}
-                        />
-                        <BiomarkerChart 
-                            title="LDL (Ruim)"
-                            data={ldlData}
-                            color="#ef4444"
-                            maxRef={130}
-                            yDomain={[0, 200]}
-                        />
-                    </div>
+    if (!testoData?.length && !e2Data?.length) return null;
+
+    // Se só tiver um dos dados, mostra aviso mas renderiza o que tem
+    const isMissingOne = !testoData.length || !e2Data.length;
+
+    return (
+        <div className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group dark:bg-gray-900 dark:border-gray-800">
+            <div className="absolute top-0 left-0 w-1 h-full bg-purple-500 rounded-l-2xl" />
+            <div className="flex items-center justify-between mb-4 pl-3">
+                <div>
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight flex items-center gap-2 dark:text-white">
+                        <IconScience className="w-4 h-4 text-purple-600" />
+                        Radar Hormonal (Aromatização)
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">
+                        Cruze Testosterona Total vs Estradiol para evitar ginecomastia ou libido baixa.
+                    </p>
                 </div>
             </div>
-        )}
-
-        {activeTab === 'performance' && (
-            <div className="w-full">
-                <div className="w-full">
-                     <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 text-sm">
-                        <IconUser className="w-4 h-4 text-indigo-500" />
-                        Composição Corporal (Bioimpedância)
-                    </h3>
-
-                    {/* Weight Chart */}
-                    <BiomarkerChart 
-                        title="Peso Corporal (kg)"
-                        data={bodyWeightData}
-                        color="#4f46e5"
-                        type="area"
-                        yDomain={['dataMin - 2', 'dataMax + 2']}
-                    />
-                    
-                    {/* Body Fat Chart */}
-                    <BiomarkerChart 
-                        title="Gordura Corporal (%)"
-                        data={bodyFatData}
-                        color="#f59e0b"
-                        type="line"
-                        yDomain={[5, 35]}
-                    />
-                    
-                     {/* Muscle Mass Chart */}
-                     <BiomarkerChart 
-                        title="Massa Muscular (kg)"
-                        data={muscleMassData}
-                        color="#ec4899"
-                        type="area"
-                        yDomain={['dataMin - 1', 'dataMax + 1']}
-                    />
-
+            
+            {isMissingOne ? (
+                <EmptyChartState message="Adicione exames de Testosterona e Estradiol para desbloquear este insight." />
+            ) : (
+                <div className="h-48 w-full pl-3">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={mergedData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
+                            <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
+                            <YAxis yAxisId="left" orientation="left" hide />
+                            <YAxis yAxisId="right" orientation="right" hide />
+                            <RechartsTooltip content={<CustomTooltip />} />
+                            <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: '10px' }}/>
+                            
+                            <Area yAxisId="left" type="monotone" dataKey="testo" name="Testosterona" fill="#3b82f6" stroke="#2563eb" fillOpacity={0.1} />
+                            <Line yAxisId="right" type="monotone" dataKey="e2" name="Estradiol" stroke="#ec4899" strokeWidth={2} dot={{r:3}} />
+                        </ComposedChart>
+                    </ResponsiveContainer>
                 </div>
-
-                <div className="border-t border-gray-100 pt-6 mt-6 w-full">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 text-sm">
-                        <IconDumbbell className="w-4 h-4 text-purple-500" />
-                        Força (Cargas)
-                    </h3>
-                     <BiomarkerChart 
-                        title="Evolução de Cargas (kg)"
-                        data={strengthData}
-                        color="#8b5cf6"
-                        type="line"
-                        yDomain={['auto', 'auto']}
-                    />
-                </div>
-            </div>
-        )}
-
-        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-xl border border-indigo-100 mt-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-2 text-indigo-700">
-                <IconSparkles className="w-4 h-4" />
-                <h4 className="font-bold text-xs uppercase">Insight IA</h4>
-            </div>
-            <p className="text-xs text-indigo-900 leading-relaxed font-medium">
-                {activeTab === 'health' 
-                    ? "Analisando seus marcadores, sua saúde metabólica parece estável. Se houve Upload de exame recente, os dados foram plotados acima."
-                    : "Sua composição corporal está sendo rastreada. Certifique-se de fazer bioimpedância ou pesagem sempre no mesmo horário para consistência."
-                }
-            </p>
+            )}
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
-export default React.memo(MetricDashboard);
+// 2. CASTELLI INDEX (LDL / HDL Ratio)
+const CastelliChart = ({ 
+    ldlData, 
+    hdlData 
+}: { 
+    ldlData: MetricPoint[]; 
+    hdlData: MetricPoint[]; 
+}) => {
+    const ratioData = useMemo(() => {
+        const map = new Map();
+        ldlData.forEach(d => map.set(d.date, { date: d.date, ldl: Number(d.value) }));
+        
+        const result: any[] = [];
+        hdlData.forEach(d => {
+            const entry = map.get(d.date);
+            if (entry && entry.ldl && Number(d.value) > 0) {
+                const ratio = entry.ldl / Number(d.value);
+                result.push({
+                    date: d.date,
+                    value: Number(ratio.toFixed(2)),
+                    unit: 'Ratio',
+                    risk: ratio > 3.5 ? 'Alto' : ratio > 3.0 ? 'Médio' : 'Ótimo'
+                });
+            }
+        });
+        
+        return result.sort((a,b) => {
+             const da = a.date.split('/').reverse().join('-');
+             const db = b.date.split('/').reverse().join('-');
+             return new Date(da).getTime() - new Date(db).getTime();
+        });
+    }, [ldlData, hdlData]);
+
+    if (!ldlData?.length || !hdlData?.length) return null;
+    if (ratioData.length === 0) return null;
+
+    const currentRatio = ratioData[ratioData.length - 1].value;
+    const isDanger = currentRatio > 3.5;
+
+    return (
+        <div className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden dark:bg-gray-900 dark:border-gray-800">
+            <div className={`absolute top-0 left-0 w-1 h-full ${isDanger ? 'bg-red-500' : 'bg-emerald-500'} rounded-l-2xl`} />
+            <div className="flex items-center justify-between mb-4 pl-3">
+                 <div>
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight flex items-center gap-2 dark:text-white">
+                        <IconHeart className={`w-4 h-4 ${isDanger ? 'text-red-500' : 'text-emerald-500'}`} />
+                        Risco Cardíaco (Índice Castelli)
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">
+                        Relação LDL/HDL. Acima de 3.5 indica formação de placas (aterosclerose).
+                    </p>
+                </div>
+                <div className={`px-2 py-1 rounded-lg text-xs font-black ${isDanger ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'} dark:bg-opacity-20`}>
+                    {currentRatio}
+                </div>
+            </div>
+            
+            <div className="h-40 w-full pl-3">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={ratioData}>
+                        <defs>
+                            <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={isDanger ? '#ef4444' : '#10b981'} stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor={isDanger ? '#ef4444' : '#10b981'} stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
+                        <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
+                        <YAxis hide domain={[0, 'auto']} />
+                        <ReferenceLine y={3.5} stroke="red" strokeDasharray="3 3" label={{ value: 'Risco', fontSize: 9, fill: 'red' }} />
+                        <RechartsTooltip content={<CustomTooltip />} />
+                        <Area 
+                            type="monotone" 
+                            dataKey="value" 
+                            name="LDL/HDL"
+                            stroke={isDanger ? '#ef4444' : '#10b981'} 
+                            fill="url(#colorRisk)" 
+                            strokeWidth={2}
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+
+// 3. RELATIVE STRENGTH (Strength / Weight)
+const EfficiencyChart = ({ 
+    strengthData, 
+    weightData 
+}: { 
+    strengthData: MetricPoint[]; 
+    weightData: MetricPoint[]; 
+}) => {
+    const ratioData = useMemo(() => {
+        const map = new Map();
+        weightData.forEach(d => map.set(d.date, { date: d.date, bw: Number(d.value) }));
+        
+        const result: any[] = [];
+        strengthData.forEach(d => {
+            // Find closest weight entry (simplified to exact date match for now, or fallback)
+            let entry = map.get(d.date);
+            // If no exact match, use the last known weight? (Simplification: exact match for reliable data)
+            
+            if (entry && entry.bw && Number(d.value) > 0) {
+                const ratio = Number(d.value) / entry.bw;
+                result.push({
+                    date: d.date,
+                    value: Number(ratio.toFixed(2)),
+                    unit: 'x BW'
+                });
+            }
+        });
+        
+        return result.sort((a,b) => {
+             const da = a.date.split('/').reverse().join('-');
+             const db = b.date.split('/').reverse().join('-');
+             return new Date(da).getTime() - new Date(db).getTime();
+        });
+    }, [strengthData, weightData]);
+
+    if (!strengthData?.length) return null; // If no strength data, don't show, or show empty state if weight exists
+
+    return (
+        <div className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden dark:bg-gray-900 dark:border-gray-800">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl" />
+            <div className="flex items-center justify-between mb-4 pl-3">
+                <div>
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight flex items-center gap-2 dark:text-white">
+                        <IconDumbbell className="w-4 h-4 text-blue-600" />
+                        Força Relativa (Pound-for-Pound)
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">
+                        Carga / Peso Corporal. Se o peso sobe e isso cai, você está ganhando gordura, não força.
+                    </p>
+                </div>
+            </div>
+            
+            {ratioData.length === 0 ? (
+                <EmptyChartState message="Adicione dados de Carga (Strength) e Peso na mesma data para ver sua eficiência real." />
+            ) : (
+                <div className="h-40 w-full pl-3">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={ratioData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
+                            <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
+                            <YAxis hide domain={['auto', 'auto']} />
+                            <RechartsTooltip content={<CustomTooltip />} />
+                            <Line 
+                                type="step" 
+                                dataKey="value" 
+                                name="Eficiência"
+                                stroke="#2563eb" 
+                                strokeWidth={3}
+                                dot={{r: 4, fill: '#2563eb'}}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing }) => {
+    // 1. Prepare Data for Advanced Charts
+    const metrics = project.metrics;
+
+    // Castelli
+    const ldl = metrics['LDL'] || [];
+    const hdl = metrics['HDL'] || [];
+
+    // Hormonal
+    const testo = metrics['Testosterone'] || metrics['Testosterona'] || [];
+    const e2 = metrics['Estradiol'] || [];
+
+    // Efficiency (Looks for 'Strength', 'Carga', 'Squat', 'Bench')
+    const strength = metrics['Strength'] || metrics['Carga'] || metrics['Força'] || [];
+    const weight = metrics['Weight'] || metrics['Peso'] || [];
+
+    // All categories for the bottom list
+    const allCategories = Object.keys(metrics);
+
+    return (
+        <div className="flex-1 overflow-y-auto bg-gray-50 h-full p-4 md:p-8 pb-32 dark:bg-gray-950">
+            {/* Header */}
+            <div className="flex justify-between items-end mb-8">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2 dark:text-white">
+                        <IconActivity className="w-6 h-6 text-gray-400" />
+                        PAINEL BIOMÉTRICO
+                    </h2>
+                    <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400">
+                        Inteligência de Decisão & Saúde
+                    </p>
+                </div>
+                {!isProcessing && (
+                    <button 
+                        onClick={onGenerateProntuario}
+                        className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                        <IconAlert className="w-3 h-3" />
+                        Gerar Prontuário
+                    </button>
+                )}
+            </div>
+
+            {/* RESTORED RISK ALERTS SECTION */}
+            {risks && risks.length > 0 && (
+                <div className="mb-8 animate-in slide-in-from-top-4 duration-500">
+                    <h3 className="text-xs font-black text-red-600 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-red-400">
+                        <IconAlert className="w-4 h-4" />
+                        Alertas Críticos
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {risks.map((risk, idx) => (
+                            <div key={idx} className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm ${
+                                risk.level === 'HIGH' 
+                                ? 'bg-red-50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30' 
+                                : 'bg-orange-50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30'
+                            }`}>
+                                <div className="flex justify-between items-start">
+                                    <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                        risk.level === 'HIGH' 
+                                        ? 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200' 
+                                        : 'bg-orange-200 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                                    }`}>
+                                        {risk.category}
+                                    </span>
+                                    <span className={`text-[10px] font-bold ${
+                                        risk.level === 'HIGH' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
+                                    }`}>
+                                        {risk.level}
+                                    </span>
+                                </div>
+                                <p className={`text-sm font-medium leading-relaxed ${
+                                    risk.level === 'HIGH' ? 'text-red-900 dark:text-red-100' : 'text-orange-900 dark:text-orange-100'
+                                }`}>
+                                    {risk.message}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* --- ADVANCED INTELLIGENCE SECTION --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+                <HormonalBalanceChart testoData={testo} e2Data={e2} />
+                <CastelliChart ldlData={ldl} hdlData={hdl} />
+                <EfficiencyChart strengthData={strength} weightData={weight} />
+                
+                {/* Placeholder for future insights if needed */}
+                {(!testo.length && !ldl.length && !strength.length) && (
+                    <div className="col-span-1 lg:col-span-2 bg-blue-50 border border-blue-100 rounded-2xl p-8 flex flex-col items-center justify-center text-center dark:bg-blue-900/10 dark:border-blue-900/30">
+                        <IconSparkles className="w-8 h-8 text-blue-400 mb-2" />
+                        <h3 className="font-bold text-blue-900 dark:text-blue-300">Comece a monitorar</h3>
+                        <p className="text-sm text-blue-700/80 mt-1 max-w-md dark:text-blue-400/80">
+                            Faça upload de exames de sangue ou registre suas cargas de treino para desbloquear os gráficos de inteligência avançada (Risco Cardíaco, Hormônios e Eficiência).
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* SEPARATOR */}
+            <div className="flex items-center gap-4 mb-6">
+                <div className="h-px bg-gray-200 flex-1 dark:bg-gray-800" />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Métricas Individuais</span>
+                <div className="h-px bg-gray-200 flex-1 dark:bg-gray-800" />
+            </div>
+
+            {/* INDIVIDUAL CHARTS GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {allCategories.map(cat => (
+                    <div key={cat} className="animate-in fade-in duration-500">
+                        <BiomarkerChart 
+                            title={cat} 
+                            data={metrics[cat]} 
+                            color={
+                                cat.includes('Testo') ? '#2563eb' : 
+                                cat.includes('Estradiol') ? '#ec4899' : 
+                                cat.includes('Peso') ? '#4b5563' :
+                                '#10b981'
+                            }
+                            // Example references (would need a real DB mapping)
+                            type={cat.includes('Peso') ? 'area' : 'line'}
+                        />
+                    </div>
+                ))}
+            </div>
+
+            {allCategories.length === 0 && (
+                 <div className="text-center py-20 opacity-50">
+                    <IconActivity className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm font-medium text-gray-400">Nenhuma métrica registrada ainda.</p>
+                </div>
+            )}
+
+            {/* Mobile Fab for Report */}
+            {isMobileView && !isProcessing && (
+                 <button 
+                    onClick={onGenerateProntuario}
+                    className="fixed bottom-24 right-4 bg-black text-white p-4 rounded-full shadow-2xl z-40 active:scale-90 transition-transform md:hidden dark:bg-blue-600"
+                >
+                    <IconAlert className="w-6 h-6" />
+                </button>
+            )}
+        </div>
+    );
+};
+
+export default MetricDashboard;
