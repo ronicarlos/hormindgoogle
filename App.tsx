@@ -177,12 +177,32 @@ const App: React.FC = () => {
     }
   }, [session]);
 
-  // THEME MANAGEMENT
+  // THEME MANAGEMENT - CORRIGIDO PARA PERSISTÊNCIA LOCAL
   useEffect(() => {
-      if (project?.userProfile?.theme === 'dark') {
-          document.documentElement.classList.add('dark');
-      } else {
-          document.documentElement.classList.remove('dark');
+      const applyTheme = (isDark: boolean) => {
+          if (isDark) {
+              document.documentElement.classList.add('dark');
+          } else {
+              document.documentElement.classList.remove('dark');
+          }
+      };
+
+      // 1. Se tem perfil carregado, usa a preferência do DB e salva no local
+      if (project?.userProfile?.theme) {
+          const isDark = project.userProfile.theme === 'dark';
+          applyTheme(isDark);
+          localStorage.setItem('fitlm-theme', isDark ? 'dark' : 'light');
+      } 
+      // 2. Se não tem perfil (Logout ou Login Screen), checa LocalStorage
+      else {
+          const localTheme = localStorage.getItem('fitlm-theme');
+          if (localTheme) {
+              applyTheme(localTheme === 'dark');
+          } 
+          // 3. Fallback para preferência do Sistema Operacional
+          else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              applyTheme(true);
+          }
       }
   }, [project?.userProfile?.theme]);
 

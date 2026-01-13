@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { IconSparkles, IconAlert, IconCheck, IconEye, IconEyeOff, IconGoogle } from './Icons';
+import { IconSparkles, IconAlert, IconCheck, IconEye, IconEyeOff, IconGoogle, IconMoon, IconSun } from './Icons';
 
 const AuthScreen: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -17,9 +17,29 @@ const AuthScreen: React.FC = () => {
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     
+    // Theme toggle state for manual override
+    const [isDark, setIsDark] = useState(false);
+    
     // Modes: 'login' | 'signup' | 'recovery'
     const [mode, setMode] = useState<'login' | 'signup' | 'recovery'>('login');
     const [showOtpInput, setShowOtpInput] = useState(false);
+
+    // Initialize Theme State based on current DOM
+    useEffect(() => {
+        setIsDark(document.documentElement.classList.contains('dark'));
+    }, []);
+
+    const toggleTheme = () => {
+        const newState = !isDark;
+        setIsDark(newState);
+        if (newState) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('fitlm-theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('fitlm-theme', 'light');
+        }
+    };
 
     const handleGoogleLogin = async () => {
         setLoading(true);
@@ -104,8 +124,17 @@ const AuthScreen: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 dark:bg-gray-950">
-            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 dark:bg-gray-950 transition-colors duration-300">
+            {/* Theme Toggle Button (Top Right) */}
+            <button 
+                onClick={toggleTheme}
+                className="absolute top-6 right-6 p-3 bg-white rounded-full shadow-lg text-gray-500 hover:text-gray-900 dark:bg-gray-800 dark:text-gray-400 dark:hover:text-white transition-all active:scale-90"
+                title="Alternar Tema"
+            >
+                {isDark ? <IconSun className="w-5 h-5" /> : <IconMoon className="w-5 h-5" />}
+            </button>
+
+            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:bg-gray-900 dark:border-gray-800 transition-colors duration-300">
                 <div className="p-8 md:p-10">
                     <div className="flex justify-center mb-6">
                         <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
