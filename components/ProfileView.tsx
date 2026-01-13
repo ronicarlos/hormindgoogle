@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience } from './Icons';
+import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard } from './Icons';
 import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
 
 interface ProfileViewProps {
     profile?: UserProfile;
     onSave: (profile: UserProfile) => void;
+    onOpenWizard?: () => void; // Prop para abrir o Wizard
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -279,6 +280,25 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
 
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full space-y-8 pb-32">
                 
+                {/* WIZARD BANNER / CTA (Mobile & Desktop) */}
+                <div 
+                    onClick={onOpenWizard}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform group"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:bg-white/30 transition-colors">
+                            <IconWizard className="w-8 h-8 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-lg leading-tight">Modo Assistente</h3>
+                            <p className="text-sm text-blue-100 font-medium mt-0.5">Preenchimento guiado passo-a-passo</p>
+                        </div>
+                    </div>
+                    <div className="bg-white/10 p-2 rounded-full group-hover:bg-white/20 transition-colors">
+                         <span className="text-sm font-bold px-2">Iniciar →</span>
+                    </div>
+                </div>
+
                 {successMsg && (
                     <div className="bg-green-50 text-green-800 p-4 rounded-xl border border-green-200 flex items-center gap-3 animate-in slide-in-from-top-4 shadow-sm font-medium">
                         <IconCheck className="w-5 h-5" />

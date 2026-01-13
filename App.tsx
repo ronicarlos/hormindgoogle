@@ -14,7 +14,7 @@ import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, Metri
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { supabase } from './lib/supabase';
-import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose } from './components/Icons';
+import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose, IconWizard } from './components/Icons';
 import ReactMarkdown from 'react-markdown';
 import { Tooltip } from './components/Tooltip';
 
@@ -1018,6 +1018,14 @@ const App: React.FC = () => {
                 {/* Upload Area */}
                 <div className="p-4">
                      <button 
+                        onClick={() => setIsWizardOpen(true)}
+                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white font-bold text-sm shadow-lg shadow-blue-500/30 active:scale-95 transition-all mb-3 flex items-center justify-center gap-2"
+                    >
+                        <IconWizard className="w-4 h-4" />
+                        Completar Dados (Wizard)
+                    </button>
+
+                     <button 
                         onClick={() => mobileFileInputRef.current?.click()}
                         className="w-full py-4 border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl text-blue-700 hover:bg-blue-50 transition-all flex flex-col items-center justify-center gap-2 active:scale-95 shadow-sm"
                     >
@@ -1096,7 +1104,11 @@ const App: React.FC = () => {
         )}
 
         {currentView === 'profile' && (
-            <ProfileView profile={project?.userProfile} onSave={handleUpdateProfile} />
+            <ProfileView 
+                profile={project?.userProfile} 
+                onSave={handleUpdateProfile} 
+                onOpenWizard={() => setIsWizardOpen(true)}
+            />
         )}
 
         {currentView === 'training_library' && project && (
