@@ -76,14 +76,14 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                     <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert">
                         {/* Se for User Input, formata melhor os dados chave */}
                         {isSource && item.subType === 'USER_INPUT' && (
-                            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm dark:bg-gray-900 dark:border-gray-800">
+                            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm dark:bg-gray-800/50 dark:border-gray-700">
                                 <p className="font-bold text-gray-500 uppercase text-xs mb-2 dark:text-gray-400">Dados Estruturados</p>
                                 {/* A renderização do markdown abaixo cuidará do conteúdo, mas aqui damos destaque */}
                             </div>
                         )}
 
                         <ReactMarkdown components={{
-                            // Customização para tratar Links Quebrados
+                            // Customização para tratar Links Quebrados e proteger navegação
                             a: ({node, href, children, ...props}) => {
                                 const isExternal = href?.startsWith('http');
                                 return (
@@ -103,18 +103,18 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                                 );
                             },
                             // Customização de Tipografia para Contraste no Modo Escuro
-                            p: ({node, ...props}) => <p className="mb-4 text-gray-700 leading-relaxed dark:text-gray-200" {...props} />,
+                            p: ({node, ...props}) => <p className="mb-4 text-gray-700 leading-relaxed dark:text-gray-300" {...props} />,
                             strong: ({node, ...props}) => <strong className="font-bold text-gray-900 dark:text-white" {...props} />,
-                            li: ({node, ...props}) => <li className="text-gray-700 dark:text-gray-200 mb-1" {...props} />,
+                            li: ({node, ...props}) => <li className="text-gray-700 dark:text-gray-300 mb-1" {...props} />,
                             h1: ({node, ...props}) => <h1 className="text-gray-900 dark:text-white font-black" {...props} />,
                             h2: ({node, ...props}) => <h2 className="text-gray-900 dark:text-white font-bold" {...props} />,
                             h3: ({node, ...props}) => <h3 className="text-gray-900 dark:text-white font-bold" {...props} />,
                             
                             // Customizar tabelas para ficarem bonitas e legíveis
-                            table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800" {...props} /></div>,
-                            th: ({node, ...props}) => <th className="px-4 py-3 bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider dark:bg-gray-900 dark:text-gray-300" {...props} />,
-                            td: ({node, ...props}) => <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 border-t border-gray-100 dark:text-gray-200 dark:border-gray-800" {...props} />,
-                            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-600 bg-gray-50 py-3 pr-2 rounded-r dark:bg-gray-900 dark:text-gray-300 dark:border-indigo-400" {...props} />
+                            table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" {...props} /></div>,
+                            th: ({node, ...props}) => <th className="px-4 py-3 bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider dark:bg-gray-800 dark:text-gray-300" {...props} />,
+                            td: ({node, ...props}) => <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 border-t border-gray-100 dark:text-gray-300 dark:border-gray-700 dark:bg-gray-900" {...props} />,
+                            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-600 bg-gray-50 py-3 pr-2 rounded-r dark:bg-gray-800 dark:text-gray-400 dark:border-indigo-400" {...props} />
                         }}>
                             {item.content}
                         </ReactMarkdown>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun, IconInfo } from './Icons';
+import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun, IconInfo, IconRefresh, IconShield } from './Icons';
 import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
 import CostTracker from './CostTracker';
@@ -16,19 +16,22 @@ interface ProfileViewProps {
     onOpenSubscription: () => void;
 }
 
+// VERSÃO DO SISTEMA (Atualize aqui a cada release)
+const APP_VERSION = "v1.5.0 - 14/01/2026 16:45";
+
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
     const isMale = gender === 'Masculino';
     
     // Silhuetas simplificadas (SVG Paths)
     const silhouette = isMale 
-        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z" // Croqui Masculino (Ombros largos)
-        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z"; // Croqui Feminino (Cintura fina, quadril largo)
+        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z" // Croqui Masculino
+        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z"; // Croqui Feminino
 
-    // Coordenadas das linhas de medição (x1, y1, x2, y2) ou posição
+    // Coordenadas das linhas de medição
     const guides: Record<string, React.ReactNode> = {
         chest: <line x1="28" y1="32" x2="60" y2="32" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
-        arm: <line x1="18" y1="35" x2="28" y2="35" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />, // Braço esquerdo
+        arm: <line x1="18" y1="35" x2="28" y2="35" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
         waist: <line x1="30" y1={isMale ? "60" : "50"} x2={isMale ? "58" : "58"} y2={isMale ? "60" : "50"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
         hips: <line x1="25" y1={isMale ? "75" : "70"} x2={isMale ? "63" : "63"} y2={isMale ? "75" : "70"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
         thigh: <line x1="50" y1="100" x2="62" y2="100" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
@@ -36,23 +39,20 @@ const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
     };
 
     return (
-        // Reduced size (60x100) while keeping viewBox (90x150) to maintain path integrity
         <svg width="60" height="100" viewBox="0 0 90 150" className="opacity-90">
-            {/* Corpo Base */}
             <path d={silhouette} fill="#374151" stroke="none" opacity="0.3" />
-            {/* Guia de Medição */}
             {guides[part]}
         </svg>
     );
 };
 
 const MEASUREMENT_HINTS: Record<string, string> = {
-    chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
-    arm: 'Maior circunferência do bíceps contraído.',
-    waist: 'Circunferência na altura do umbigo (relaxado).',
-    hips: 'Maior circunferência na região dos glúteos.',
-    thigh: 'Meio da coxa, entre o joelho e o quadril.',
-    calf: 'Maior circunferência da panturrilha.'
+    chest: 'Linha dos mamilos',
+    arm: 'Bíceps contraído',
+    waist: 'Altura do umbigo',
+    hips: 'Maior circunferência',
+    thigh: 'Meio da coxa',
+    calf: 'Maior circunferência'
 };
 
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription }) => {
@@ -60,7 +60,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     const [successMsg, setSuccessMsg] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     
-    // Password Update State
     const [newPassword, setNewPassword] = useState('');
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
     
@@ -97,7 +96,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
     const [formData, setFormData] = useState<UserProfile>(profile || defaultProfile);
 
-    // Calculate Age helper
     const calculateAge = (dateString: string) => {
         if (!dateString) return null;
         const today = new Date();
@@ -112,7 +110,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
     const currentAge = calculateAge(formData.birthDate);
 
-    // --- REAL-TIME CALCULATIONS (METABOLIC ENGINE) ---
+    // Metabolic Engine Calculations
     useEffect(() => {
         const heightM = parseFloat(formData.height) / 100;
         const weightKg = parseFloat(formData.weight);
@@ -222,6 +220,32 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             setIsUpdatingPassword(false);
         }
     };
+
+    // --- HARD REFRESH LOGIC (PWA FIX) ---
+    const handleHardRefresh = () => {
+        if (!confirm("Isso irá limpar o cache local e forçar o download da versão mais recente do app. Continuar?")) return;
+
+        // 1. Unregister Service Workers
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+
+        // 2. Clear Caches
+        if ('caches' in window) {
+            caches.keys().then((names) => {
+                names.forEach((name) => {
+                    caches.delete(name);
+                });
+            });
+        }
+
+        // 3. Force Reload
+        window.location.reload();
+    };
     
     const handleAvatarClick = () => {
         avatarInputRef.current?.click();
@@ -299,14 +323,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full space-y-8 pb-32">
                 
-                {/* 1. SECTION: ASSINATURA & CUSTOS (NEW) */}
+                {/* 1. COST TRACKER */}
                 <CostTracker 
                     variant="inline"
                     refreshTrigger={billingTrigger}
                     onOpenSubscription={onOpenSubscription}
                 />
 
-                {/* 2. SECTION: WIZARD BANNER */}
+                {/* 2. WIZARD BANNER */}
                 <div 
                     onClick={onOpenWizard}
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform group"
@@ -332,7 +356,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 )}
                 
-                {/* 3. SECTION: AVATAR */}
+                {/* 3. AVATAR & NAME */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center dark:bg-gray-900 dark:border-gray-800">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative dark:bg-gray-800 dark:border-gray-700">
@@ -356,155 +380,70 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         <div className="absolute bottom-1 right-1 bg-blue-600 text-white p-2 rounded-full shadow-md border-2 border-white transform transition-transform group-hover:scale-110 dark:border-gray-800">
                              <IconPlus className="w-4 h-4" />
                         </div>
-                        
-                        {formData.avatarUrl && (
-                             <button 
-                                onClick={handleDeleteAvatar}
-                                className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-full shadow-md border-2 border-white transform hover:scale-110 dark:border-gray-800"
-                                title="Remover foto"
-                            >
-                                <IconClose className="w-3 h-3" />
-                            </button>
-                        )}
                     </div>
                     
                     <div className="text-center mt-4">
                         <h3 className="font-bold text-gray-900 dark:text-white">{formData.name || 'Atleta'}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Toque na imagem para alterar a foto</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Toque na imagem para alterar</p>
                     </div>
 
-                    <input 
-                        type="file" 
-                        ref={avatarInputRef} 
-                        className="hidden" 
-                        accept="image/png, image/jpeg, image/jpg"
-                        onChange={handleAvatarChange}
-                    />
+                    <input type="file" ref={avatarInputRef} className="hidden" accept="image/png, image/jpeg, image/jpg" onChange={handleAvatarChange} />
                 </div>
 
-                {/* 4. SECTION: THEME */}
+                {/* 4. THEME */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Aparência do App</h3>
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Aparência</h3>
                     <div className="flex gap-4">
-                        <button
-                            onClick={() => handleChange('theme', 'light')}
-                            className={`flex-1 p-4 rounded-xl border-2 flex items-center justify-center gap-3 transition-all ${
-                                formData.theme !== 'dark' 
-                                ? 'border-blue-600 bg-blue-50 text-blue-900' 
-                                : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
-                            }`}
-                        >
-                            <IconSun className="w-5 h-5" />
-                            <span className="font-bold text-sm">Modo Claro</span>
+                        <button onClick={() => handleChange('theme', 'light')} className={`flex-1 p-4 rounded-xl border-2 flex items-center justify-center gap-3 transition-all ${formData.theme !== 'dark' ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'}`}>
+                            <IconSun className="w-5 h-5" /> <span className="font-bold text-sm">Claro</span>
                         </button>
-                        <button
-                            onClick={() => handleChange('theme', 'dark')}
-                            className={`flex-1 p-4 rounded-xl border-2 flex items-center justify-center gap-3 transition-all ${
-                                formData.theme === 'dark' 
-                                ? 'border-blue-600 bg-gray-800 text-white' 
-                                : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
-                            }`}
-                        >
-                            <IconMoon className="w-5 h-5" />
-                            <span className="font-bold text-sm">Modo Escuro</span>
+                        <button onClick={() => handleChange('theme', 'dark')} className={`flex-1 p-4 rounded-xl border-2 flex items-center justify-center gap-3 transition-all ${formData.theme === 'dark' ? 'border-blue-600 bg-gray-800 text-white' : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'}`}>
+                            <IconMoon className="w-5 h-5" /> <span className="font-bold text-sm">Escuro</span>
                         </button>
                     </div>
                 </div>
 
-                {/* 5. SECTION: CALCULATED STATS */}
+                {/* 5. METABOLIC STATS */}
                 <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 md:p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden dark:from-gray-900 dark:to-gray-900 dark:border-indigo-900/30">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <IconScience className="w-24 h-24 text-indigo-900 dark:text-indigo-400" />
-                    </div>
                     <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10 dark:text-indigo-300">
-                        <IconFlame className="w-4 h-4 text-orange-500" />
-                        Índices Metabólicos (Estimados)
+                        <IconFlame className="w-4 h-4 text-orange-500" /> Índices Metabólicos
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
                         <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
                             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">TMB (Basal)</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmr || '--'}</span>
-                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">kcal</span>
-                            </div>
-                            <p className="text-[10px] text-gray-400 mt-1 dark:text-gray-500">Fórmula Mifflin-St Jeor</p>
+                            <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmr || '--'} kcal</span>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
                             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">IMC</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmi || '--'}</span>
-                            </div>
-                            <p className={`text-[10px] font-bold mt-1 ${
-                                formData.calculatedStats?.bmiClassification === 'Eutrófico (Normal)' ? 'text-green-600 dark:text-green-400' : 'text-orange-500'
-                            }`}>
-                                {formData.calculatedStats?.bmiClassification || 'Aguardando dados'}
-                            </p>
+                            <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmi || '--'}</span>
+                            <p className="text-[10px] font-bold mt-1 text-gray-500">{formData.calculatedStats?.bmiClassification}</p>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
-                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">Relação Cintura-Quadril</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.whr || '--'}</span>
-                            </div>
-                            <p className={`text-[10px] font-bold mt-1 ${
-                                formData.calculatedStats?.whrRisk === 'Risco Baixo' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
-                            }`}>
-                                {formData.calculatedStats?.whrRisk || 'Aguardando medidas'}
-                            </p>
+                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">RCQ (Cintura/Quadril)</p>
+                            <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.whr || '--'}</span>
+                            <p className="text-[10px] font-bold mt-1 text-gray-500">{formData.calculatedStats?.whrRisk}</p>
                         </div>
-                    </div>
-                    <div className="mt-4 text-[10px] text-indigo-800/60 font-medium dark:text-indigo-300/60">
-                        * Estes valores são calculados com base na sua antropometria básica. A bioimpedância (se enviada) terá prioridade na análise da IA.
                     </div>
                 </div>
 
-                {/* 6. SECTION: DADOS VITAIS */}
+                {/* 6. DADOS VITAIS */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Dados Vitais</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nome Completo / Apelido</span>
-                            <input 
-                                type="text" 
-                                value={formData.name} 
-                                onChange={(e) => handleChange('name', e.target.value)}
-                                className={inputClass}
-                                placeholder="Seu nome"
-                            />
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nome Completo</span>
+                            <input type="text" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} className={inputClass} />
                         </label>
                          <label className="block relative">
                             <div className="flex justify-between">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Data de Nascimento</span>
-                                {currentAge !== null && (
-                                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
-                                        {currentAge} anos
-                                    </span>
-                                )}
+                                {currentAge !== null && <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full dark:bg-blue-900/30 dark:text-blue-300">{currentAge} anos</span>}
                             </div>
-                            <div className="relative">
-                                <input 
-                                    ref={birthDateInputRef}
-                                    type="date" 
-                                    value={formData.birthDate} 
-                                    onChange={(e) => handleChange('birthDate', e.target.value)}
-                                    className={`${inputClass} pr-12`}
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={handleOpenDatePicker}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors dark:hover:bg-gray-700"
-                                    title="Abrir calendário"
-                                >
-                                    <IconCalendar className="w-5 h-5" />
-                                </button>
-                            </div>
+                            <input ref={birthDateInputRef} type="date" value={formData.birthDate} onChange={(e) => handleChange('birthDate', e.target.value)} className={inputClass} />
                         </label>
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Gênero Biológico</span>
-                            <select 
-                                value={formData.gender}
-                                onChange={(e) => handleChange('gender', e.target.value as any)}
-                                className={inputClass}
-                            >
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Gênero</span>
+                            <select value={formData.gender} onChange={(e) => handleChange('gender', e.target.value as any)} className={inputClass}>
                                 <option value="Masculino">Masculino</option>
                                 <option value="Feminino">Feminino</option>
                             </select>
@@ -512,62 +451,93 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         <div className="grid grid-cols-3 gap-3">
                              <label className="block">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Altura (cm)</span>
-                                <input type="number" value={formData.height} onChange={(e) => handleChange('height', e.target.value)} className={inputClass} placeholder="175" />
+                                <input type="number" value={formData.height} onChange={(e) => handleChange('height', e.target.value)} className={inputClass} />
                             </label>
                              <label className="block">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peso (kg)</span>
-                                <input type="number" value={formData.weight} onChange={(e) => handleChange('weight', e.target.value)} className={inputClass} placeholder="80" />
+                                <input type="number" value={formData.weight} onChange={(e) => handleChange('weight', e.target.value)} className={inputClass} />
                             </label>
                              <label className="block">
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF % (Est.)</span>
-                                <input type="number" value={formData.bodyFat} onChange={(e) => handleChange('bodyFat', e.target.value)} className={inputClass} placeholder="15" />
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF %</span>
+                                <input type="number" value={formData.bodyFat} onChange={(e) => handleChange('bodyFat', e.target.value)} className={inputClass} />
                             </label>
                         </div>
                     </div>
                 </div>
 
-                {/* 7. SECTION: ANTROPOMETRIA */}
+                {/* 7. ANTROPOMETRIA (Grid de 2 Colunas conforme Screenshot) */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:border-gray-800 dark:text-gray-500">
                         <IconActivity className="w-4 h-4" />
-                        Antropometria (Medidas)
+                        ANTROPOMETRIA (MEDIDAS)
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                        {Object.entries(MEASUREMENT_HINTS).map(([key, hint]) => (
-                            <label key={key} className="block">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                        {key === 'chest' ? 'Peitoral' : 
-                                         key === 'arm' ? 'Braço' : 
-                                         key === 'waist' ? 'Cintura' : 
-                                         key === 'hips' ? 'Quadril' : 
-                                         key === 'thigh' ? 'Coxa' : 'Panturrilha'} (cm)
-                                    </span>
-                                    <Tooltip 
-                                        position="top"
-                                        content={
-                                            <div className="flex flex-col items-center">
-                                                <BodyGuide part={key} gender={formData.gender} />
-                                                <span className="text-center text-[10px] mt-2 leading-tight">{hint}</span>
-                                            </div>
-                                        } 
-                                    >
-                                        <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                    </Tooltip>
-                                </div>
-                                <input 
-                                    type="number" 
-                                    value={formData.measurements[key as keyof typeof formData.measurements] || ''} 
-                                    onChange={(e) => handleMeasurementChange(key as any, e.target.value)}
-                                    className={inputClass}
-                                    placeholder="0"
-                                />
-                            </label>
-                        ))}
+                    
+                    {/* Grid de 2 Colunas - Layout Fixo conforme Design do Usuário */}
+                    <div className="grid grid-cols-2 gap-6">
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Peitoral (cm)</span>
+                            <input 
+                                type="number" 
+                                value={formData.measurements.chest} 
+                                onChange={(e) => handleMeasurementChange('chest', e.target.value)}
+                                className={inputClass}
+                                placeholder="Ex: 105"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Braço (cm)</span>
+                            <input 
+                                type="number" 
+                                value={formData.measurements.arm} 
+                                onChange={(e) => handleMeasurementChange('arm', e.target.value)}
+                                className={inputClass}
+                                placeholder="Ex: 38.5"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Cintura (cm)</span>
+                            <input 
+                                type="number" 
+                                value={formData.measurements.waist} 
+                                onChange={(e) => handleMeasurementChange('waist', e.target.value)}
+                                className={inputClass}
+                                placeholder="Ex: 95"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Quadril (cm)</span>
+                            <input 
+                                type="number" 
+                                value={formData.measurements.hips} 
+                                onChange={(e) => handleMeasurementChange('hips', e.target.value)}
+                                className={inputClass}
+                                placeholder="Ex: 105"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Coxa (cm)</span>
+                            <input 
+                                type="number" 
+                                value={formData.measurements.thigh} 
+                                onChange={(e) => handleMeasurementChange('thigh', e.target.value)}
+                                className={inputClass}
+                                placeholder="Ex: 60"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Panturrilha (cm)</span>
+                            <input 
+                                type="number" 
+                                value={formData.measurements.calf} 
+                                onChange={(e) => handleMeasurementChange('calf', e.target.value)}
+                                className={inputClass}
+                                placeholder="Ex: 40"
+                            />
+                        </label>
                     </div>
                 </div>
 
-                {/* 8. SECTION: HISTÓRICO MÉDICO */}
+                {/* 8. HISTÓRICO MÉDICO */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 dark:border-l-red-600">
                      <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-100 pb-2 flex items-center gap-2 dark:border-red-900/30">
                         <IconAlert className="w-4 h-4" />
@@ -579,7 +549,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                             <textarea 
                                 value={formData.comorbidities}
                                 onChange={(e) => handleChange('comorbidities', e.target.value)}
-                                placeholder="Ex: Hipertensão, Diabetes Tipo 2, Hipotireoidismo, Lesão no joelho direito..."
+                                placeholder="Ex: Hipertensão, Diabetes, Lesão no joelho..."
                                 className={`${inputClass} h-24`}
                             />
                         </label>
@@ -588,23 +558,26 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                             <textarea 
                                 value={formData.medications}
                                 onChange={(e) => handleChange('medications', e.target.value)}
-                                placeholder="Ex: Losartana 50mg, Puran T4 100mcg, Antidepressivos..."
+                                placeholder="Ex: Losartana 50mg, Puran T4..."
                                 className={`${inputClass} h-24`}
                             />
                         </label>
-                        <div className="bg-yellow-50 p-4 rounded-lg text-xs text-yellow-800 leading-relaxed font-medium border border-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800">
-                            <strong className="block mb-1 text-yellow-900 dark:text-yellow-200">Por que preencher isso?</strong>
-                            A Inteligência Artificial usará esses dados para cruzar riscos. Exemplo: Se você marcar "Hipertensão", a IA alertará sobre riscos cardíacos se você adicionar estimulantes fortes (como Clembuterol) ao seu protocolo.
-                        </div>
                     </div>
                 </div>
 
-                 {/* 9. SECTION: SENHA */}
+                 {/* 9. ADMINISTRAÇÃO & SEGURANÇA */}
                  <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-white">Segurança da Conta</h3>
-                    <div className="space-y-4">
-                        <label className="block">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nova Senha</span>
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:border-gray-800 dark:text-white">
+                        <IconShield className="w-4 h-4" />
+                        Administração & Segurança
+                    </h3>
+                    
+                    <div className="space-y-8">
+                        {/* Change Password */}
+                        <div>
+                            <label className="block mb-2">
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Alterar Senha</span>
+                            </label>
                             <div className="flex gap-2">
                                 <input 
                                     type="password" 
@@ -621,10 +594,30 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                     {isUpdatingPassword ? '...' : 'Atualizar'}
                                 </button>
                             </div>
-                        </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Digite sua nova senha e clique em atualizar. 
-                        </p>
+                        </div>
+
+                        {/* Force App Update (Cache Busting) */}
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Atualização do App</h4>
+                                    <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                                        Use se notar bugs visuais ou recursos desatualizados no celular (PWA).
+                                    </p>
+                                </div>
+                                <span className="text-[10px] font-mono bg-gray-200 text-gray-600 px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-300">
+                                    {APP_VERSION}
+                                </span>
+                            </div>
+                            
+                            <button 
+                                onClick={handleHardRefresh}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95 dark:bg-gray-900 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                <IconRefresh className="w-4 h-4" />
+                                Forçar Atualização e Limpar Cache
+                            </button>
+                        </div>
                     </div>
                  </div>
 

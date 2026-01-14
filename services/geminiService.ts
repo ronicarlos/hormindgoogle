@@ -9,9 +9,6 @@ import { supabase } from '../lib/supabase';
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
-// COST OPTIMIZATION:
-// Using 'gemini-3-flash-preview' is significantly cheaper (~20x) than Pro versions.
-// This is essential for reading heavy PDFs/Images without spiking the bill.
 const MODEL_ID = 'gemini-3-flash-preview'; 
 const VISION_MODEL_ID = 'gemini-3-flash-preview'; 
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
@@ -20,9 +17,13 @@ const EMBEDDING_MODEL_ID = 'text-embedding-004';
  * Calculates age from birth date string (YYYY-MM-DD)
  */
 const calculateAge = (birthDate?: string): string => {
-    if (!birthDate) return 'Não informada';
+    if (!birthDate) return 'Não informada (Assumir adulto saudável)';
     const today = new Date();
     const birth = new Date(birthDate);
+    
+    // Validate Date
+    if (isNaN(birth.getTime())) return 'Data Inválida';
+
     let age = today.getFullYear() - birth.getFullYear();
     const m = today.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
@@ -33,101 +34,109 @@ const calculateAge = (birthDate?: string): string => {
 
 /**
  * Constructs a context-aware prompt based on profile, sources, AND structured metrics.
- * Implements the "Clean Read" pipeline step.
+ * 
+ * --- PROTOCOLO ANTI-ALUCINAÇÃO (FitLM Core) ---
+ * Problema Resolvido: A IA tendia a usar dados antigos ou alucinados do histórico do chat 
+ * (ex: "87 anos", "braço 55cm") em vez dos dados reais atualizados.
+ * 
+ * Solução Implementada:
+ * 1. Source of Truth (Fonte da Verdade): Injeção dos dados vitais em formato JSON estrito.
+ *    LLMs respeitam limites de dados estruturados (JSON) mais do que texto corrido.
+ * 2. System Date Injection: Injeção da data atual para evitar confusão temporal.
+ * 3. Override Instruction: Instrução explícita para IGNORAR o histórico se houver conflito com o JSON.
  */
 const buildContext = (
     sources: Source[], 
     profile?: UserProfile, 
     metrics?: Record<string, MetricPoint[]>
 ): string => {
-  let context = "Você é o FitLM, um analista de fitness avançado com IA (Esporte, Medicina, Farmacologia).\n\n";
+  const today = new Date().toLocaleDateString('pt-BR');
+  
+  // Header com Data do Sistema para ancoragem temporal
+  let context = `DATA DO SISTEMA: ${today}\n`;
+  context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n\n";
+  context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica e farmacológica.\n";
+  
+  // Regra de Ouro: Prioridade de Contexto
+  context += "REGRA DE OURO (ANTI-ALUCINAÇÃO): O histórico de chat pode conter dados antigos, incorretos ou alucinados (ex: idade 87 anos, datas em 2026, medidas erradas). IGNORE COMPLETAMENTE quaisquer medidas, idades ou datas citadas em mensagens anteriores do usuário ou do próprio modelo se diferirem dos DADOS VITAIS abaixo.\n";
+  context += "A ÚNICA FONTE DE VERDADE para a condição física atual é o bloco JSON 'CURRENT_BIOMETRICS' a seguir. Confie APENAS nestes valores numéricos.\n\n";
 
-  // INJECT SYSTEM SELF-KNOWLEDGE (Architecture Explanation)
-  context += FITLM_ARCHITECTURE_EXPLANATION + "\n\n";
-
-  // 1. DADOS VITAIS DO PACIENTE/ATLETA (Prioridade Máxima)
+  // 1. DADOS VITAIS DO PACIENTE/ATLETA (Prioridade Máxima - JSON Format)
   if (profile) {
       const age = calculateAge(profile.birthDate);
       
-      context += `=== FICHA BIOMÉTRICA DO USUÁRIO ===\n`;
-      context += `Nome: ${profile.name}\n`;
-      context += `Idade Calculada: ${age} anos (Nasc: ${profile.birthDate || 'N/A'}) | Sexo: ${profile.gender}\n`;
-      context += `Antropometria: Altura ${profile.height}cm | Peso ${profile.weight}kg\n`;
-      
-      // ADDED: Calculated Stats injection with Hierarchy Rule
-      if (profile.calculatedStats) {
-          context += `>> ÍNDICES METABÓLICOS MATEMÁTICOS (LINHA DE BASE):\n`;
-          context += `- IMC: ${profile.calculatedStats.bmi} (${profile.calculatedStats.bmiClassification})\n`;
-          context += `- TMB (Mifflin-St Jeor): ${profile.calculatedStats.bmr} kcal (Use para calcular déficit/superávit se não houver calorimetria)\n`;
-          context += `- RCQ (Cintura-Quadril): ${profile.calculatedStats.whr} (${profile.calculatedStats.whrRisk})\n`;
-      }
+      // Estruturamos como Objeto JS para serializar em JSON limpo
+      const biometricsData = {
+          patientName: profile.name,
+          age: age,
+          birthDate: profile.birthDate,
+          gender: profile.gender,
+          height_cm: profile.height,
+          weight_kg: profile.weight,
+          bodyFat_percent: profile.bodyFat || 'N/A',
+          measurements_cm: {
+              chest: profile.measurements.chest || 'N/A',
+              arm: profile.measurements.arm || 'N/A',
+              waist: profile.measurements.waist || 'N/A',
+              hips: profile.measurements.hips || 'N/A',
+              thigh: profile.measurements.thigh || 'N/A',
+              calf: profile.measurements.calf || 'N/A'
+          },
+          clinical: {
+              comorbidities: profile.comorbidities || 'None',
+              medications: profile.medications || 'None'
+          },
+          calculated: profile.calculatedStats
+      };
 
-      context += `Medidas: Braço ${profile.measurements.arm}cm, Cintura ${profile.measurements.waist}cm, Perna ${profile.measurements.thigh}cm, Quadril ${profile.measurements.hips}cm\n`;
-      context += `Histórico Médico/Comorbidades: ${profile.comorbidities || 'Nenhuma relatada'}\n`;
-      context += `Uso de Medicamentos: ${profile.medications || 'Nenhum relatado'}\n`;
-      context += `====================================\n\n`;
+      context += `=== 1. PERFIL BIOMÉTRICO ATUAL (FONTE DE VERDADE) ===\n`;
+      context += "```json\n";
+      context += JSON.stringify({ CURRENT_BIOMETRICS: biometricsData }, null, 2);
+      context += "\n```\n";
+      context += `(Atenção: Se 'waist' (Cintura) for > 90cm, considere risco metabólico aumentado independente do peso.)\n`;
+      context += `=======================================================\n\n`;
   } else {
-      context += `[AVISO: Perfil biométrico do usuário não preenchido. Solicite esses dados para uma análise precisa.]\n\n`;
+      context += `[AVISO CRÍTICO: Perfil biométrico vazio. Peça para o usuário preencher a Ficha Biométrica antes de analisar.]\n\n`;
   }
 
   // 2. DADOS ESTRUTURADOS (CLEAN READ)
-  // Isso garante que a IA veja os números exatos extraídos do banco, não apenas o texto OCR.
   if (metrics && Object.keys(metrics).length > 0) {
-      context += `=== HISTÓRICO DE MÉTRICAS ESTRUTURADAS (FONTE DE VERDADE 1) ===\n`;
-      context += `Estes valores foram extraídos de exames reais (Bioimpedância, Sangue, etc). Eles TÊM PRIORIDADE sobre os índices matemáticos acima se houver divergência.\n`;
-      
+      context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS) ===\n`;
       for (const [category, points] of Object.entries(metrics)) {
-          // Ordenar por data (mais recente primeiro)
           const sorted = [...points].sort((a,b) => {
-              const dateA = a.date.split('/').reverse().join('-'); // PT-BR to ISO fallback
+              const dateA = a.date.split('/').reverse().join('-'); 
               const dateB = b.date.split('/').reverse().join('-');
               return new Date(dateB).getTime() - new Date(dateA).getTime();
           });
           
           if (sorted.length > 0) {
               const latest = sorted[0];
-              const historyStr = sorted.slice(0, 5).map(p => `${p.value} ${p.unit} (${p.date})`).join(', ');
-              context += `- **${category}**: Atual: ${latest.value} ${latest.unit} (${latest.date}). Histórico Recente: [${historyStr}]\n`;
+              context += `- ${category}: ${latest.value} ${latest.unit} (Data: ${latest.date})\n`;
           }
       }
-      context += `============================================================\n\n`;
+      context += `======================================================\n\n`;
   }
 
-  // 3. FONTES DE DADOS (TEXTO OCR / RAW)
-  context += "--- CONTEXTO DOCUMENTAL (OCR/RAW) ---\n";
-  
-  if (sources.length === 0) {
-      context += "[Nenhuma fonte de dados adicional selecionada]\n";
-  } else {
+  // 3. FONTES DE DADOS
+  context += "=== 3. CONTEXTO DOCUMENTAL (INPUTS/DIÁRIOS) ===\n";
+  if (sources.length > 0) {
       sources.forEach(source => {
-        const prefix = source.type === 'USER_INPUT' ? '[INPUT DIÁRIO ATUALIZADO]' : `[Documento: ${source.title} (${source.date})]`;
-        // Limit context size per source, prioritizing summarization if available
-        let contentSnippet = source.content;
+        // Prioritize structured summaries or user inputs
+        const prefix = source.type === 'USER_INPUT' ? '[REGISTRO DIÁRIO]' : `[DOC: ${source.title}]`;
+        let contentSnippet = source.summary || source.content;
         
-        // Se tiver resumo gerado pela IA (Deep Dive), use-o para economizar tokens e dar clareza
-        if (source.summary) {
-            contentSnippet = `RESUMO ESTRUTURADO DA IA:\n${source.summary}\n\nTRECHO RAW:\n${source.content.substring(0, 2000)}...`;
-        } else {
-            // COST CONTROL: Limit context window per file to avoid massive token usage
-            contentSnippet = source.content.length > 15000 ? source.content.substring(0, 15000) + "...[cortado para economia]" : source.content;
-        }
-
-        context += `${prefix}\n${contentSnippet}\n\n`;
+        // Truncate massively long texts to keep focus on profile
+        if (contentSnippet.length > 8000) contentSnippet = contentSnippet.substring(0, 8000) + "...";
+        
+        context += `${prefix} (${source.date}):\n${contentSnippet}\n\n`;
       });
   }
   
-  context += "--- FIM DAS FONTES ---\n\n";
-  context += `Regras de Comportamento e Hierarquia de Dados:
-1. Responda SEMPRE em Português do Brasil (pt-BR).
-2. HIERARQUIA DE ANÁLISE CORPORAL:
-   - Prioridade 1 (Ouro): Use os dados de Bioimpedância/Exames Reais listados no "HISTÓRICO DE MÉTRICAS" (Ex: BF%, Massa Muscular).
-   - Prioridade 2 (Prata): Se não houver bioimpedância, use os "ÍNDICES METABÓLICOS MATEMÁTICOS" (IMC, TMB, RCQ) calculados na Ficha Biométrica.
-   - NUNCA ignore o RCQ (Relação Cintura-Quadril) para avaliar risco cardíaco, mesmo que o peso esteja normal.
-3. PROTOCOLOS E RISCO:
-   - Se o usuário usar termogênicos (Clembuterol, T3), verifique a TMB e o histórico cardíaco.
-   - Se o IMC for > 30 (Obesidade) mas o BF% for baixo (Atleta), ignore o IMC e avise o usuário que a massa muscular justifica o peso.
-4. ANÁLISE CRUZADA: Cruze as drogas listadas com as comorbidades da ficha.
-5. FORMATO: Use Markdown.
+  context += `\nDIRETRIZES DE RESPOSTA:
+1. Responda em Português do Brasil (pt-BR).
+2. Prioridade Absoluta: Use os dados do bloco JSON 'CURRENT_BIOMETRICS'. Se o chat histórico disser que o braço é 55cm, mas o JSON disser 38cm, assuma 38cm e ignore o erro do passado.
+3. Se a data dos inputs parecer futura (ex: 2026) em relação a data do sistema (${today}), avise o usuário sobre a inconsistência temporal mas analise os dados.
+4. Para análise de risco, cruze as "Comorbidades" com os "Medicamentos" e o "Protocolo".
 `;
   
   return context;
@@ -153,26 +162,25 @@ export const generateAIResponse = async (
   try {
     const systemInstruction = buildContext(sources, profile, metrics);
     
-    // COST OPTIMIZATION: 
-    // We removed 'thinkingConfig' to save output tokens.
-    // 'thinkingBudget' adds significant cost. For standard analysis, Flash is smart enough without it.
+    // Filter history to reduce hallucination noise
+    // We remove very old model messages that might contain bad data
+    const safeHistory = history.slice(-4).map(h => ({ role: h.role, parts: [{ text: h.text }] }));
+
     const response = await ai.models.generateContent({
       model: MODEL_ID, 
       contents: [
-        { role: 'user', parts: [{ text: systemInstruction }] }, // System Context injected as first user message for robustness
-        ...history.slice(-3).map(h => ({ role: h.role, parts: [{ text: h.text }] })),
-        { role: 'user', parts: [{ text: `Pergunta Atual: ${message}` }] }
+        { role: 'user', parts: [{ text: systemInstruction }] }, 
+        ...safeHistory,
+        { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS' acima. Ignore dados contraditórios do histórico): ${message}` }] }
       ],
       config: {
-        // thinkingConfig: { thinkingBudget: 0 }, // Disabled to save costs
-        temperature: 0.7 // Standard creativity
+        temperature: 0.4 // Reduced temp for strict adherence
       }
     });
 
     // --- BILLING LOGIC ---
     const userId = await getCurrentUserId();
     if (userId && response.usageMetadata) {
-        // Calcula e loga o custo
         const inputT = response.usageMetadata.promptTokenCount || 0;
         const outputT = response.usageMetadata.candidatesTokenCount || 0;
         await dataService.logUsage(userId, undefined, 'CHAT', inputT, outputT);
@@ -182,10 +190,7 @@ export const generateAIResponse = async (
 
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-
-    // Fallback logic
-    if (error.message?.includes('not supported') || error.status === 400 || error.status === 404 || error.message?.includes('not found')) {
-         console.warn("Model failed or not found, falling back.");
+    if (error.message?.includes('not supported') || error.status === 400 || error.status === 404) {
          try {
             const fallbackResponse = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview', 
@@ -193,11 +198,10 @@ export const generateAIResponse = async (
             });
             return fallbackResponse.text || "Erro no fallback.";
          } catch (e) {
-             console.error("Fallback error:", e);
-             return "Erro crítico no serviço de IA. Verifique se o modelo está disponível.";
+             return "Erro crítico no serviço de IA.";
          }
     }
-    return "Encontrei um erro ao analisar seus dados de fitness. Por favor, tente novamente.";
+    return "Erro ao analisar dados.";
   }
 };
 
@@ -209,23 +213,14 @@ export const generateProntuario = async (
     if (!apiKey) return "Chave de API ausente.";
  
     const systemInstruction = buildContext(sources, profile, metrics);
-    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO COMPLETO DO ATLETA.
-    Estruture como um documento médico-esportivo formal.
-    Seções Obrigatórias:
-    1. Identificação e Antropometria (Use os índices metabólicos calculados como base inicial).
-    2. Análise da Evolução das Métricas (Priorize Bioimpedância se houver).
-    3. Análise do Protocolo Farmacológico vs Comorbidades.
-    4. Análise dos Exames (Cruze com o histórico médico).
-    5. Conclusão e Prognóstico.
-    `;
+    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nBaseie-se ESTRITAMENTE nos dados do "PERFIL BIOMÉTRICO ATUAL". Não invente dados.`;
  
      try {
        const response = await ai.models.generateContent({
-         model: MODEL_ID, // Consistent model usage
+         model: MODEL_ID, 
          contents: prompt
        });
 
-       // --- BILLING LOGIC ---
        const userId = await getCurrentUserId();
        if (userId && response.usageMetadata) {
            const inputT = response.usageMetadata.promptTokenCount || 0;
@@ -240,9 +235,6 @@ export const generateProntuario = async (
      }
 };
 
-/**
- * Generates text embeddings for semantic search
- */
 export const embedText = async (text: string): Promise<number[] | null> => {
   if (!apiKey) return null;
   try {
@@ -250,154 +242,77 @@ export const embedText = async (text: string): Promise<number[] | null> => {
       model: EMBEDDING_MODEL_ID,
       contents: text, 
     });
-    
-    // Type assertion/check to handle potential SDK version discrepancies (embedding vs embeddings)
     const response = result as any;
     const embedding = response.embedding || (response.embeddings && response.embeddings[0]);
-    
-    if (embedding && embedding.values) {
-        return embedding.values;
-    }
+    if (embedding && embedding.values) return embedding.values;
     return null;
   } catch (error) {
-    console.warn("Embedding API Warning (non-fatal):", error);
+    console.warn("Embedding API Warning:", error);
     return null;
   }
 };
 
-/**
- * Generates a summary for the "Deep Dive" / Source Detail View
- */
 export const generateDocumentSummary = async (content: string, type: string): Promise<string> => {
     if (!apiKey) return "Chave de API ausente.";
-    
-    const prompt = `
-    Analise o seguinte documento (${type}) e gere um RESUMO ESTRUTURADO PROFISSIONAL.
-    
-    Se for EXAME DE SANGUE:
-    - Liste os marcadores fora de referência.
-    - Analise tendências hormonais.
-    
-    Se for DIETA/TREINO:
-    - Resuma os macros e volume total.
-    
-    TEXTO (Limitado a 15k chars para custo):
-    ${content.substring(0, 15000)}
-    `;
+    const prompt = `Analise este documento (${type}) e gere um RESUMO ESTRUTURADO.\n\nTEXTO:\n${content.substring(0, 15000)}`;
 
     try {
         const response = await ai.models.generateContent({
-            model: MODEL_ID, // Consistent model usage
+            model: MODEL_ID,
             contents: prompt
         });
-
-        // --- BILLING LOGIC ---
-        const userId = await getCurrentUserId();
-        if (userId && response.usageMetadata) {
-            const inputT = response.usageMetadata.promptTokenCount || 0;
-            const outputT = response.usageMetadata.candidatesTokenCount || 0;
-            await dataService.logUsage(userId, undefined, 'SUMMARY', inputT, outputT);
-        }
-
         return response.text || "Não foi possível gerar resumo.";
     } catch (err) {
         return "Erro ao gerar resumo.";
     }
 };
 
-/**
- * Helper to convert file to base64
- */
 const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string, mimeType: string } }> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result as string;
       const base64Data = base64String.split(',')[1];
-      resolve({
-        inlineData: {
-          data: base64Data,
-          mimeType: file.type
-        }
-      });
+      resolve({ inlineData: { data: base64Data, mimeType: file.type } });
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 };
 
-/**
- * REAL implementation of Multimodal OCR.
- * Extracts text AND structured metrics with Date detection.
- */
 export const processDocument = async (file: File, defaultDate: string): Promise<{ extractedText: string, metrics: { category: string, data: MetricPoint }[] }> => {
     if (!apiKey) throw new Error("API Key missing");
 
     try {
         const filePart = await fileToGenerativePart(file);
-        
-        // Advanced System Prompt for Extraction - UPDATED FOR DATE ACCURACY
         const extractionPrompt = `
-        ATUE COMO UM ANALISTA DE DADOS MÉDICOS E OCR.
+        ATUE COMO OCR MÉDICO.
+        1. Transcreva o texto visível.
+        2. Extraia a DATA do exame (formato DD/MM/AAAA). Se não houver, use ${defaultDate}.
+        3. Extraia métricas numéricas (Testosterona, Colesterol, Peso, etc) em JSON.
         
-        TAREFA 1: TRANSCRIÇÃO
-        Transcreva o conteúdo legível deste documento para Markdown. Se for ilegível, diga "[Ilegível]".
-
-        TAREFA 2: EXTRAÇÃO DE DADOS (CRÍTICO - TIMELINE)
-        Identifique a DATA DE COLETA/REALIZAÇÃO do exame no documento.
-        - Priorize "Data da Coleta", "Data de Atendimento" ou "Realizado em".
-        - IGNORE "Data de Impressão" ou "Data de Emissão" se a data da coleta estiver disponível.
-        - Se encontrar, use o formato DD/MM/AAAA.
-        - Se e SOMENTE SE NÃO encontrar nenhuma data específica no documento, use a data de hoje: ${defaultDate}.
-
-        Identifique os seguintes biomarcadores se existirem (ignore se não houver):
-        - Testosterone (Total), HDL, LDL, BodyWeight (Peso), BodyFat (Gordura %), MuscleMass, Strength (Cargas principais).
-
-        RETORNE APENAS UM JSON (SEM MARKDOWN EM VOLTA) NO SEGUINTE FORMATO:
-        {
-            "transcription": "Texto completo transcrito aqui...",
-            "detectedDate": "DD/MM/AAAA", 
-            "metrics": [
-                { "category": "Testosterone", "value": 500, "unit": "ng/dL", "label": "Exame de Sangue" },
-                { "category": "HDL", "value": 45, "unit": "mg/dL", "label": "Exame de Sangue" }
-            ]
-        }
+        RETORNE JSON: { "transcription": "...", "detectedDate": "...", "metrics": [{ "category": "...", "value": 0, "unit": "..." }] }
         `;
 
         const result = await ai.models.generateContent({
-            model: VISION_MODEL_ID, // Use fast vision model for OCR
-            contents: {
-                // Fix: Pass filePart (which has inlineData property), not filePart.inlineData directly
-                parts: [filePart, { text: extractionPrompt }]
-            },
-            config: {
-                responseMimeType: "application/json" // Force JSON mode
-            }
+            model: VISION_MODEL_ID, 
+            contents: { parts: [filePart, { text: extractionPrompt }] },
+            config: { responseMimeType: "application/json" }
         });
 
-        // --- BILLING LOGIC ---
-        const userId = await getCurrentUserId();
-        if (userId && result.usageMetadata) {
-            const inputT = result.usageMetadata.promptTokenCount || 0;
-            const outputT = result.usageMetadata.candidatesTokenCount || 0;
-            // OCR usually has larger images, input cost is key
-            await dataService.logUsage(userId, undefined, 'OCR', inputT, outputT);
-        }
-
         const jsonText = result.text;
-        if (!jsonText) throw new Error("No data returned from AI");
+        if (!jsonText) throw new Error("No data");
 
         const parsed = JSON.parse(jsonText);
         const finalDate = parsed.detectedDate || defaultDate;
 
-        // Map metrics to include the detect date
         const finalMetrics = (parsed.metrics || []).map((m: any) => ({
             category: m.category,
             data: {
-                date: finalDate, // Use the date FOUND in the PDF, effectively "Time Traveling" the data point
+                date: finalDate,
                 value: typeof m.value === 'number' ? m.value : parseFloat(m.value),
                 unit: m.unit || '',
-                label: m.label || 'OCR Extraído'
+                label: m.label || 'OCR'
             }
         }));
 
@@ -408,10 +323,6 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
 
     } catch (error) {
         console.error("OCR Processing Error:", error);
-        // Graceful fallback
-        return {
-            extractedText: `[Erro ao processar arquivo via IA. Nome: ${file.name}]`,
-            metrics: []
-        };
+        return { extractedText: `[Erro OCR: ${file.name}]`, metrics: [] };
     }
 };

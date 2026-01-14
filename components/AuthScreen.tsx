@@ -3,6 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IconSparkles, IconAlert, IconCheck, IconEye, IconEyeOff, IconGoogle, IconMoon, IconSun } from './Icons';
 
+// VERSÃO DO SISTEMA (Mesma constante do ProfileView)
+const APP_VERSION = "v1.5.0 - 14/01/2026";
+
 const AuthScreen: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -149,7 +152,7 @@ const AuthScreen: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 dark:bg-gray-950 transition-colors duration-300">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 dark:bg-gray-950 transition-colors duration-300 relative">
             {/* Theme Toggle Button (Top Right) */}
             <button 
                 onClick={toggleTheme}
@@ -159,8 +162,8 @@ const AuthScreen: React.FC = () => {
                 {isDark ? <IconSun className="w-5 h-5" /> : <IconMoon className="w-5 h-5" />}
             </button>
 
-            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:bg-gray-900 dark:border-gray-800 transition-colors duration-300">
-                <div className="p-8 md:p-10">
+            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:bg-gray-900 dark:border-gray-800 transition-colors duration-300 relative">
+                <div className="p-8 md:p-10 pb-16">
                     <div className="flex justify-center mb-6">
                         <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
                             <IconSparkles className="w-8 h-8 text-white" />
@@ -374,6 +377,13 @@ const AuthScreen: React.FC = () => {
                             </div>
                         )}
                     </div>
+                </div>
+                
+                {/* DISCREET VERSION LABEL (FOOTER) */}
+                <div className="absolute bottom-2 left-0 right-0 text-center">
+                    <span className="text-[10px] text-gray-300 font-mono opacity-50 dark:text-gray-700 select-none">
+                        {APP_VERSION}
+                    </span>
                 </div>
             </div>
         </div>
