@@ -130,7 +130,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
     const timelineData = useMemo(() => {
         const items: TimelineItem[] = [];
 
-        // 1. Process Sources (Exams, Inputs, Documents)
+        // 1. Process Sources (Exams, Inputs, Documents) - Estes são sempre relevantes
         sources.forEach(source => {
             // Parse Date from DD/MM/YYYY
             const parts = source.date.split('/');
@@ -152,22 +152,43 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
             });
         });
 
-        // 2. Process Messages (Only relevant AI Analyses)
+        // 2. Process Messages (Filtro rigoroso para evitar duplicação e ruído)
         messages.forEach(msg => {
-            // Skip short messages or User messages
-            if (msg.role === 'model' && msg.text.length > 100) {
-                const dateObj = new Date(msg.timestamp);
-                items.push({
-                    id: msg.id,
-                    dateObj: dateObj,
-                    dateDisplay: dateObj.toLocaleDateString('pt-BR'),
-                    type: 'ANALYSIS',
-                    title: 'Insight da IA',
-                    content: msg.text,
-                    isHighlight: msg.isBookmarked,
-                    originalObject: msg
-                });
-            }
+            // Regra 1: Mensagens do Usuário raramente são marcos de timeline (exceto inputs, que já viram Sources)
+            if (msg.role !== 'model') return;
+
+            // Regra 2: Prioridade para Favoritos
+            // Se o usuário favoritou, é relevante independente de qualquer outra regra.
+            const isBookmarked = msg.isBookmarked;
+
+            // Regra 3: Filtrar Mensagens de Sistema / Transacionais
+            // Mensagens que começam com emojis de status (Check, Loading, Error) geralmente são feedback de UI
+            // ou confirmações de que um Source foi criado (o que geraria duplicidade visual).
+            const isSystemNotification = 
+                msg.text.startsWith('✅') || 
+                msg.text.startsWith('🔄') || 
+                msg.text.startsWith('❌') ||
+                msg.text.includes('Prontuário gerado com sucesso') ||
+                msg.text.includes('processado');
+
+            if (isSystemNotification && !isBookmarked) return;
+
+            // Regra 4: Filtro de Relevância por Tamanho
+            // Chat casual ("Olá", "Tudo bem", "Entendido") não deve poluir a timeline.
+            // Apenas análises substanciais (> 200 caracteres) entram.
+            if (msg.text.length < 200 && !isBookmarked) return;
+
+            const dateObj = new Date(msg.timestamp);
+            items.push({
+                id: msg.id,
+                dateObj: dateObj,
+                dateDisplay: dateObj.toLocaleDateString('pt-BR'),
+                type: 'ANALYSIS',
+                title: isBookmarked ? 'Insight Favorito' : 'Análise Estratégica IA',
+                content: msg.text,
+                isHighlight: isBookmarked,
+                originalObject: msg
+            });
         });
 
         // 3. Sort Descending (Newest First)
@@ -201,7 +222,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                         TIMELINE
                     </h2>
                     <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400">
-                        Clique nos eventos para expandir
+                        Histórico Consolidado
                     </p>
                 </div>
                 
