@@ -40,7 +40,7 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                 
                 {/* Header */}
                 <div className={`p-6 border-b shrink-0 flex justify-between items-start ${
-                    isSource ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900/30' : 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30'
+                    isSource ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' : 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-900/30'
                 }`}>
                     <div className="flex gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
@@ -73,21 +73,48 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
 
                 {/* Content Scrollable */}
                 <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-white custom-scrollbar dark:bg-gray-950">
-                    <div className="prose prose-sm md:prose-base max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-900 dark:prose-invert dark:prose-p:text-gray-300 dark:prose-li:text-gray-300">
+                    <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert">
                         {/* Se for User Input, formata melhor os dados chave */}
                         {isSource && item.subType === 'USER_INPUT' && (
                             <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm dark:bg-gray-900 dark:border-gray-800">
-                                <p className="font-bold text-gray-500 uppercase text-xs mb-2">Dados Estruturados</p>
+                                <p className="font-bold text-gray-500 uppercase text-xs mb-2 dark:text-gray-400">Dados Estruturados</p>
                                 {/* A renderização do markdown abaixo cuidará do conteúdo, mas aqui damos destaque */}
                             </div>
                         )}
 
                         <ReactMarkdown components={{
-                            // Customizar tabelas para ficarem bonitas no modal
-                            table: ({node, ...props}) => <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-800"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800" {...props} /></div>,
-                            th: ({node, ...props}) => <th className="px-4 py-3 bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider dark:bg-gray-900 dark:text-gray-400" {...props} />,
-                            td: ({node, ...props}) => <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 border-t border-gray-100 dark:text-gray-300 dark:border-gray-800" {...props} />,
-                            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-600 bg-gray-50 py-2 pr-2 rounded-r dark:bg-gray-900 dark:text-gray-400 dark:border-indigo-400" {...props} />
+                            // Customização para tratar Links Quebrados
+                            a: ({node, href, children, ...props}) => {
+                                const isExternal = href?.startsWith('http');
+                                return (
+                                    <a 
+                                        href={isExternal ? href : '#'}
+                                        onClick={(e) => {
+                                            // Se não for link externo real, previne navegação que quebraria o app
+                                            if (!isExternal) e.preventDefault();
+                                        }}
+                                        target={isExternal ? "_blank" : undefined}
+                                        rel={isExternal ? "noopener noreferrer" : undefined}
+                                        className="text-blue-600 hover:underline cursor-pointer dark:text-blue-400 font-medium"
+                                        {...props}
+                                    >
+                                        {children}
+                                    </a>
+                                );
+                            },
+                            // Customização de Tipografia para Contraste no Modo Escuro
+                            p: ({node, ...props}) => <p className="mb-4 text-gray-700 leading-relaxed dark:text-gray-200" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-bold text-gray-900 dark:text-white" {...props} />,
+                            li: ({node, ...props}) => <li className="text-gray-700 dark:text-gray-200 mb-1" {...props} />,
+                            h1: ({node, ...props}) => <h1 className="text-gray-900 dark:text-white font-black" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-gray-900 dark:text-white font-bold" {...props} />,
+                            h3: ({node, ...props}) => <h3 className="text-gray-900 dark:text-white font-bold" {...props} />,
+                            
+                            // Customizar tabelas para ficarem bonitas e legíveis
+                            table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800" {...props} /></div>,
+                            th: ({node, ...props}) => <th className="px-4 py-3 bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider dark:bg-gray-900 dark:text-gray-300" {...props} />,
+                            td: ({node, ...props}) => <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 border-t border-gray-100 dark:text-gray-200 dark:border-gray-800" {...props} />,
+                            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-600 bg-gray-50 py-3 pr-2 rounded-r dark:bg-gray-900 dark:text-gray-300 dark:border-indigo-400" {...props} />
                         }}>
                             {item.content}
                         </ReactMarkdown>
@@ -103,7 +130,7 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                         {isSource && item.originalObject?.fileUrl && (
                             <button 
                                 onClick={handleDownload}
-                                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-lg text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-lg text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                             >
                                 <IconDownload className="w-4 h-4" />
                                 Original
