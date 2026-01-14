@@ -166,23 +166,28 @@ const App: React.FC = () => {
       setBillingTrigger(prev => prev + 1);
   };
 
-  // --- DYNAMIC RISK CALCULATION ENGINE (EXPANDIDA V3) ---
+  // --- DYNAMIC RISK CALCULATION ENGINE (EXPANDIDA V4 - COMPLETA) ---
   const calculateRealRisks = (metrics: Record<string, MetricPoint[]>, gender: string = 'Masculino'): RiskFlag[] => {
       const risks: RiskFlag[] = [];
       const isMale = gender === 'Masculino';
       
-      // Helper robusto para buscar valor por múltiplos nomes (Sinônimos)
+      // Helper robusto para buscar valor por múltiplos nomes (Sinônimos e Variações)
+      // Normaliza inputs para lowercase para aumentar o match
       const getLastValue = (keys: string[]) => {
-          for (const key of keys) {
-              const arr = metrics[key] || [];
-              if (arr.length > 0) {
-                  // Assume que o último array é o mais recente ou ordena
-                  const sorted = [...arr].sort((a,b) => {
-                      const da = a.date.split('/').reverse().join('-'); 
-                      const db = b.date.split('/').reverse().join('-');
-                      return new Date(da).getTime() - new Date(db).getTime();
-                  });
-                  return sorted[sorted.length - 1].value;
+          const normalizedKeys = keys.map(k => k.toLowerCase());
+          
+          for (const key of Object.keys(metrics)) {
+              if (normalizedKeys.includes(key.toLowerCase())) {
+                  const arr = metrics[key] || [];
+                  if (arr.length > 0) {
+                      // Assume que o último array é o mais recente ou ordena
+                      const sorted = [...arr].sort((a,b) => {
+                          const da = a.date.split('/').reverse().join('-'); 
+                          const db = b.date.split('/').reverse().join('-');
+                          return new Date(da).getTime() - new Date(db).getTime();
+                      });
+                      return sorted[sorted.length - 1].value;
+                  }
               }
           }
           return null;
@@ -230,8 +235,8 @@ const App: React.FC = () => {
       }
 
       // 3. Fígado (TGO/TGP/AST/ALT)
-      const ast = getLastValue(['AST', 'TGO']);
-      const alt = getLastValue(['ALT', 'TGP']);
+      const ast = getLastValue(['AST', 'TGO', 'Aspartato Aminotransferase']);
+      const alt = getLastValue(['ALT', 'TGP', 'Alanina Aminotransferase']);
       if ((ast !== null && ast > 55) || (alt !== null && alt > 55)) {
           risks.push({
               category: 'Protocol',
@@ -242,7 +247,7 @@ const App: React.FC = () => {
       }
 
       // 4. Hematócrito
-      const hema = getLastValue(['Hematocrito', 'Hematócrito', 'Ht']);
+      const hema = getLastValue(['Hematocrito', 'Hematócrito', 'Ht', 'HCT', 'Hematocrit']);
       if (hema !== null && hema > 53) {
           risks.push({
               category: 'Health',
@@ -264,7 +269,7 @@ const App: React.FC = () => {
       }
 
       // 6. Estradiol (E2) - Ajustado por Gênero
-      const e2 = getLastValue(['Estradiol', 'E2']);
+      const e2 = getLastValue(['Estradiol', 'E2', '17-Beta Estradiol']);
       if (isMale) {
           if (e2 !== null && e2 > 80) {
               risks.push({
@@ -293,28 +298,51 @@ const App: React.FC = () => {
           }
       }
 
-      // 7. Próstata (Apenas Homens) - NEW
-      const psa = getLastValue(['PSA', 'PSA Total', 'Antígeno Prostático']);
-      if (isMale && psa !== null) {
-          if (psa > 4) {
-               risks.push({
-                  category: 'Health',
-                  level: 'HIGH',
-                  message: `PSA Elevado (${psa} ng/mL). Atenção à próstata.`,
-                  solution: "Pare de andar de bicicleta/moto por 3 dias e repita o exame. Se persistir, urologista urgente."
-              });
-          } else if (psa > 2.5) { // Alerta para jovens/atletas
-               risks.push({
-                  category: 'Health',
-                  level: 'MEDIUM',
-                  message: `PSA em zona de alerta (${psa} ng/mL).`,
-                  solution: "Monitore. Evite exercícios de alto impacto pélvico antes dos próximos exames."
-              });
+      // 7. Próstata (Apenas Homens) - EXPANDED FOR VOLUME & PSA
+      // Checks for PSA AND Volume
+      const psa = getLastValue(['PSA', 'PSA Total', 'Antígeno Prostático', 'Antigeno Prostatico', 'Prostata', 'Próstata']);
+      const prostVol = getLastValue(['Volume Prostatico', 'Volume Prostático', 'Peso Prostata', 'Peso Próstata', 'Tamanho Prostata']);
+      
+      if (isMale) {
+          if (psa !== null) {
+              if (psa > 4) {
+                   risks.push({
+                      category: 'Health',
+                      level: 'HIGH',
+                      message: `PSA Elevado (${psa} ng/mL). Atenção à próstata.`,
+                      solution: "Pare de andar de bicicleta/moto por 3 dias e repita o exame. Se persistir, urologista urgente."
+                  });
+              } else if (psa > 2.5) { // Alerta para jovens/atletas
+                   risks.push({
+                      category: 'Health',
+                      level: 'MEDIUM',
+                      message: `PSA em zona de alerta (${psa} ng/mL).`,
+                      solution: "Monitore. Evite exercícios de alto impacto pélvico antes dos próximos exames."
+                  });
+              }
+          }
+          
+          if (prostVol !== null) {
+              if (prostVol > 40) {
+                   risks.push({
+                      category: 'Health',
+                      level: 'HIGH',
+                      message: `Próstata Aumentada (HPB - ${prostVol} g/cm³). Volume considerável.`,
+                      solution: "Risco de retenção urinária. Consulte urologista sobre inibidores de 5-alfa-redutase (Finasterida/Dutasterida) se houver sintomas."
+                  });
+              } else if (prostVol > 30) {
+                   risks.push({
+                      category: 'Health',
+                      level: 'MEDIUM',
+                      message: `Início de Hiperplasia Prostática (${prostVol} g/cm³).`,
+                      solution: "Fique atento ao fluxo urinário e evite excesso de DHT."
+                  });
+              }
           }
       }
 
-      // 8. Tireoide (Geral) - NEW
-      const tsh = getLastValue(['TSH', 'Hormônio Tireoestimulante']);
+      // 8. Tireoide (Geral) - EXPANDED
+      const tsh = getLastValue(['TSH', 'Hormônio Tireoestimulante', 'Tireoestimulante', 'Thyroid']);
       if (tsh !== null) {
           if (tsh > 4.5) {
                risks.push({
@@ -1261,7 +1289,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col h-[100dvh] relative bg-white pb-20 md:pb-0 w-full min-w-0 dark:bg-gray-950">
         
         {currentView === 'dashboard' && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* Fixed Header */}
                 <div className="h-16 border-b border-gray-100 flex items-center justify-between px-4 md:px-6 bg-white/95 backdrop-blur-md shrink-0 z-40 transition-all dark:bg-gray-900/95 dark:border-gray-800">
                     
@@ -1356,6 +1384,27 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-4 scroll-smooth">
+                    {/* RISK ALERT BANNER (NEW FEATURE FOR CHAT INTEGRATION) */}
+                    {realRisks.length > 0 && (
+                        <div 
+                            onClick={() => setCurrentView('metrics')}
+                            className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm mb-6 flex items-start gap-3 cursor-pointer hover:bg-red-100/50 transition-colors group dark:bg-red-900/10 dark:border-red-600"
+                        >
+                            <div className="bg-red-100 p-2 rounded-full shrink-0 group-hover:bg-red-200 transition-colors dark:bg-red-900/30 dark:text-red-300">
+                                <IconAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-bold text-red-800 flex items-center justify-between dark:text-red-200">
+                                    Atenção: {realRisks.length} Alertas de Saúde Detectados
+                                    <span className="text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full uppercase tracking-wider dark:bg-red-900 dark:text-red-200">Ver Detalhes</span>
+                                </h4>
+                                <p className="text-xs text-red-700 mt-1 dark:text-red-300/80">
+                                    O sistema identificou marcadores de risco nos seus dados históricos (ex: {realRisks[0].message.split(' ').slice(0, 3).join(' ')}...). Clique para ver o relatório completo.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Search Info Banner */}
                     {isSearchActive && (
                         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-xs text-blue-800 flex items-center justify-between dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800">
