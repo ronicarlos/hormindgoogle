@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import SourceSidebar from './components/SourceSidebar';
 import MetricDashboard from './components/MetricDashboard';
 import InputModal from './components/InputModal';
@@ -29,11 +29,6 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
-
-const MOCK_RISKS: RiskFlag[] = [
-    { category: 'Health', level: 'HIGH', message: 'AST/ALT elevados + Protocolo. Monitore o fígado.' },
-    { category: 'Protocol', level: 'MEDIUM', message: 'HDL baixo requer atenção na dieta e cardio.' }
-];
 
 const DISCLAIMER_TEXT = "FitLM é uma ferramenta educacional e analítica. Não substitui consulta médica. O uso de substâncias ergogênicas possui riscos graves à saúde.";
 
@@ -170,6 +165,67 @@ const App: React.FC = () => {
   const refreshBilling = () => {
       setBillingTrigger(prev => prev + 1);
   };
+
+  // --- DYNAMIC RISK CALCULATION ENGINE ---
+  // Calculates risks based on REAL data, not mocks.
+  const calculateRealRisks = (metrics: Record<string, MetricPoint[]>): RiskFlag[] => {
+      const risks: RiskFlag[] = [];
+      const getLastValue = (key: string) => {
+          const arr = metrics[key] || [];
+          if (arr.length === 0) return null;
+          // Sort by date desc (assuming format DD/MM/YYYY needs parsing if not sorted)
+          // Metrics in Project are usually pre-sorted or we take the last one added
+          return arr[arr.length - 1].value;
+      };
+
+      // 1. Check HDL (Colesterol Bom)
+      const hdl = getLastValue('HDL');
+      if (hdl !== null && hdl < 40) {
+          risks.push({
+              category: 'Health',
+              level: 'MEDIUM',
+              message: `HDL baixo (${hdl} mg/dL). Aumente gorduras boas e cardio.`
+          });
+      }
+
+      // 2. Check LDL (Colesterol Ruim)
+      const ldl = getLastValue('LDL');
+      if (ldl !== null && ldl > 130) {
+          risks.push({
+              category: 'Health',
+              level: 'HIGH',
+              message: `LDL elevado (${ldl} mg/dL). Risco cardiovascular aumentado.`
+          });
+      }
+
+      // 3. Check Liver (AST/ALT/TGO/TGP)
+      const ast = getLastValue('AST') || getLastValue('TGO');
+      const alt = getLastValue('ALT') || getLastValue('TGP');
+      if ((ast !== null && ast > 50) || (alt !== null && alt > 50)) {
+          risks.push({
+              category: 'Protocol',
+              level: 'HIGH',
+              message: 'Enzimas hepáticas alteradas. Atenção com orais e inflamação.'
+          });
+      }
+
+      // 4. Check Hematocrit
+      const hema = getLastValue('Hematocrito');
+      if (hema !== null && hema > 52) {
+          risks.push({
+              category: 'Health',
+              level: 'HIGH',
+              message: `Hematócrito alto (${hema}%). Sangue viscoso. Risco de trombose. Hidrate-se.`
+          });
+      }
+
+      return risks;
+  };
+
+  const realRisks = useMemo(() => {
+      if (!project || !project.metrics) return [];
+      return calculateRealRisks(project.metrics);
+  }, [project]);
 
   // 1. Auth Listener
   useEffect(() => {
@@ -1356,7 +1412,7 @@ const App: React.FC = () => {
         {currentView === 'metrics' && project && (
             <MetricDashboard 
                 project={project}
-                risks={MOCK_RISKS} 
+                risks={realRisks} 
                 onGenerateProntuario={handleGenerateProntuario}
                 isMobileView={true}
                 isProcessing={isProcessing}
