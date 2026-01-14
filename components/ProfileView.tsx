@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun } from './Icons';
+import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun, IconInfo } from './Icons';
 import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
 import CostTracker from './CostTracker';
+import { Tooltip } from './Tooltip';
 
 interface ProfileViewProps {
     profile?: UserProfile;
@@ -14,6 +15,45 @@ interface ProfileViewProps {
     billingTrigger: number;
     onOpenSubscription: () => void;
 }
+
+// --- COMPONENTE VISUAL DE CORPO (SVG) ---
+const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
+    const isMale = gender === 'Masculino';
+    
+    // Silhuetas simplificadas (SVG Paths)
+    const silhouette = isMale 
+        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z" // Croqui Masculino (Ombros largos)
+        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z"; // Croqui Feminino (Cintura fina, quadril largo)
+
+    // Coordenadas das linhas de medição (x1, y1, x2, y2) ou posição
+    const guides: Record<string, React.ReactNode> = {
+        chest: <line x1="28" y1="32" x2="60" y2="32" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        arm: <line x1="18" y1="35" x2="28" y2="35" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />, // Braço esquerdo
+        waist: <line x1="30" y1={isMale ? "60" : "50"} x2={isMale ? "58" : "58"} y2={isMale ? "60" : "50"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        hips: <line x1="25" y1={isMale ? "75" : "70"} x2={isMale ? "63" : "63"} y2={isMale ? "75" : "70"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        thigh: <line x1="50" y1="100" x2="62" y2="100" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        calf: <line x1="52" y1="125" x2="60" y2="125" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />
+    };
+
+    return (
+        // Reduced size (60x100) while keeping viewBox (90x150) to maintain path integrity
+        <svg width="60" height="100" viewBox="0 0 90 150" className="opacity-90">
+            {/* Corpo Base */}
+            <path d={silhouette} fill="#374151" stroke="none" opacity="0.3" />
+            {/* Guia de Medição */}
+            {guides[part]}
+        </svg>
+    );
+};
+
+const MEASUREMENT_HINTS: Record<string, string> = {
+    chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
+    arm: 'Maior circunferência do bíceps contraído.',
+    waist: 'Circunferência na altura do umbigo (relaxado).',
+    hips: 'Maior circunferência na região dos glúteos.',
+    thigh: 'Meio da coxa, entre o joelho e o quadril.',
+    calf: 'Maior circunferência da panturrilha.'
+};
 
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription }) => {
     const [isSaving, setIsSaving] = useState(false);
@@ -493,16 +533,28 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                         Antropometria (Medidas)
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                        {Object.entries({
-                            chest: 'Peitoral',
-                            arm: 'Braço (Contraído)',
-                            waist: 'Cintura (Umbigo)',
-                            hips: 'Quadril',
-                            thigh: 'Coxa Medial',
-                            calf: 'Panturrilha'
-                        }).map(([key, label]) => (
+                        {Object.entries(MEASUREMENT_HINTS).map(([key, hint]) => (
                             <label key={key} className="block">
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{label} (cm)</span>
+                                <div className="flex items-center gap-1 mb-1">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                        {key === 'chest' ? 'Peitoral' : 
+                                         key === 'arm' ? 'Braço' : 
+                                         key === 'waist' ? 'Cintura' : 
+                                         key === 'hips' ? 'Quadril' : 
+                                         key === 'thigh' ? 'Coxa' : 'Panturrilha'} (cm)
+                                    </span>
+                                    <Tooltip 
+                                        position="top"
+                                        content={
+                                            <div className="flex flex-col items-center">
+                                                <BodyGuide part={key} gender={formData.gender} />
+                                                <span className="text-center text-[10px] mt-2 leading-tight">{hint}</span>
+                                            </div>
+                                        } 
+                                    >
+                                        <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                    </Tooltip>
+                                </div>
                                 <input 
                                     type="number" 
                                     value={formData.measurements[key as keyof typeof formData.measurements] || ''} 

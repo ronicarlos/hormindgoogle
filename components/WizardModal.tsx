@@ -18,13 +18,49 @@ interface WizardModalProps {
 const steps = [
     { id: 'bio', title: 'Identificação', icon: IconUser, description: 'Dados básicos para a IA te conhecer.' },
     { id: 'anthro', title: 'Antropometria', icon: IconActivity, description: 'Peso e altura para cálculos metabólicos.' },
-    { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Cintura e quadril (Risco Cardíaco).' },
+    { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Circunferências corporais.' },
     { id: 'health', title: 'Saúde', icon: IconAlert, description: 'Histórico médico e medicamentos.' },
     { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' },
     { id: 'routine', title: 'Rotina & Dieta', icon: IconDumbbell, description: 'Contexto de treino e calorias.' },
     { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' },
     { id: 'goal', title: 'Objetivo Final', icon: IconScience, description: 'Onde vamos chegar?' }
 ];
+
+// --- COMPONENTE VISUAL DE CORPO (SVG) ---
+const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
+    const isMale = gender === 'Masculino';
+    
+    // Silhuetas simplificadas (SVG Paths)
+    const silhouette = isMale 
+        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z" // Croqui Masculino
+        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z"; // Croqui Feminino
+
+    const guides: Record<string, React.ReactNode> = {
+        chest: <line x1="28" y1="32" x2="60" y2="32" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        arm: <line x1="18" y1="35" x2="28" y2="35" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        waist: <line x1="30" y1={isMale ? "60" : "50"} x2={isMale ? "58" : "58"} y2={isMale ? "60" : "50"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        hips: <line x1="25" y1={isMale ? "75" : "70"} x2={isMale ? "63" : "63"} y2={isMale ? "75" : "70"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        thigh: <line x1="50" y1="100" x2="62" y2="100" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
+        calf: <line x1="52" y1="125" x2="60" y2="125" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />
+    };
+
+    return (
+        // Reduced size (60x100) while keeping viewBox (90x150) to maintain path integrity
+        <svg width="60" height="100" viewBox="0 0 90 150" className="opacity-90">
+            <path d={silhouette} fill="#374151" stroke="none" opacity="0.3" />
+            {guides[part]}
+        </svg>
+    );
+};
+
+const MEASUREMENT_HINTS: Record<string, string> = {
+    chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
+    arm: 'Maior circunferência do bíceps contraído.',
+    waist: 'Circunferência na altura do umbigo (relaxado).',
+    hips: 'Maior circunferência na região dos glúteos.',
+    thigh: 'Meio da coxa, entre o joelho e o quadril.',
+    calf: 'Maior circunferência da panturrilha.'
+};
 
 const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject, onUpload }) => {
     const [currentStep, setCurrentStep] = useState(0);
@@ -284,18 +320,19 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {/* STEP 2: Medidas Críticas */}
+                        {/* STEP 2: Medidas (COMPLETO AGORA) */}
                         {currentStep === 2 && (
                             <>
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mb-2 flex gap-2 items-start dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
                                     <IconInfo className="w-4 h-4 mt-0.5 shrink-0" />
-                                    <span>Usamos a relação entre Cintura e Quadril para calcular seu risco cardíaco (RCQ) automaticamente.</span>
+                                    <span>As medidas de Cintura e Quadril são obrigatórias para o cálculo de risco cardíaco (RCQ). As demais ajudam no acompanhamento muscular.</span>
                                 </div>
+                                
                                 <div className="grid grid-cols-2 gap-4">
                                      <label className="block">
                                         <div className="flex items-center gap-1 mb-1">
                                             <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Cintura</span>
-                                            <Tooltip content="Meça a circunferência na altura do umbigo, relaxado." position="top">
+                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="waist" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.waist}</span></div>}>
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
@@ -307,7 +344,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                     <label className="block">
                                         <div className="flex items-center gap-1 mb-1">
                                             <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Quadril</span>
-                                            <Tooltip content="Meça a maior circunferência na região dos glúteos." position="top">
+                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="hips" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.hips}</span></div>}>
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
@@ -315,6 +352,47 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                             <input type="number" value={profileData.measurements.hips} onChange={e => handleMeasurementChange('hips', e.target.value)} className={`${inputClass} pr-8`} placeholder="100" />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
                                         </div>
+                                    </label>
+                                </div>
+
+                                <div className="h-px bg-gray-200 my-2 dark:bg-gray-700" />
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className="block">
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peitoral</span>
+                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="chest" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.chest}</span></div>}>
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                            </Tooltip>
+                                        </div>
+                                        <input type="number" value={profileData.measurements.chest} onChange={e => handleMeasurementChange('chest', e.target.value)} className={inputClass} placeholder="0" />
+                                    </label>
+                                    <label className="block">
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Braço</span>
+                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="arm" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.arm}</span></div>}>
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                            </Tooltip>
+                                        </div>
+                                        <input type="number" value={profileData.measurements.arm} onChange={e => handleMeasurementChange('arm', e.target.value)} className={inputClass} placeholder="0" />
+                                    </label>
+                                    <label className="block">
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Coxa</span>
+                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="thigh" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.thigh}</span></div>}>
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                            </Tooltip>
+                                        </div>
+                                        <input type="number" value={profileData.measurements.thigh} onChange={e => handleMeasurementChange('thigh', e.target.value)} className={inputClass} placeholder="0" />
+                                    </label>
+                                    <label className="block">
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Panturrilha</span>
+                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="calf" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.calf}</span></div>}>
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                            </Tooltip>
+                                        </div>
+                                        <input type="number" value={profileData.measurements.calf} onChange={e => handleMeasurementChange('calf', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                 </div>
                             </>
