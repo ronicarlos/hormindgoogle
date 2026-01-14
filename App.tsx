@@ -166,56 +166,237 @@ const App: React.FC = () => {
       setBillingTrigger(prev => prev + 1);
   };
 
-  // --- DYNAMIC RISK CALCULATION ENGINE ---
-  // Calculates risks based on REAL data, not mocks.
-  const calculateRealRisks = (metrics: Record<string, MetricPoint[]>): RiskFlag[] => {
+  // --- DYNAMIC RISK CALCULATION ENGINE (EXPANDIDA V3) ---
+  const calculateRealRisks = (metrics: Record<string, MetricPoint[]>, gender: string = 'Masculino'): RiskFlag[] => {
       const risks: RiskFlag[] = [];
-      const getLastValue = (key: string) => {
-          const arr = metrics[key] || [];
-          if (arr.length === 0) return null;
-          // Sort by date desc (assuming format DD/MM/YYYY needs parsing if not sorted)
-          // Metrics in Project are usually pre-sorted or we take the last one added
-          return arr[arr.length - 1].value;
+      const isMale = gender === 'Masculino';
+      
+      // Helper robusto para buscar valor por múltiplos nomes (Sinônimos)
+      const getLastValue = (keys: string[]) => {
+          for (const key of keys) {
+              const arr = metrics[key] || [];
+              if (arr.length > 0) {
+                  // Assume que o último array é o mais recente ou ordena
+                  const sorted = [...arr].sort((a,b) => {
+                      const da = a.date.split('/').reverse().join('-'); 
+                      const db = b.date.split('/').reverse().join('-');
+                      return new Date(da).getTime() - new Date(db).getTime();
+                  });
+                  return sorted[sorted.length - 1].value;
+              }
+          }
+          return null;
       };
 
-      // 1. Check HDL (Colesterol Bom)
-      const hdl = getLastValue('HDL');
-      if (hdl !== null && hdl < 40) {
+      const ldlVal = getLastValue(['LDL', 'Colesterol LDL', 'L.D.L']);
+      const hdlVal = getLastValue(['HDL', 'Colesterol HDL', 'H.D.L']);
+
+      // 1. Índice de Castelli (Risco Cardíaco Global)
+      if (ldlVal !== null && hdlVal !== null && hdlVal > 0) {
+          const ratio = ldlVal / hdlVal;
+          if (ratio > 4.5) {
+              risks.push({
+                  category: 'Health',
+                  level: 'HIGH',
+                  message: `Índice de Castelli (LDL/HDL) muito alto (${ratio.toFixed(1)}). Indicador forte de formação de placa aterosclerótica.`,
+                  solution: "Prioridade Absoluta: Cardio diário (40min+), aumentar Ômega-3 (4g/dia), reduzir gorduras saturadas (carnes gordas/queijos). Avalie estatinas com médico."
+              });
+          } else if (ratio > 3.5) {
+              risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `Risco Cardíaco aumentado (LDL/HDL = ${ratio.toFixed(1)}).`,
+                  solution: "Aumente gorduras monoinsaturadas (Azeite, Abacate) e fibras. Adicione cardio de baixa intensidade."
+              });
+          }
+      }
+
+      // 2. Colesterol Isolado
+      if (hdlVal !== null && hdlVal < 40) {
           risks.push({
               category: 'Health',
               level: 'MEDIUM',
-              message: `HDL baixo (${hdl} mg/dL). Aumente gorduras boas e cardio.`
+              message: `HDL (Bom) baixo (${hdlVal} mg/dL).`,
+              solution: "O melhor remédio para HDL é exercício aeróbico e gorduras boas (Nozes, Azeite). Evite gordura trans."
           });
       }
-
-      // 2. Check LDL (Colesterol Ruim)
-      const ldl = getLastValue('LDL');
-      if (ldl !== null && ldl > 130) {
-          risks.push({
+      if (ldlVal !== null && ldlVal > 160) {
+           risks.push({
               category: 'Health',
               level: 'HIGH',
-              message: `LDL elevado (${ldl} mg/dL). Risco cardiovascular aumentado.`
+              message: `LDL (Ruim) perigosamente alto (${ldlVal} mg/dL).`,
+              solution: "Corte frituras e gorduras animais. Considere suplementar Fitoesteróis e Arroz Vermelho fermentado."
           });
       }
 
-      // 3. Check Liver (AST/ALT/TGO/TGP)
-      const ast = getLastValue('AST') || getLastValue('TGO');
-      const alt = getLastValue('ALT') || getLastValue('TGP');
-      if ((ast !== null && ast > 50) || (alt !== null && alt > 50)) {
+      // 3. Fígado (TGO/TGP/AST/ALT)
+      const ast = getLastValue(['AST', 'TGO']);
+      const alt = getLastValue(['ALT', 'TGP']);
+      if ((ast !== null && ast > 55) || (alt !== null && alt > 55)) {
           risks.push({
               category: 'Protocol',
               level: 'HIGH',
-              message: 'Enzimas hepáticas alteradas. Atenção com orais e inflamação.'
+              message: 'Enzimas hepáticas alteradas (TGO/TGP). Fígado sob estresse.',
+              solution: "Se usa orais, pare imediatamente. Adicione NAC (600mg-1200mg) e Silimarina. Beba 4L de água."
           });
       }
 
-      // 4. Check Hematocrit
-      const hema = getLastValue('Hematocrito');
-      if (hema !== null && hema > 52) {
+      // 4. Hematócrito
+      const hema = getLastValue(['Hematocrito', 'Hematócrito', 'Ht']);
+      if (hema !== null && hema > 53) {
           risks.push({
               category: 'Health',
               level: 'HIGH',
-              message: `Hematócrito alto (${hema}%). Sangue viscoso. Risco de trombose. Hidrate-se.`
+              message: `Hematócrito CRÍTICO (${hema}%). Sangue viscoso. Risco de trombose.`,
+              solution: "Urgente: Hidratação extrema. Considere doação de sangue terapêutica (Flebotomia) se confirmado. Evite diuréticos."
+          });
+      }
+
+      // 5. Rins (Creatinina)
+      const creat = getLastValue(['Creatinina', 'Creatinine']);
+      if (creat !== null && creat > 1.4) {
+          risks.push({
+              category: 'Health',
+              level: 'MEDIUM',
+              message: `Creatinina alta (${creat}). Atenção aos Rins.`,
+              solution: "Se você tem muita massa muscular ou usa creatina, pode ser falso-positivo. Beba mais água e monitore a Cistatina C para certeza."
+          });
+      }
+
+      // 6. Estradiol (E2) - Ajustado por Gênero
+      const e2 = getLastValue(['Estradiol', 'E2']);
+      if (isMale) {
+          if (e2 !== null && e2 > 80) {
+              risks.push({
+                  category: 'Protocol',
+                  level: 'MEDIUM',
+                  message: `Estradiol alto (${e2} pg/mL). Risco de ginecomastia e retenção.`,
+                  solution: "Avalie uso de Anastrozol (dose baixa) ou dimencione a testosterona. Controle o BF (gordura converte testo em estradiol)."
+              });
+          } else if (e2 !== null && e2 < 20) {
+               risks.push({
+                  category: 'Protocol',
+                  level: 'MEDIUM',
+                  message: `Estradiol muito baixo (${e2} pg/mL). Perigo para articulações e libido.`,
+                  solution: "Se estiver usando IA (Anastrozol), pare ou reduza a dose. O estrogênio é neuroprotetor e anabólico."
+              });
+          }
+      } else {
+          // Mulheres
+          if (e2 !== null && e2 < 15) { // Menopausa ou Hipogonadismo
+               risks.push({
+                  category: 'Health',
+                  level: 'HIGH',
+                  message: `Estradiol baixo (${e2}). Risco de osteoporose e amenorreia.`,
+                  solution: "Consulte ginecologista. Pode indicar necessidade de TRH ou ajuste calórico (se atleta)."
+              });
+          }
+      }
+
+      // 7. Próstata (Apenas Homens) - NEW
+      const psa = getLastValue(['PSA', 'PSA Total', 'Antígeno Prostático']);
+      if (isMale && psa !== null) {
+          if (psa > 4) {
+               risks.push({
+                  category: 'Health',
+                  level: 'HIGH',
+                  message: `PSA Elevado (${psa} ng/mL). Atenção à próstata.`,
+                  solution: "Pare de andar de bicicleta/moto por 3 dias e repita o exame. Se persistir, urologista urgente."
+              });
+          } else if (psa > 2.5) { // Alerta para jovens/atletas
+               risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `PSA em zona de alerta (${psa} ng/mL).`,
+                  solution: "Monitore. Evite exercícios de alto impacto pélvico antes dos próximos exames."
+              });
+          }
+      }
+
+      // 8. Tireoide (Geral) - NEW
+      const tsh = getLastValue(['TSH', 'Hormônio Tireoestimulante']);
+      if (tsh !== null) {
+          if (tsh > 4.5) {
+               risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `TSH Alto (${tsh}). Indício de Hipotireoidismo (Metabolismo lento).`,
+                  solution: "Avalie T4 Livre e T3. Pode necessitar de reposição de Iodo, Selênio ou Levotiroxina."
+              });
+          } else if (tsh < 0.4) {
+               risks.push({
+                  category: 'Protocol',
+                  level: 'MEDIUM',
+                  message: `TSH Suprimido (${tsh}). Possível Hipertireoidismo ou uso exógeno de T3/T4.`,
+                  solution: "Se estiver usando hormônio tireoidiano, a dose pode estar alta. Risco de arritmia e catabolismo."
+              });
+          }
+      }
+
+      // 9. Glicemia
+      const glicose = getLastValue(['Glicose', 'Glicemia', 'Glucose']);
+      if (glicose !== null && glicose > 100) {
+           risks.push({
+              category: 'Health',
+              level: glicose > 126 ? 'HIGH' : 'MEDIUM',
+              message: `Glicemia de jejum elevada (${glicose} mg/dL). Resistência à insulina.`,
+              solution: "Reduza carboidratos simples. Use Berberina (500mg) ou Metformina (se prescrito) antes das refeições."
+          });
+      }
+
+      // 10. Testosterona (Hipo/Hipergonadismo)
+      const testo = getLastValue(['Testosterona', 'Testosterone', 'Testo Total']);
+      if (isMale) {
+          if (testo !== null && testo < 300) {
+               risks.push({
+                  category: 'Health',
+                  level: 'HIGH',
+                  message: `Testosterona baixa (${testo} ng/dL). Hipogonadismo Masculino.`,
+                  solution: "Sintomas: Fadiga, depressão, libido zero. Consulte médico para TRT ou Clomifeno para estimular produção."
+              });
+          }
+      } else {
+          // Mulheres (SOP)
+          if (testo !== null && testo > 55) { // Limite genérico lab
+               risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `Testosterona alta para mulheres (${testo} ng/dL). Risco de SOP/Virilização.`,
+                  solution: "Se tiver acne ou pelos excessivos, investigue SOP (Ovários Policísticos). Reduza insulina na dieta."
+              });
+          }
+      }
+
+      // 11. Triglicerídeos
+      const trig = getLastValue(['Triglicerídeos', 'Triglycerides']);
+      if (trig !== null && trig > 150) {
+           risks.push({
+              category: 'Health',
+              level: trig > 200 ? 'HIGH' : 'MEDIUM',
+              message: `Triglicerídeos altos (${trig} mg/dL). Risco de placa arterial e pancreatite.`,
+              solution: "Triglicerídeos respondem rápido à dieta: Corte álcool e açúcar refinado. Aumente cardio."
+          });
+      }
+
+      // 12. Gama GT
+      const ggt = getLastValue(['GGT', 'Gama GT', 'Gama-Glutamil']);
+      if (ggt !== null && ggt > 60) {
+           risks.push({
+              category: 'Protocol',
+              level: 'HIGH',
+              message: `Gama GT elevada (${ggt}). Marcador sensível de estresse hepático/biliar.`,
+              solution: "Geralmente ligado a álcool ou orais. Cortar toxinas é mandatório."
+          });
+      }
+
+      // 13. CPK
+      const cpk = getLastValue(['CPK', 'CK', 'Creatinoquinase']);
+      if (cpk !== null && cpk > 300) {
+           risks.push({
+              category: 'Training',
+              level: cpk > 2000 ? 'MEDIUM' : 'LOW', 
+              message: `CPK alta (${cpk}). Dano muscular.`,
+              solution: "Em atletas é normal. Se urina estiver escura, vá ao hospital (Rabdomiólise). Hidrate-se muito."
           });
       }
 
@@ -224,7 +405,7 @@ const App: React.FC = () => {
 
   const realRisks = useMemo(() => {
       if (!project || !project.metrics) return [];
-      return calculateRealRisks(project.metrics);
+      return calculateRealRisks(project.metrics, project.userProfile?.gender);
   }, [project]);
 
   // 1. Auth Listener

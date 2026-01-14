@@ -105,6 +105,7 @@ export interface RiskFlag {
   level: 'LOW' | 'MEDIUM' | 'HIGH';
   message: string;
   category: 'Health' | 'Protocol' | 'Training';
+  solution?: string; // NEW: Suggestion on how to fix
 }
 
 export interface ProtocolItem {
