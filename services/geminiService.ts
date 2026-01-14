@@ -7,8 +7,9 @@ import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
-// UPDATED: Using Gemini 3 Flash Preview as the main model.
-// Supports Thinking Config defined in generation.
+// COST OPTIMIZATION:
+// Using 'gemini-3-flash-preview' is significantly cheaper (~20x) than Pro versions.
+// This is essential for reading heavy PDFs/Images without spiking the bill.
 const MODEL_ID = 'gemini-3-flash-preview'; 
 const VISION_MODEL_ID = 'gemini-3-flash-preview'; 
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
@@ -105,7 +106,8 @@ const buildContext = (
         if (source.summary) {
             contentSnippet = `RESUMO ESTRUTURADO DA IA:\n${source.summary}\n\nTRECHO RAW:\n${source.content.substring(0, 2000)}...`;
         } else {
-            contentSnippet = source.content.length > 30000 ? source.content.substring(0, 30000) + "...[cortado]" : source.content;
+            // COST CONTROL: Limit context window per file to avoid massive token usage
+            contentSnippet = source.content.length > 15000 ? source.content.substring(0, 15000) + "...[cortado para economia]" : source.content;
         }
 
         context += `${prefix}\n${contentSnippet}\n\n`;
@@ -143,8 +145,9 @@ export const generateAIResponse = async (
   try {
     const systemInstruction = buildContext(sources, profile, metrics);
     
-    // For Thinking Models, we usually pass the thinking config.
-    // Gemini 3 Flash Preview supports thinking.
+    // COST OPTIMIZATION: 
+    // We removed 'thinkingConfig' to save output tokens.
+    // 'thinkingBudget' adds significant cost. For standard analysis, Flash is smart enough without it.
     const response = await ai.models.generateContent({
       model: MODEL_ID, 
       contents: [
@@ -153,7 +156,8 @@ export const generateAIResponse = async (
         { role: 'user', parts: [{ text: `Pergunta Atual: ${message}` }] }
       ],
       config: {
-        thinkingConfig: { thinkingBudget: 2048 }, 
+        // thinkingConfig: { thinkingBudget: 0 }, // Disabled to save costs
+        temperature: 0.7 // Standard creativity
       }
     });
 
@@ -164,10 +168,8 @@ export const generateAIResponse = async (
 
     // Fallback logic
     if (error.message?.includes('not supported') || error.status === 400 || error.status === 404 || error.message?.includes('not found')) {
-         console.warn("Thinking model failed or not found, falling back to standard config.");
+         console.warn("Model failed or not found, falling back.");
          try {
-            // Retry with same model but NO thinking config (sometimes it's the config causing issues if model capabilities changed)
-            // Or fallback to a known stable alias if MODEL_ID itself is bad.
             const fallbackResponse = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview', 
                 contents: `Contexto: ${buildContext(sources, profile, metrics)}\n\nPergunta: ${message}`
@@ -253,8 +255,8 @@ export const generateDocumentSummary = async (content: string, type: string): Pr
     Se for DIETA/TREINO:
     - Resuma os macros e volume total.
     
-    TEXTO:
-    ${content.substring(0, 30000)}
+    TEXTO (Limitado a 15k chars para custo):
+    ${content.substring(0, 15000)}
     `;
 
     try {
