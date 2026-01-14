@@ -1,7 +1,7 @@
 
 import React, { useRef } from 'react';
 import { Source, SourceType, AppView } from '../types';
-import { IconFile, IconPlus, IconCheck, IconDumbbell, IconLayout, IconDownload, IconScience, IconUser, IconClose, IconInfo, IconSparkles, IconActivity, IconTrash, IconWizard } from './Icons';
+import { IconFile, IconPlus, IconCheck, IconDumbbell, IconLayout, IconDownload, IconScience, IconUser, IconClose, IconInfo, IconSparkles, IconActivity, IconTrash, IconWizard, IconClock } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface SourceSidebarProps {
@@ -147,6 +147,15 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
                     >
                         <IconLayout className="w-4 h-4" />
                         Notebook & Chat
+                    </button>
+                    <button 
+                        onClick={() => { onViewChange('timeline'); onClose?.(); }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
+                            currentView === 'timeline' ? 'bg-white text-purple-600 shadow-sm dark:bg-gray-800 dark:text-purple-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                        }`}
+                    >
+                        <IconClock className="w-4 h-4" />
+                        Timeline da Jornada
                     </button>
                     <button 
                         onClick={() => { onViewChange('profile'); onClose?.(); }}

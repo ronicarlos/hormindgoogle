@@ -10,14 +10,15 @@ import LegalContractModal from './components/LegalContractModal';
 import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
+import TimelineView from './components/TimelineView'; // IMPORTADO
 import AuthScreen from './components/AuthScreen';
-import SubscriptionModal from './components/SubscriptionModal'; // MODIFIED: Removed CostTracker import here (used in ProfileView)
+import SubscriptionModal from './components/SubscriptionModal'; 
 import { IOSInstallPrompt } from './components/IOSInstallPrompt'; 
 import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, MetricPoint, AppView, UserProfile, Exercise } from './types';
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { supabase } from './lib/supabase';
-import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose, IconWizard, IconMic, IconCopy, IconShare, IconList } from './components/Icons';
+import { IconSend, IconSparkles, IconMessage, IconAlert, IconPlus, IconLayout, IconDumbbell, IconActivity, IconScience, IconUser, IconFile, IconFolder, IconDownload, IconCheck, IconTrash, IconSearch, IconArrowLeft, IconBookmark, IconBookmarkFilled, IconClose, IconWizard, IconMic, IconCopy, IconShare, IconList, IconClock } from './components/Icons';
 import ReactMarkdown from 'react-markdown';
 import { Tooltip } from './components/Tooltip';
 
@@ -68,6 +69,13 @@ const MobileBottomNav = ({ currentView, onViewChange }: { currentView: AppView, 
             <span className="text-[10px] font-bold tracking-tight">Chat</span>
         </button>
         <button 
+            onClick={() => onViewChange('timeline')}
+            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'timeline' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+        >
+            <IconClock className={`w-6 h-6 ${currentView === 'timeline' ? 'fill-current' : ''}`} />
+            <span className="text-[10px] font-bold tracking-tight">Timeline</span>
+        </button>
+        <button 
             onClick={() => onViewChange('metrics')}
             className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'metrics' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
@@ -80,13 +88,6 @@ const MobileBottomNav = ({ currentView, onViewChange }: { currentView: AppView, 
         >
             <IconDumbbell className={`w-6 h-6 ${currentView === 'training_library' ? 'fill-current' : ''}`} />
             <span className="text-[10px] font-bold tracking-tight">Treinos</span>
-        </button>
-        <button 
-            onClick={() => onViewChange('protocol_library')}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'protocol_library' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
-        >
-            <IconScience className={`w-6 h-6 ${currentView === 'protocol_library' ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-bold tracking-tight">Pharma</span>
         </button>
         <button 
             onClick={() => onViewChange('sources')}
@@ -1316,6 +1317,14 @@ const App: React.FC = () => {
 
         {/* --- CONTENT VIEWS --- */}
         
+        {/* NEW: TIMELINE VIEW */}
+        {currentView === 'timeline' && (
+            <TimelineView 
+                sources={sources} 
+                messages={messages} 
+            />
+        )}
+
         {/* NEW: MOBILE FULL SCREEN SOURCES VIEW */}
         {currentView === 'sources' && (
              <div className="h-full w-full flex flex-col">

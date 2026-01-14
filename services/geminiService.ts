@@ -336,16 +336,19 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
     try {
         const filePart = await fileToGenerativePart(file);
         
-        // Advanced System Prompt for Extraction
+        // Advanced System Prompt for Extraction - UPDATED FOR DATE ACCURACY
         const extractionPrompt = `
         ATUE COMO UM ANALISTA DE DADOS MÉDICOS E OCR.
         
         TAREFA 1: TRANSCRIÇÃO
         Transcreva o conteúdo legível deste documento para Markdown. Se for ilegível, diga "[Ilegível]".
 
-        TAREFA 2: EXTRAÇÃO DE DADOS (CRÍTICO)
-        Identifique a DATA DE COLETA/REALIZAÇÃO do exame no documento. Se encontrar, use o formato DD/MM/AAAA.
-        Se NÃO encontrar data específica no documento, use a data de hoje: ${defaultDate}.
+        TAREFA 2: EXTRAÇÃO DE DADOS (CRÍTICO - TIMELINE)
+        Identifique a DATA DE COLETA/REALIZAÇÃO do exame no documento.
+        - Priorize "Data da Coleta", "Data de Atendimento" ou "Realizado em".
+        - IGNORE "Data de Impressão" ou "Data de Emissão" se a data da coleta estiver disponível.
+        - Se encontrar, use o formato DD/MM/AAAA.
+        - Se e SOMENTE SE NÃO encontrar nenhuma data específica no documento, use a data de hoje: ${defaultDate}.
 
         Identifique os seguintes biomarcadores se existirem (ignore se não houver):
         - Testosterone (Total), HDL, LDL, BodyWeight (Peso), BodyFat (Gordura %), MuscleMass, Strength (Cargas principais).

@@ -15,7 +15,7 @@ export enum AnalysisType {
   FULL_PRONTUARIO = 'FULL_PRONTUARIO'
 }
 
-export type AppView = 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing';
+export type AppView = 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing' | 'timeline';
 
 export interface UserProfile {
   id?: string;
