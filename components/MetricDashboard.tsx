@@ -415,59 +415,34 @@ const EfficiencyChart = ({
     );
 };
 
-const RiskCard = ({ risk }: { risk: RiskFlag }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <div 
-            onClick={() => risk.solution && setIsExpanded(!isExpanded)}
-            className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm transition-all duration-300 ${
+const RiskCard = ({ risk }: { risk: RiskFlag }) => (
+    <div className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm ${
+        risk.level === 'HIGH' 
+        ? 'bg-red-50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30' 
+        : 'bg-orange-50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30'
+    }`}>
+        <div className="flex justify-between items-start">
+            <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
                 risk.level === 'HIGH' 
-                ? 'bg-red-50 border-red-100 hover:bg-red-100/50 dark:bg-red-900/10 dark:border-red-900/30' 
-                : 'bg-orange-50 border-orange-100 hover:bg-orange-100/50 dark:bg-orange-900/10 dark:border-orange-900/30'
-            } ${risk.solution ? 'cursor-pointer group' : ''}`}
-        >
-            <div className="flex justify-between items-start">
-                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
-                    risk.level === 'HIGH' 
-                    ? 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200' 
-                    : 'bg-orange-200 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                }`}>
-                    {risk.category}
-                </span>
-                <span className={`text-[10px] font-bold ${
-                    risk.level === 'HIGH' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
-                }`}>
-                    {risk.level}
-                </span>
-            </div>
-            
-            <p className={`text-sm font-medium leading-relaxed ${
-                risk.level === 'HIGH' ? 'text-red-900 dark:text-red-100' : 'text-orange-900 dark:text-orange-100'
+                ? 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200' 
+                : 'bg-orange-200 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
             }`}>
-                {risk.message}
-            </p>
-
-            {risk.solution && (
-                <div className="mt-1">
-                    <p className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
-                        risk.level === 'HIGH' ? 'text-red-500' : 'text-orange-500'
-                    }`}>
-                        {isExpanded ? 'Ocultar Solução' : 'Toque para ver solução'}
-                    </p>
-                    
-                    {isExpanded && (
-                        <div className={`mt-2 p-3 rounded-lg text-xs leading-relaxed animate-in slide-in-from-top-2 ${
-                             risk.level === 'HIGH' ? 'bg-white/60 text-red-800' : 'bg-white/60 text-orange-800'
-                        }`}>
-                            <strong>Recomendação:</strong> {risk.solution}
-                        </div>
-                    )}
-                </div>
-            )}
+                {risk.category}
+            </span>
+            <span className={`text-[10px] font-bold ${
+                risk.level === 'HIGH' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
+            }`}>
+                {risk.level}
+            </span>
         </div>
-    );
-};
+        
+        <p className={`text-sm font-medium leading-relaxed ${
+            risk.level === 'HIGH' ? 'text-red-900 dark:text-red-100' : 'text-orange-900 dark:text-orange-100'
+        }`}>
+            {risk.message}
+        </p>
+    </div>
+);
 
 const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing }) => {
     // 1. Prepare Data for Advanced Charts
