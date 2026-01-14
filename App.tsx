@@ -489,7 +489,7 @@ const App: React.FC = () => {
   // Handler for mobile input (Single file from camera, usually, but can be multiple)
   const handleMobileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
-          const files = Array.from(e.target.files);
+          const files = Array.from(e.target.files) as File[];
           handleBatchAddSources(files);
       }
       if (e.target) e.target.value = '';

@@ -112,7 +112,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             setIsUploading(true);
-            const files = Array.from(e.target.files);
+            const files = Array.from(e.target.files) as File[];
             try {
                 await onUpload(files);
                 setUploadedFiles(prev => [...prev, ...files.map(f => f.name)]);

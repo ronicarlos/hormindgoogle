@@ -176,15 +176,15 @@ const SourceSidebar: React.FC<SourceSidebarProps> = ({
                         Enciclopédia de Protocolos
                     </button>
                     
-                    {/* TABLET ONLY LINK */}
+                    {/* METRICS LINK - ENABLED FOR DESKTOP AND TABLET */}
                     <button 
                         onClick={() => { onViewChange('metrics'); onClose?.(); }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium items-center gap-3 transition-colors hidden md:flex lg:hidden ${
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors ${
                             currentView === 'metrics' ? 'bg-white text-emerald-600 shadow-sm dark:bg-gray-800 dark:text-emerald-400 dark:border dark:border-gray-700' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
                         }`}
                     >
                         <IconActivity className="w-4 h-4" />
-                        Painel de Métricas
+                        Métricas
                     </button>
                 </div>
             )}

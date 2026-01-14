@@ -441,7 +441,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 <div>
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2 dark:text-white">
                         <IconActivity className="w-6 h-6 text-gray-400" />
-                        PAINEL BIOMÉTRICO
+                        MÉTRICAS
                     </h2>
                     <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400">
                         Inteligência de Decisão & Saúde
