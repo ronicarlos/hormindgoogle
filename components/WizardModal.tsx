@@ -264,7 +264,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nome ou Apelido</span>
                                     <input type="text" value={profileData.name} onChange={e => handleProfileChange('name', e.target.value)} className={inputClass} placeholder="Como quer ser chamado?" autoFocus />
                                 </label>
-                                <div className="grid grid-cols-2 gap-4">
+                                {/* Changed grid-cols-2 to grid-cols-1 md:grid-cols-2 to fix mobile overlap */}
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                      <label className="block">
                                         <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nascimento</span>
                                         <input type="date" value={profileData.birthDate} onChange={e => handleProfileChange('birthDate', e.target.value)} className={inputClass} />
