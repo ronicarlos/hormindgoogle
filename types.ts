@@ -15,7 +15,7 @@ export enum AnalysisType {
   FULL_PRONTUARIO = 'FULL_PRONTUARIO'
 }
 
-export type AppView = 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources';
+export type AppView = 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing';
 
 export interface UserProfile {
   id?: string;
@@ -49,6 +49,15 @@ export interface UserProfile {
   hideStartupDisclaimer?: boolean;
   // NEW: UI Preference
   theme?: 'light' | 'dark';
+  // NEW: Billing
+  subscriptionStatus?: 'free' | 'active' | 'past_due' | 'canceled';
+}
+
+export interface UsageLog {
+    id: string;
+    actionType: string;
+    cost: number;
+    createdAt: string;
 }
 
 export interface Source {

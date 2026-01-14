@@ -450,13 +450,18 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 
                 {/* BUTTON (Desktop/Tablet) - EXPLICIT 'PRONTUARIO PDF' */}
                 {!isProcessing && (
-                    <button 
-                        onClick={onGenerateProntuario}
-                        className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"
-                    >
-                        <IconReportPDF className="w-4 h-4" />
-                        PRONTUÁRIO PDF
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                        <button 
+                            onClick={onGenerateProntuario}
+                            className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"
+                        >
+                            <IconReportPDF className="w-4 h-4" />
+                            PRONTUÁRIO PDF
+                        </button>
+                        <span className="text-[9px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full dark:bg-green-900/30 dark:text-green-400 hidden md:block">
+                            ⚡ Modo Econômico Ativo
+                        </span>
+                    </div>
                 )}
             </div>
 
@@ -554,7 +559,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
             {/* Mobile Fab for Report - UPDATED ICON & TOOLTIP */}
             {isMobileView && !isProcessing && (
                 <div className="md:hidden fixed bottom-24 right-4 z-40">
-                    <Tooltip content="Gerar Prontuário PDF" position="left">
+                    <Tooltip content="Gerar Prontuário PDF (Modo Econômico)" position="left">
                         <button 
                             onClick={onGenerateProntuario}
                             className="bg-black text-white p-4 rounded-full shadow-2xl active:scale-90 transition-transform dark:bg-blue-600 border border-gray-800 dark:border-blue-500"

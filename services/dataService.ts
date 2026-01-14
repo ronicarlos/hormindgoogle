@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage } from '../types';
+import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog } from '../types';
 import { embedText } from './geminiService';
 
 // Tipos auxiliares para Banco de Dados
@@ -283,7 +283,8 @@ export const dataService = {
             termsAcceptedAt: data.terms_accepted_at,
             hideStartupDisclaimer: data.hide_startup_disclaimer,
             // Preference
-            theme: data.theme || 'light'
+            theme: data.theme || 'light',
+            subscriptionStatus: data.subscription_status || 'free'
         };
     },
 
@@ -539,6 +540,78 @@ export const dataService = {
             text: msg.text,
             timestamp: new Date(msg.created_at).getTime(),
             isBookmarked: msg.is_bookmarked
+        }));
+    },
+
+    // --- BILLING & USAGE TRACKING ---
+
+    /**
+     * Registra uso de IA no banco de dados e retorna o custo calculado.
+     */
+    async logUsage(userId: string, projectId: string | undefined, actionType: string, inputTokens: number, outputTokens: number): Promise<number> {
+        // Preços estimados (BRL) baseados no Gemini Flash + Margem
+        // Input: ~R$ 0.60 / 1M tokens
+        // Output: ~R$ 2.40 / 1M tokens
+        const PRICE_PER_1M_INPUT = 0.60;
+        const PRICE_PER_1M_OUTPUT = 2.40;
+
+        const costInput = (inputTokens / 1000000) * PRICE_PER_1M_INPUT;
+        const costOutput = (outputTokens / 1000000) * PRICE_PER_1M_OUTPUT;
+        const totalCost = costInput + costOutput;
+
+        const { error } = await supabase
+            .from('usage_logs')
+            .insert({
+                user_id: userId,
+                project_id: projectId,
+                action_type: actionType,
+                input_tokens: inputTokens,
+                output_tokens: outputTokens,
+                cost_brl: totalCost
+            });
+
+        if (error) console.error('Error logging usage:', error);
+        
+        return totalCost;
+    },
+
+    /**
+     * Retorna o total gasto no mês atual.
+     */
+    async getCurrentMonthBill(userId: string): Promise<number> {
+        const date = new Date();
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
+        
+        const { data, error } = await supabase
+            .from('usage_logs')
+            .select('cost_brl')
+            .eq('user_id', userId)
+            .gte('created_at', firstDay);
+
+        if (error) {
+            console.error('Error fetching bill:', error);
+            return 0;
+        }
+
+        const total = data.reduce((acc, curr) => acc + (curr.cost_brl || 0), 0);
+        return total;
+    },
+
+    async getUsageHistory(userId: string): Promise<UsageLog[]> {
+        const { data, error } = await supabase
+            .from('usage_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(50); // Últimas 50 ações
+
+        if (error) return [];
+
+        return data.map((log: any) => ({
+            id: log.id,
+            actionType: log.action_type,
+            cost: log.cost_brl,
+            createdAt: log.created_at
         }));
     }
 };

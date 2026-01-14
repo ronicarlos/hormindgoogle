@@ -11,7 +11,7 @@ const AuthScreen: React.FC = () => {
     
     // UI State for password visibility & checkbox
     const [showPassword, setShowPassword] = useState(false);
-    const [rememberMe, setRememberMe] = useState(true);
+    const [rememberMe, setRememberMe] = useState(false); // Default false, will check storage
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -24,9 +24,16 @@ const AuthScreen: React.FC = () => {
     const [mode, setMode] = useState<'login' | 'signup' | 'recovery'>('login');
     const [showOtpInput, setShowOtpInput] = useState(false);
 
-    // Initialize Theme State based on current DOM
+    // Initialize Theme State based on current DOM & Load Saved Email
     useEffect(() => {
         setIsDark(document.documentElement.classList.contains('dark'));
+
+        // Load saved email credential
+        const savedEmail = localStorage.getItem('fitlm_saved_email');
+        if (savedEmail) {
+            setEmail(savedEmail);
+            setRememberMe(true);
+        }
     }, []);
 
     const toggleTheme = () => {
@@ -73,6 +80,15 @@ const AuthScreen: React.FC = () => {
         setLoading(true);
         setError('');
         setMessage('');
+
+        // Handle "Remember Me" Logic for Email
+        if (mode === 'login') {
+            if (rememberMe) {
+                localStorage.setItem('fitlm_saved_email', email);
+            } else {
+                localStorage.removeItem('fitlm_saved_email');
+            }
+        }
 
         try {
             if (mode === 'signup') {
@@ -197,6 +213,8 @@ const AuthScreen: React.FC = () => {
                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1 dark:text-gray-400">E-mail</label>
                             <input 
                                 type="email" 
+                                name="email"
+                                autoComplete="username" // Ajuda gerenciadores de senha
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"
@@ -213,6 +231,8 @@ const AuthScreen: React.FC = () => {
                                 <div className="relative">
                                     <input 
                                         type={showPassword ? "text" : "password"} 
+                                        name="password"
+                                        autoComplete={mode === 'login' ? "current-password" : "new-password"} // Atributo crítico para salvar senha
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 pr-12 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"
@@ -243,7 +263,7 @@ const AuthScreen: React.FC = () => {
                                     className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:ring-offset-gray-900"
                                 />
                                 <label htmlFor="remember" className="text-sm text-gray-500 font-medium select-none cursor-pointer dark:text-gray-400">
-                                    Manter conectado
+                                    Lembrar e-mail
                                 </label>
                             </div>
                         )}
@@ -273,6 +293,8 @@ const AuthScreen: React.FC = () => {
                                     <div className="relative">
                                         <input 
                                             type={showPassword ? "text" : "password"} 
+                                            name="new-password"
+                                            autoComplete="new-password"
                                             value={newPassword}
                                             onChange={(e) => setNewPassword(e.target.value)}
                                             className="w-full px-4 py-3 bg-white border-2 border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-gray-900 pr-12 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-blue-600"

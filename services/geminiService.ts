@@ -2,6 +2,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { Source, ChatMessage, UserProfile, MetricPoint } from '../types';
 import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
+import { dataService } from './dataService';
+import { supabase } from '../lib/supabase';
 
 // Initialize Gemini Client
 const apiKey = process.env.API_KEY || '';
@@ -131,6 +133,12 @@ const buildContext = (
   return context;
 };
 
+// Helper to get User ID for logging
+const getCurrentUserId = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user?.id;
+};
+
 export const generateAIResponse = async (
   message: string,
   sources: Source[],
@@ -160,6 +168,15 @@ export const generateAIResponse = async (
         temperature: 0.7 // Standard creativity
       }
     });
+
+    // --- BILLING LOGIC ---
+    const userId = await getCurrentUserId();
+    if (userId && response.usageMetadata) {
+        // Calcula e loga o custo
+        const inputT = response.usageMetadata.promptTokenCount || 0;
+        const outputT = response.usageMetadata.candidatesTokenCount || 0;
+        await dataService.logUsage(userId, undefined, 'CHAT', inputT, outputT);
+    }
 
     return response.text || "Analisei seus dados, mas não consegui gerar uma resposta em texto.";
 
@@ -207,6 +224,15 @@ export const generateProntuario = async (
          model: MODEL_ID, // Consistent model usage
          contents: prompt
        });
+
+       // --- BILLING LOGIC ---
+       const userId = await getCurrentUserId();
+       if (userId && response.usageMetadata) {
+           const inputT = response.usageMetadata.promptTokenCount || 0;
+           const outputT = response.usageMetadata.candidatesTokenCount || 0;
+           await dataService.logUsage(userId, undefined, 'PRONTUARIO', inputT, outputT);
+       }
+
        return response.text || "Erro ao gerar prontuário.";
      } catch (err) {
          console.error(err);
@@ -264,6 +290,15 @@ export const generateDocumentSummary = async (content: string, type: string): Pr
             model: MODEL_ID, // Consistent model usage
             contents: prompt
         });
+
+        // --- BILLING LOGIC ---
+        const userId = await getCurrentUserId();
+        if (userId && response.usageMetadata) {
+            const inputT = response.usageMetadata.promptTokenCount || 0;
+            const outputT = response.usageMetadata.candidatesTokenCount || 0;
+            await dataService.logUsage(userId, undefined, 'SUMMARY', inputT, outputT);
+        }
+
         return response.text || "Não foi possível gerar resumo.";
     } catch (err) {
         return "Erro ao gerar resumo.";
@@ -336,6 +371,15 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
                 responseMimeType: "application/json" // Force JSON mode
             }
         });
+
+        // --- BILLING LOGIC ---
+        const userId = await getCurrentUserId();
+        if (userId && result.usageMetadata) {
+            const inputT = result.usageMetadata.promptTokenCount || 0;
+            const outputT = result.usageMetadata.candidatesTokenCount || 0;
+            // OCR usually has larger images, input cost is key
+            await dataService.logUsage(userId, undefined, 'OCR', inputT, outputT);
+        }
 
         const jsonText = result.text;
         if (!jsonText) throw new Error("No data returned from AI");

@@ -4,14 +4,18 @@ import { UserProfile } from '../types';
 import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun } from './Icons';
 import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
+import CostTracker from './CostTracker';
 
 interface ProfileViewProps {
     profile?: UserProfile;
     onSave: (profile: UserProfile) => void;
-    onOpenWizard?: () => void; // Prop para abrir o Wizard
+    onOpenWizard?: () => void;
+    // Props para o CostTracker
+    billingTrigger: number;
+    onOpenSubscription: () => void;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -23,10 +27,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const birthDateInputRef = useRef<HTMLInputElement>(null);
 
-    // Default structure to ensure inputs are never uncontrolled
+    // Default structure
     const defaultProfile: UserProfile = {
         name: '',
-        birthDate: '', // Default empty string for date input
+        birthDate: '', 
         gender: 'Masculino',
         height: '',
         weight: '',
@@ -74,7 +78,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         const weightKg = parseFloat(formData.weight);
         const waistCm = parseFloat(formData.measurements.waist);
         const hipCm = parseFloat(formData.measurements.hips);
-        const age = currentAge || 30; // Default fallback for calc if age missing
+        const age = currentAge || 30;
         
         let newStats = {
             bmi: '',
@@ -84,37 +88,25 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             whrRisk: ''
         };
 
-        // 1. BMI Calculation
         if (heightM > 0 && weightKg > 0) {
             const bmi = weightKg / (heightM * heightM);
             newStats.bmi = bmi.toFixed(1);
-            
             if (bmi < 18.5) newStats.bmiClassification = 'Abaixo do Peso';
             else if (bmi < 24.9) newStats.bmiClassification = 'Eutrófico (Normal)';
             else if (bmi < 29.9) newStats.bmiClassification = 'Sobrepeso';
             else newStats.bmiClassification = 'Obesidade';
         }
 
-        // 2. BMR (Basal Metabolic Rate) - Mifflin-St Jeor Equation
         if (weightKg > 0 && heightM > 0) {
-            // Men: (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) + 5
-            // Women: (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) - 161
             let bmr = (10 * weightKg) + (6.25 * (heightM * 100)) - (5 * age);
-            
-            if (formData.gender === 'Masculino') {
-                bmr += 5;
-            } else {
-                bmr -= 161;
-            }
+            if (formData.gender === 'Masculino') bmr += 5;
+            else bmr -= 161;
             newStats.bmr = Math.round(bmr).toString();
         }
 
-        // 3. Waist-to-Hip Ratio (RCQ)
         if (waistCm > 0 && hipCm > 0) {
             const whr = waistCm / hipCm;
             newStats.whr = whr.toFixed(2);
-            
-            // Risk thresholds
             if (formData.gender === 'Masculino') {
                 newStats.whrRisk = whr > 0.90 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
             } else {
@@ -122,26 +114,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             }
         }
 
-        // Only update if something changed to avoid loop, 
-        // using stringify for simple deep comparison of the small stats object
         if (JSON.stringify(newStats) !== JSON.stringify(formData.calculatedStats)) {
             setFormData(prev => ({ ...prev, calculatedStats: newStats }));
         }
 
     }, [formData.height, formData.weight, formData.measurements.waist, formData.measurements.hips, formData.gender, currentAge]);
 
-
-    // Sync state when prop changes (e.g. after DB load)
     useEffect(() => {
         if (profile) {
             setFormData(prev => ({
-                ...defaultProfile, // Start with defaults
-                ...profile,        // Override with DB data
-                measurements: {    // Deep merge measurements
+                ...defaultProfile, 
+                ...profile,        
+                measurements: {    
                     ...defaultProfile.measurements,
                     ...(profile.measurements || {})
                 },
-                // Keep calculatedStats handled by the other useEffect
                 calculatedStats: prev.calculatedStats,
                 theme: profile.theme || 'light'
             }));
@@ -164,9 +151,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-                // We pass formData which now includes calculatedStats, 
-                // dataService will strip it before saving to DB or userProfile table needs to ignore extra fields.
-                // Assuming dataService handles explicit mapping.
                 await dataService.saveUserProfile(session.user.id, formData);
                 onSave(formData);
                 setSuccessMsg('Perfil atualizado com sucesso! A IA agora usará estes dados.');
@@ -189,7 +173,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         try {
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) throw error;
-            
             setSuccessMsg('Senha alterada com sucesso!');
             setNewPassword('');
             setTimeout(() => setSuccessMsg(''), 3000);
@@ -199,8 +182,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             setIsUpdatingPassword(false);
         }
     };
-    
-    // --- AVATAR LOGIC ---
     
     const handleAvatarClick = () => {
         avatarInputRef.current?.click();
@@ -214,12 +195,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-                // Upload returns signed URL for immediate display
                 const signedUrl = await dataService.uploadAvatar(file, session.user.id);
                 if (signedUrl) {
-                    // Update Local State
                     setFormData(prev => ({ ...prev, avatarUrl: signedUrl }));
-                    // Trigger global update via props
                     onSave({ ...formData, avatarUrl: signedUrl });
                     setSuccessMsg('Foto de perfil atualizada!');
                     setTimeout(() => setSuccessMsg(''), 3000);
@@ -230,7 +208,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             alert("Erro ao enviar foto.");
         } finally {
             setIsUploadingAvatar(false);
-            if (e.target) e.target.value = ''; // Reset input
+            if (e.target) e.target.value = ''; 
         }
     };
 
@@ -260,7 +238,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         }
     };
 
-    // Shared input class to ensure consistent visibility and contrast - dark mode added
     const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500";
 
     return (
@@ -282,7 +259,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full space-y-8 pb-32">
                 
-                {/* WIZARD BANNER / CTA (Mobile & Desktop) */}
+                {/* 1. SECTION: ASSINATURA & CUSTOS (NEW) */}
+                <CostTracker 
+                    variant="inline"
+                    refreshTrigger={billingTrigger}
+                    onOpenSubscription={onOpenSubscription}
+                />
+
+                {/* 2. SECTION: WIZARD BANNER */}
                 <div 
                     onClick={onOpenWizard}
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform group"
@@ -308,7 +292,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 )}
                 
-                {/* AVATAR SECTION */}
+                {/* 3. SECTION: AVATAR */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center dark:bg-gray-900 dark:border-gray-800">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative dark:bg-gray-800 dark:border-gray-700">
@@ -318,25 +302,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                 <IconUser className="w-12 h-12 text-gray-300 dark:text-gray-600" />
                             )}
                             
-                            {/* Loading Overlay */}
                             {isUploadingAvatar && (
                                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                                     <div className="w-8 h-8 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
                                 </div>
                             )}
                             
-                            {/* Hover Overlay */}
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                                 <IconPlus className="w-8 h-8 text-white drop-shadow-md" />
                             </div>
                         </div>
 
-                        {/* Edit Button Badge */}
                         <div className="absolute bottom-1 right-1 bg-blue-600 text-white p-2 rounded-full shadow-md border-2 border-white transform transition-transform group-hover:scale-110 dark:border-gray-800">
                              <IconPlus className="w-4 h-4" />
                         </div>
                         
-                        {/* Delete Button (Only if avatar exists) */}
                         {formData.avatarUrl && (
                              <button 
                                 onClick={handleDeleteAvatar}
@@ -362,7 +342,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     />
                 </div>
 
-                {/* THEME SELECTION (NEW) */}
+                {/* 4. SECTION: THEME */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Aparência do App</h3>
                     <div className="flex gap-4">
@@ -391,7 +371,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
-                {/* CALCULATED STATS CARD (NEW) */}
+                {/* 5. SECTION: CALCULATED STATS */}
                 <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 md:p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden dark:from-gray-900 dark:to-gray-900 dark:border-indigo-900/30">
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                         <IconScience className="w-24 h-24 text-indigo-900 dark:text-indigo-400" />
@@ -437,6 +417,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
+                {/* 6. SECTION: DADOS VITAIS */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-gray-500">Dados Vitais</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -465,7 +446,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                     type="date" 
                                     value={formData.birthDate} 
                                     onChange={(e) => handleChange('birthDate', e.target.value)}
-                                    className={`${inputClass} pr-12`} // Padding extra para o ícone
+                                    className={`${inputClass} pr-12`}
                                 />
                                 <button 
                                     type="button"
@@ -505,6 +486,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
+                {/* 7. SECTION: ANTROPOMETRIA */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:border-gray-800 dark:text-gray-500">
                         <IconActivity className="w-4 h-4" />
@@ -533,6 +515,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
+                {/* 8. SECTION: HISTÓRICO MÉDICO */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 dark:border-l-red-600">
                      <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-100 pb-2 flex items-center gap-2 dark:border-red-900/30">
                         <IconAlert className="w-4 h-4" />
@@ -564,7 +547,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
-                 {/* Password Update Section */}
+                 {/* 9. SECTION: SENHA */}
                  <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 dark:border-gray-800 dark:text-white">Segurança da Conta</h3>
                     <div className="space-y-4">

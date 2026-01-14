@@ -11,6 +11,7 @@ import ExerciseLibrary from './components/ExerciseLibrary';
 import ProtocolLibrary from './components/ProtocolLibrary';
 import ProfileView from './components/ProfileView';
 import AuthScreen from './components/AuthScreen';
+import SubscriptionModal from './components/SubscriptionModal'; // MODIFIED: Removed CostTracker import here (used in ProfileView)
 import { IOSInstallPrompt } from './components/IOSInstallPrompt'; 
 import { Source, SourceType, Project, ChatMessage, RiskFlag, DailyLogData, MetricPoint, AppView, UserProfile, Exercise } from './types';
 import { generateAIResponse, generateProntuario, generateDocumentSummary, processDocument } from './services/geminiService';
@@ -147,9 +148,19 @@ const App: React.FC = () => {
   const [sourceToDelete, setSourceToDelete] = useState<Source | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Billing State (NEW)
+  const [billingTrigger, setBillingTrigger] = useState(0); // Used to force refresh billing
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [currentBillAmount, setCurrentBillAmount] = useState(0); // To pass to modal
+
   // Refs
   const chatEndRef = useRef<HTMLDivElement>(null);
   const mobileFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to refresh billing
+  const refreshBilling = () => {
+      setBillingTrigger(prev => prev + 1);
+  };
 
   // 1. Auth Listener
   useEffect(() => {
@@ -231,6 +242,7 @@ const App: React.FC = () => {
 
     if (session) {
         loadUserData();
+        refreshBilling(); // Load initial bill
     }
   }, [session]);
 
@@ -476,6 +488,8 @@ const App: React.FC = () => {
               // Remove temp, add final
               setMessages(prev => [...prev.filter(m => m.id !== tempId), sysMsg]);
               await dataService.addMessage(project.id, sysMsg);
+              
+              refreshBilling(); // Update Cost
 
           } catch (error) {
               console.error(`Error processing file ${file.name}:`, error);
@@ -586,6 +600,7 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, aiResponseMsg]);
     await dataService.addMessage(project.id, aiResponseMsg);
     
+    refreshBilling(); // Update cost
     setIsProcessing(false);
   };
 
@@ -647,7 +662,8 @@ const App: React.FC = () => {
 
     setMessages(prev => [...prev, modelMsg]);
     await dataService.addMessage(project.id, modelMsg);
-
+    
+    refreshBilling(); // Update Cost
     setIsProcessing(false);
   };
 
@@ -840,7 +856,8 @@ const App: React.FC = () => {
     };
     setMessages(prev => [...prev, doneMsg]);
     await dataService.addMessage(project.id, doneMsg);
-
+    
+    refreshBilling(); // Update cost
     setIsProcessing(false);
   }
 
@@ -866,6 +883,7 @@ const App: React.FC = () => {
       setViewingSource(prev => prev && prev.id === source.id ? { ...prev, summary: summary } : prev);
       
       setIsGeneratingSummary(false);
+      refreshBilling(); // Update Cost
   };
 
   const getSourceIconColor = (type: SourceType) => {
@@ -1344,6 +1362,8 @@ const App: React.FC = () => {
                 profile={project?.userProfile}
                 onSave={handleUpdateProfile}
                 onOpenWizard={() => setIsWizardOpen(true)}
+                billingTrigger={billingTrigger} // PASSANDO PROPS
+                onOpenSubscription={() => setIsSubscriptionModalOpen(true)} // PASSANDO PROPS
             />
         )}
 
@@ -1412,6 +1432,13 @@ const App: React.FC = () => {
                 </div>
             </div>
         )}
+
+        {/* SUBSCRIPTION MODAL (NEW) */}
+        <SubscriptionModal 
+            isOpen={isSubscriptionModalOpen}
+            onClose={() => setIsSubscriptionModalOpen(false)}
+            currentBill={currentBillAmount} // Could pass actual bill here if lifted
+        />
 
         {/* NEW: MOBILE BOTTOM NAVIGATION */}
         <MobileBottomNav currentView={currentView} onViewChange={setCurrentView} />
