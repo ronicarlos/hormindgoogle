@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Source, ChatMessage, SourceType } from '../types';
-import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell } from './Icons';
+import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell, IconClose, IconCalendar, IconArrowLeft, IconDownload } from './Icons';
 import ReactMarkdown from 'react-markdown';
 
 interface TimelineViewProps {
@@ -18,10 +18,113 @@ interface TimelineItem {
     title: string;
     content: string;
     isHighlight?: boolean;
+    originalObject?: any; // To allow downloading files if needed
 }
+
+// --- MODAL DE DETALHES (DEEP DIVE) ---
+const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onClose: () => void }) => {
+    if (!item) return null;
+
+    const isSource = item.type === 'SOURCE';
+    
+    // Função para baixar arquivo original se disponível
+    const handleDownload = () => {
+        if (isSource && item.originalObject?.fileUrl) {
+            window.open(item.originalObject.fileUrl, '_blank');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-3xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden dark:bg-gray-900 dark:border dark:border-gray-800">
+                
+                {/* Header */}
+                <div className={`p-6 border-b shrink-0 flex justify-between items-start ${
+                    isSource ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900/30' : 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30'
+                }`}>
+                    <div className="flex gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                            isSource ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300'
+                        }`}>
+                            {isSource ? (item.subType === 'USER_INPUT' ? <IconDumbbell className="w-6 h-6" /> : <IconFile className="w-6 h-6" />) : <IconSparkles className="w-6 h-6" />}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    isSource ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100' : 'bg-indigo-200 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-100'
+                                }`}>
+                                    {isSource ? 'Registro / Exame' : 'Análise de IA'}
+                                </span>
+                                <span className="text-xs font-bold text-gray-500 flex items-center gap-1 dark:text-gray-400">
+                                    <IconCalendar className="w-3 h-3" />
+                                    {item.dateDisplay}
+                                </span>
+                            </div>
+                            <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white">{item.title}</h2>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={onClose}
+                        className="p-2 bg-white/50 hover:bg-white rounded-full transition-colors text-gray-500 hover:text-gray-900 dark:bg-black/20 dark:hover:bg-black/40 dark:text-gray-400 dark:hover:text-white"
+                    >
+                        <IconClose className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {/* Content Scrollable */}
+                <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-white custom-scrollbar dark:bg-gray-950">
+                    <div className="prose prose-sm md:prose-base max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-900 dark:prose-invert dark:prose-p:text-gray-300 dark:prose-li:text-gray-300">
+                        {/* Se for User Input, formata melhor os dados chave */}
+                        {isSource && item.subType === 'USER_INPUT' && (
+                            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm dark:bg-gray-900 dark:border-gray-800">
+                                <p className="font-bold text-gray-500 uppercase text-xs mb-2">Dados Estruturados</p>
+                                {/* A renderização do markdown abaixo cuidará do conteúdo, mas aqui damos destaque */}
+                            </div>
+                        )}
+
+                        <ReactMarkdown components={{
+                            // Customizar tabelas para ficarem bonitas no modal
+                            table: ({node, ...props}) => <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-800"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800" {...props} /></div>,
+                            th: ({node, ...props}) => <th className="px-4 py-3 bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider dark:bg-gray-900 dark:text-gray-400" {...props} />,
+                            td: ({node, ...props}) => <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 border-t border-gray-100 dark:text-gray-300 dark:border-gray-800" {...props} />,
+                            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-indigo-500 pl-4 italic text-gray-600 bg-gray-50 py-2 pr-2 rounded-r dark:bg-gray-900 dark:text-gray-400 dark:border-indigo-400" {...props} />
+                        }}>
+                            {item.content}
+                        </ReactMarkdown>
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-4 border-t bg-gray-50 flex justify-between items-center shrink-0 dark:bg-gray-900 dark:border-gray-800">
+                    <span className="text-xs text-gray-400 font-medium">
+                        ID: {item.id.substring(0, 8)}
+                    </span>
+                    <div className="flex gap-3">
+                        {isSource && item.originalObject?.fileUrl && (
+                            <button 
+                                onClick={handleDownload}
+                                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-lg text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                                <IconDownload className="w-4 h-4" />
+                                Original
+                            </button>
+                        )}
+                        <button 
+                            onClick={onClose}
+                            className="px-6 py-2 bg-black text-white font-bold rounded-lg text-sm hover:bg-gray-800 transition-colors dark:bg-blue-600 dark:hover:bg-blue-700"
+                        >
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
     const [filter, setFilter] = useState<'ALL' | 'EXAMS' | 'ANALYSIS'>('ALL');
+    const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null);
 
     // --- DATA PROCESSING LOGIC ---
     const timelineData = useMemo(() => {
@@ -44,14 +147,14 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                 subType: source.type,
                 title: source.title,
                 content: source.summary || source.content, // Use summary if available
-                isHighlight: source.type === SourceType.PDF || source.type === SourceType.IMAGE || source.type === SourceType.PRONTUARIO
+                isHighlight: source.type === SourceType.PDF || source.type === SourceType.IMAGE || source.type === SourceType.PRONTUARIO,
+                originalObject: source
             });
         });
 
         // 2. Process Messages (Only relevant AI Analyses)
         messages.forEach(msg => {
-            // Skip short messages or User messages (unless we want user inputs, but Sources usually cover that)
-            // We want BIG insights from the Model.
+            // Skip short messages or User messages
             if (msg.role === 'model' && msg.text.length > 100) {
                 const dateObj = new Date(msg.timestamp);
                 items.push({
@@ -61,7 +164,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                     type: 'ANALYSIS',
                     title: 'Insight da IA',
                     content: msg.text,
-                    isHighlight: msg.isBookmarked
+                    isHighlight: msg.isBookmarked,
+                    originalObject: msg
                 });
             }
         });
@@ -82,7 +186,13 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
     let lastMonthYear = '';
 
     return (
-        <div className="flex-1 bg-gray-50 h-full flex flex-col overflow-hidden dark:bg-gray-950">
+        <div className="flex-1 bg-gray-50 h-full flex flex-col overflow-hidden dark:bg-gray-950 relative">
+            
+            {/* Modal Layer */}
+            {selectedItem && (
+                <TimelineEventModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+            )}
+
             {/* Header */}
             <div className="shrink-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center z-10 sticky top-0 dark:bg-gray-900 dark:border-gray-800">
                 <div>
@@ -91,7 +201,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                         TIMELINE
                     </h2>
                     <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400">
-                        Jornada Evolutiva & Histórico
+                        Clique nos eventos para expandir
                     </p>
                 </div>
                 
@@ -153,9 +263,12 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
 
                                     {/* The Content Card */}
                                     <div className={`ml-12 md:ml-0 md:w-1/2 ${isLeft ? 'md:pr-8' : 'md:pl-8'}`}>
-                                        <div className={`bg-white rounded-xl p-4 border shadow-sm transition-transform hover:scale-[1.01] duration-200 group dark:bg-gray-900 dark:border-gray-800 ${
-                                            item.isHighlight ? 'border-l-4 border-l-blue-500' : 'border-gray-100 dark:border-gray-800'
-                                        }`}>
+                                        <div 
+                                            onClick={() => setSelectedItem(item)}
+                                            className={`bg-white rounded-xl p-4 border shadow-sm transition-all hover:scale-[1.02] hover:shadow-md duration-200 group cursor-pointer dark:bg-gray-900 dark:border-gray-800 ${
+                                                item.isHighlight ? 'border-l-4 border-l-blue-500' : 'border-gray-100 dark:border-gray-800'
+                                            }`}
+                                        >
                                             {/* Card Header */}
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-center gap-2">
@@ -181,17 +294,24 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                                             </div>
 
                                             {/* Title */}
-                                            <h3 className="text-sm font-bold text-gray-900 mb-2 leading-tight dark:text-white">
+                                            <h3 className="text-sm font-bold text-gray-900 mb-2 leading-tight group-hover:text-blue-600 transition-colors dark:text-white dark:group-hover:text-blue-400">
                                                 {item.title}
                                             </h3>
 
                                             {/* Preview Content */}
-                                            <div className="text-xs text-gray-500 leading-relaxed line-clamp-4 prose prose-sm max-w-none dark:text-gray-400 dark:prose-invert">
+                                            <div className="text-xs text-gray-500 leading-relaxed line-clamp-3 prose prose-sm max-w-none dark:text-gray-400 dark:prose-invert">
                                                 <ReactMarkdown>
-                                                    {item.content.length > 300 
-                                                        ? item.content.substring(0, 300) + "..." 
+                                                    {item.content.length > 200 
+                                                        ? item.content.substring(0, 200) + "..." 
                                                         : item.content}
                                                 </ReactMarkdown>
+                                            </div>
+
+                                            {/* Call to Action (Visual Hint) */}
+                                            <div className="mt-3 pt-2 border-t border-gray-50 flex items-center justify-end dark:border-gray-800">
+                                                <span className="text-[10px] font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 dark:text-blue-400">
+                                                    Ver Detalhes <IconArrowLeft className="w-3 h-3 rotate-180" />
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

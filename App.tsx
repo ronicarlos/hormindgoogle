@@ -60,41 +60,49 @@ const HighlightText = ({ text, highlight }: { text: string, highlight: string })
 
 // MODIFIED: 'onOpenFiles' now triggers view change to 'sources' instead of sidebar overlay
 const MobileBottomNav = ({ currentView, onViewChange }: { currentView: AppView, onViewChange: (view: AppView) => void }) => (
-    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-gray-200 flex justify-around items-center z-50 md:hidden pb-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:bg-gray-900 dark:border-gray-800">
+    <div className="fixed bottom-0 left-0 right-0 h-[84px] bg-white border-t border-gray-200 flex justify-around items-center z-50 md:hidden pb-5 pt-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:bg-gray-900 dark:border-gray-800 px-1">
         <button 
             onClick={() => onViewChange('dashboard')}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+            className={`flex flex-col items-center gap-1 p-1 w-full transition-colors active:scale-95 ${currentView === 'dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
-            <IconMessage className={`w-6 h-6 ${currentView === 'dashboard' ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-bold tracking-tight">Chat</span>
+            <IconMessage className={`w-5 h-5 ${currentView === 'dashboard' ? 'fill-current' : ''}`} />
+            <span className="text-[9px] font-bold tracking-tight">Chat</span>
         </button>
         <button 
             onClick={() => onViewChange('timeline')}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'timeline' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+            className={`flex flex-col items-center gap-1 p-1 w-full transition-colors active:scale-95 ${currentView === 'timeline' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
-            <IconClock className={`w-6 h-6 ${currentView === 'timeline' ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-bold tracking-tight">Timeline</span>
+            <IconClock className={`w-5 h-5 ${currentView === 'timeline' ? 'fill-current' : ''}`} />
+            <span className="text-[9px] font-bold tracking-tight">Timeline</span>
         </button>
         <button 
             onClick={() => onViewChange('metrics')}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'metrics' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+            className={`flex flex-col items-center gap-1 p-1 w-full transition-colors active:scale-95 ${currentView === 'metrics' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
-            <IconActivity className={`w-6 h-6 ${currentView === 'metrics' ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-bold tracking-tight">Métricas</span>
+            <IconActivity className={`w-5 h-5 ${currentView === 'metrics' ? 'fill-current' : ''}`} />
+            <span className="text-[9px] font-bold tracking-tight">Métricas</span>
         </button>
         <button 
             onClick={() => onViewChange('training_library')}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'training_library' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+            className={`flex flex-col items-center gap-1 p-1 w-full transition-colors active:scale-95 ${currentView === 'training_library' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
-            <IconDumbbell className={`w-6 h-6 ${currentView === 'training_library' ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-bold tracking-tight">Treinos</span>
+            <IconDumbbell className={`w-5 h-5 ${currentView === 'training_library' ? 'fill-current' : ''}`} />
+            <span className="text-[9px] font-bold tracking-tight">Treinos</span>
+        </button>
+        {/* RESTORED: Pharma / Protocol Library */}
+        <button 
+            onClick={() => onViewChange('protocol_library')}
+            className={`flex flex-col items-center gap-1 p-1 w-full transition-colors active:scale-95 ${currentView === 'protocol_library' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+        >
+            <IconScience className={`w-5 h-5 ${currentView === 'protocol_library' ? 'fill-current' : ''}`} />
+            <span className="text-[9px] font-bold tracking-tight">Pharma</span>
         </button>
         <button 
             onClick={() => onViewChange('sources')}
-            className={`flex flex-col items-center gap-1 p-2 w-full transition-colors active:scale-95 ${currentView === 'sources' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
+            className={`flex flex-col items-center gap-1 p-1 w-full transition-colors active:scale-95 ${currentView === 'sources' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
         >
-            <IconFolder className={`w-6 h-6 ${currentView === 'sources' ? 'fill-current' : ''}`} />
-            <span className="text-[10px] font-bold tracking-tight">Arquivos</span>
+            <IconFolder className={`w-5 h-5 ${currentView === 'sources' ? 'fill-current' : ''}`} />
+            <span className="text-[9px] font-bold tracking-tight">Docs</span>
         </button>
     </div>
 );
