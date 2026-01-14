@@ -166,74 +166,124 @@ const App: React.FC = () => {
       setBillingTrigger(prev => prev + 1);
   };
 
-  // --- DYNAMIC RISK CALCULATION ENGINE (NEW) ---
+  // --- DYNAMIC RISK CALCULATION ENGINE (V4 - HISTORICAL & ROBUST) ---
   const calculateRealRisks = (metrics: Record<string, MetricPoint[]>): RiskFlag[] => {
       const risks: RiskFlag[] = [];
       
-      // Helper to get latest value of a metric
-      const getLastValue = (key: string) => {
-          const arr = metrics[key] || [];
-          if (arr.length > 0) {
-              // Sort by date (assuming strings DD/MM/YYYY need parsing, but simplified here for robust array check)
-              // Actually, dataService sorts by created_at, so usually the last in array is newest or we sort manually
-              const sorted = [...arr].sort((a,b) => {
-                  const da = a.date.split('/').reverse().join('-'); 
-                  const db = b.date.split('/').reverse().join('-');
-                  return new Date(da).getTime() - new Date(db).getTime();
-              });
-              return sorted[sorted.length - 1].value;
+      // Helper robusto para buscar valor por múltiplos nomes (Sinônimos e Variações)
+      // Normaliza inputs para lowercase para aumentar o match
+      // Busca em TODO o histórico (metrics) carregado do DB
+      const getLastValue = (keys: string[]) => {
+          const normalizedKeys = keys.map(k => k.toLowerCase());
+          
+          for (const key of Object.keys(metrics)) {
+              if (normalizedKeys.some(term => key.toLowerCase().includes(term))) {
+                  const arr = metrics[key] || [];
+                  if (arr.length > 0) {
+                      // Ordena pela data para pegar o mais recente
+                      const sorted = [...arr].sort((a,b) => {
+                          // Tenta parsear datas brasileiras DD/MM/AAAA
+                          const partsA = a.date.split('/');
+                          const dateA = partsA.length === 3 ? new Date(`${partsA[2]}-${partsA[1]}-${partsA[0]}`).getTime() : 0;
+                          
+                          const partsB = b.date.split('/');
+                          const dateB = partsB.length === 3 ? new Date(`${partsB[2]}-${partsB[1]}-${partsB[0]}`).getTime() : 0;
+                          
+                          return dateA - dateB;
+                      });
+                      return sorted[sorted.length - 1].value;
+                  }
+              }
           }
           return null;
       };
 
-      // 1. Hematócrito (Risco Cardíaco/Trombose)
-      const hema = getLastValue('Hematocrito') || getLastValue('Hematócrito');
-      if (hema && hema > 53) {
+      // 1. Próstata (PSA e Volume) - ATUALIZADO PARA INCLUIR VOLUME
+      const psa = getLastValue(['PSA', 'Antígeno Prostático', 'Antigeno Prostatico']);
+      const prostVol = getLastValue(['Volume Prostático', 'Volume Prostatico', 'Tamanho Próstata', 'Próstata', 'Prostata', 'Peso Próstata']);
+      
+      if (psa !== null && psa > 4) {
+           risks.push({
+              category: 'Health',
+              level: 'HIGH',
+              message: `PSA Elevado (${psa} ng/mL). Marcador importante de saúde prostática.`
+          });
+      }
+      // Regra específica para Hiperplasia Benigna (HPB)
+      if (prostVol !== null) {
+          if (prostVol > 40) {
+               risks.push({
+                  category: 'Health',
+                  level: 'HIGH',
+                  message: `Próstata Aumentada (HPB - ${prostVol}g). Risco de retenção urinária. Consulte urologista.`
+              });
+          } else if (prostVol > 30) {
+               risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `Próstata com volume aumentado (${prostVol}g). Atenção ao fluxo urinário.`
+              });
+          }
+      }
+
+      // 2. Hematócrito (Risco Cardíaco/Trombose)
+      const hema = getLastValue(['Hematocrito', 'Hematócrito', 'Ht', 'HCT', 'Hematocrit', 'Eritrograma']);
+      if (hema !== null && hema > 53) {
           risks.push({
               category: 'Health',
               level: 'HIGH',
-              message: `Hematócrito CRÍTICO (${hema}%). Risco de trombose elevado. Sangue muito viscoso.`
+              message: `Hematócrito CRÍTICO (${hema}%). Sangue muito viscoso. Risco cardiovascular elevado.`
           });
-      } else if (hema && hema > 50) {
+      } else if (hema !== null && hema > 50) {
           risks.push({
               category: 'Health',
               level: 'MEDIUM',
-              message: `Hematócrito elevado (${hema}%). Monitore a hidratação e pressão arterial.`
+              message: `Hematócrito elevado (${hema}%). Atenção à hidratação.`
           });
       }
 
-      // 2. Colesterol (Cardio)
-      const ldl = getLastValue('LDL') || getLastValue('Colesterol LDL');
-      if (ldl && ldl > 160) {
+      // 3. Colesterol (Cardio)
+      const ldl = getLastValue(['LDL', 'Colesterol LDL', 'L.D.L']);
+      if (ldl !== null && ldl > 160) {
           risks.push({
               category: 'Health',
               level: 'HIGH',
               message: `LDL (Ruim) muito alto (${ldl} mg/dL). Risco aterosclerótico.`
           });
       }
-      const hdl = getLastValue('HDL') || getLastValue('Colesterol HDL');
-      if (hdl && hdl < 35) {
-          risks.push({
+      
+      const trig = getLastValue(['Triglicerídeos', 'Triglicérides', 'Triglycerides']);
+      if (trig !== null && trig > 200) {
+           risks.push({
               category: 'Health',
               level: 'MEDIUM',
-              message: `HDL (Bom) muito baixo (${hdl} mg/dL). Proteção cardíaca comprometida.`
+              message: `Triglicerídeos altos (${trig} mg/dL). Indicador de dieta desregulada ou resistência à insulina.`
           });
       }
 
-      // 3. Fígado (TGO/TGP)
-      const tgo = getLastValue('TGO') || getLastValue('AST');
-      const tgp = getLastValue('TGP') || getLastValue('ALT');
-      if ((tgo && tgo > 60) || (tgp && tgp > 60)) {
+      // 4. Fígado (TGO/TGP/GAMA GT)
+      const tgo = getLastValue(['TGO', 'AST', 'Aspartato']);
+      const tgp = getLastValue(['TGP', 'ALT', 'Alanina']);
+      const ggt = getLastValue(['GGT', 'Gama GT', 'Gama-Glutamil']);
+      
+      if ((tgo !== null && tgo > 60) || (tgp !== null && tgp > 60)) {
           risks.push({
               category: 'Protocol',
               level: 'HIGH',
-              message: 'Enzimas hepáticas alteradas (TGO/TGP). Estresse no fígado detectado.'
+              message: 'Enzimas hepáticas (TGO/TGP) alteradas. Estresse no fígado detectado.'
+          });
+      }
+      if (ggt !== null && ggt > 70) {
+           risks.push({
+              category: 'Protocol',
+              level: 'MEDIUM',
+              message: `Gama GT elevada (${ggt}). Marcador sensível de estresse hepático.`
           });
       }
 
-      // 4. Rins (Creatinina)
-      const creat = getLastValue('Creatinina') || getLastValue('Creatinine');
-      if (creat && creat > 1.5) {
+      // 5. Rins (Creatinina)
+      const creat = getLastValue(['Creatinina', 'Creatinine', 'Creat']);
+      if (creat !== null && creat > 1.5) {
           risks.push({
               category: 'Health',
               level: 'HIGH',
@@ -241,9 +291,9 @@ const App: React.FC = () => {
           });
       }
 
-      // 5. Testosterona (Supressão ou Excesso)
-      const testo = getLastValue('Testosterona') || getLastValue('Testosterone') || getLastValue('Testo Total');
-      if (testo && testo < 250) {
+      // 6. Hormônios (Testo/Estradiol)
+      const testo = getLastValue(['Testosterona', 'Testosterone', 'Testo Total', 'Testo']);
+      if (testo !== null && testo < 250) {
           risks.push({
               category: 'Health',
               level: 'HIGH',
@@ -251,13 +301,40 @@ const App: React.FC = () => {
           });
       }
 
-      // 6. Estradiol
-      const e2 = getLastValue('Estradiol') || getLastValue('E2');
-      if (e2 && e2 > 100) {
+      const e2 = getLastValue(['Estradiol', 'E2', '17-Beta']);
+      if (e2 !== null && e2 > 100) {
            risks.push({
               category: 'Protocol',
               level: 'MEDIUM',
-              message: `Estradiol alto (${e2} pg/mL). Risco de ginecomastia e retenção hídrica.`
+              message: `Estradiol alto (${e2} pg/mL). Risco de ginecomastia e retenção.`
+          });
+      }
+
+      // 7. Tireoide (TSH)
+      const tsh = getLastValue(['TSH', 'Tireoestimulante']);
+      if (tsh !== null) {
+          if (tsh > 5) {
+               risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `TSH Alto (${tsh}). Indício de hipotireoidismo (metabolismo lento).`
+              });
+          } else if (tsh < 0.2) {
+               risks.push({
+                  category: 'Health',
+                  level: 'MEDIUM',
+                  message: `TSH Suprimido (${tsh}). Possível hipertireoidismo ou uso exógeno.`
+              });
+          }
+      }
+      
+      // 8. Glicemia
+      const glicose = getLastValue(['Glicose', 'Glicemia', 'Glucose']);
+      if (glicose !== null && glicose > 105) {
+           risks.push({
+              category: 'Health',
+              level: 'MEDIUM',
+              message: `Glicemia de jejum alterada (${glicose} mg/dL). Atenção à resistência à insulina.`
           });
       }
 
@@ -266,6 +343,7 @@ const App: React.FC = () => {
 
   const realRisks = useMemo(() => {
       if (!project || !project.metrics) return [];
+      // Passa o objeto completo de métricas (histórico) para a função
       return calculateRealRisks(project.metrics);
   }, [project]);
 
@@ -1122,7 +1200,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col h-[100dvh] relative bg-white pb-20 md:pb-0 w-full min-w-0 dark:bg-gray-950">
         
         {currentView === 'dashboard' && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* Fixed Header */}
                 <div className="h-16 border-b border-gray-100 flex items-center justify-between px-4 md:px-6 bg-white/95 backdrop-blur-md shrink-0 z-40 transition-all dark:bg-gray-900/95 dark:border-gray-800">
                     
@@ -1217,6 +1295,27 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-4 scroll-smooth">
+                    {/* RISK ALERT BANNER (NEW FEATURE FOR CHAT INTEGRATION) */}
+                    {realRisks.length > 0 && (
+                        <div 
+                            onClick={() => setCurrentView('metrics')}
+                            className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm mb-6 flex items-start gap-3 cursor-pointer hover:bg-red-100/50 transition-colors group dark:bg-red-900/10 dark:border-red-600"
+                        >
+                            <div className="bg-red-100 p-2 rounded-full shrink-0 group-hover:bg-red-200 transition-colors dark:bg-red-900/30 dark:text-red-300">
+                                <IconAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-bold text-red-800 flex items-center justify-between dark:text-red-200">
+                                    Atenção: {realRisks.length} Alertas de Saúde Detectados
+                                    <span className="text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full uppercase tracking-wider dark:bg-red-900 dark:text-red-200">Ver Detalhes</span>
+                                </h4>
+                                <p className="text-xs text-red-700 mt-1 dark:text-red-300/80">
+                                    O sistema identificou marcadores de risco nos seus dados históricos (ex: {realRisks[0].message.split(' ').slice(0, 3).join(' ')}...). Clique para ver o relatório completo.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Search Info Banner */}
                     {isSearchActive && (
                         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-xs text-blue-800 flex items-center justify-between dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800">

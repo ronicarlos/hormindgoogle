@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload } from './Icons';
+import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload, IconCheck, IconShield } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface MetricDashboardProps {
@@ -416,7 +416,7 @@ const EfficiencyChart = ({
 };
 
 const RiskCard = ({ risk }: { risk: RiskFlag }) => (
-    <div className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm ${
+    <div className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm animate-in slide-in-from-top-2 ${
         risk.level === 'HIGH' 
         ? 'bg-red-50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30' 
         : 'bg-orange-50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30'
@@ -494,20 +494,33 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 )}
             </div>
 
-            {/* RESTORED RISK ALERTS SECTION */}
-            {risks && risks.length > 0 && (
-                <div className="mb-8 animate-in slide-in-from-top-4 duration-500">
-                    <h3 className="text-xs font-black text-red-600 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-red-400">
-                        <IconAlert className="w-4 h-4" />
-                        Alertas Críticos
-                    </h3>
+            {/* --- RISK ALERTS SECTION (ALWAYS VISIBLE) --- */}
+            <div className="mb-8">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-gray-500">
+                    <IconShield className="w-4 h-4" />
+                    Monitoramento de Risco
+                </h3>
+                
+                {risks && risks.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {risks.map((risk, idx) => (
                             <RiskCard key={idx} risk={risk} />
                         ))}
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-6 flex items-center gap-4 dark:bg-emerald-900/10 dark:border-emerald-900/30">
+                        <div className="bg-emerald-100 text-emerald-600 p-3 rounded-full dark:bg-emerald-900 dark:text-emerald-300">
+                            <IconCheck className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-emerald-900 text-sm dark:text-emerald-200">Status Saudável</h4>
+                            <p className="text-xs text-emerald-700 mt-1 leading-relaxed dark:text-emerald-400/80">
+                                Nenhum marcador crítico (como Hematócrito > 53%, LDL > 160mg/dL ou Enzimas Hepáticas altas) foi detectado nos seus dados recentes.
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* --- ADVANCED INTELLIGENCE SECTION --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
