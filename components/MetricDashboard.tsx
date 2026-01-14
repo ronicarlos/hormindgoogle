@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload, IconCheck, IconShield } from './Icons';
+import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload, IconCheck, IconShield, IconArrowLeft, IconFile } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface MetricDashboardProps {
@@ -11,6 +11,7 @@ interface MetricDashboardProps {
   onGenerateProntuario: () => void;
   isMobileView?: boolean;
   isProcessing?: boolean;
+  onViewSource?: (sourceId: string) => void; // New prop for deep linking
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -415,7 +416,7 @@ const EfficiencyChart = ({
     );
 };
 
-const RiskCard = ({ risk }: { risk: RiskFlag }) => (
+const RiskCard = ({ risk, onViewSource }: { risk: RiskFlag, onViewSource?: (id: string) => void }) => (
     <div className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm animate-in slide-in-from-top-2 ${
         risk.level === 'HIGH' 
         ? 'bg-red-50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30' 
@@ -441,10 +442,25 @@ const RiskCard = ({ risk }: { risk: RiskFlag }) => (
         }`}>
             {risk.message}
         </p>
+
+        {/* --- SOURCE LINKING BUTTON --- */}
+        {risk.sourceId && (
+            <button 
+                onClick={() => onViewSource && onViewSource(risk.sourceId!)}
+                className={`mt-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors w-fit px-2 py-1 rounded-lg ${
+                    risk.level === 'HIGH'
+                    ? 'text-red-600 bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60'
+                    : 'text-orange-600 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60'
+                }`}
+            >
+                <IconFile className="w-3 h-3" />
+                Ver Exame Original ({risk.date})
+            </button>
+        )}
     </div>
 );
 
-const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing }) => {
+const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing, onViewSource }) => {
     // 1. Prepare Data for Advanced Charts
     const metrics = project.metrics;
 
@@ -504,7 +520,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 {risks && risks.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {risks.map((risk, idx) => (
-                            <RiskCard key={idx} risk={risk} />
+                            <RiskCard key={idx} risk={risk} onViewSource={onViewSource} />
                         ))}
                     </div>
                 ) : (

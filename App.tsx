@@ -32,6 +32,24 @@ declare global {
 
 const DISCLAIMER_TEXT = "FitLM é uma ferramenta educacional e analítica. Não substitui consulta médica. O uso de substâncias ergogênicas possui riscos graves à saúde.";
 
+// --- GUARDRAILS (Travas de Segurança Biológica) ---
+// Define limites máximos plausíveis para evitar erros de OCR (ex: Ht 84%)
+const BIOLOGICAL_GUARDRAILS: Record<string, { min: number, max: number }> = {
+    'hematocrito': { min: 20, max: 65 }, // Acima de 65% é quase incompatível com a vida (sangue sólido) ou erro grave de OCR
+    'hemoglobin': { min: 5, max: 25 },
+    'testosterona': { min: 0, max: 10000 }, // Aceita supra-fisiológico, mas não 1 milhão
+    'estradiol': { min: 0, max: 1000 },
+    'psa': { min: 0, max: 500 }, // PSA 800 seria erro ou câncer terminal
+    'creatinina': { min: 0.1, max: 20 },
+    'ureia': { min: 5, max: 300 },
+    'tgo': { min: 0, max: 2000 }, // Hepatite fulminante pode chegar alto, mas acima disso é erro
+    'tgp': { min: 0, max: 2000 },
+    'glicose': { min: 20, max: 1000 },
+    'fator_reumatoide': { min: 0, max: 10000 }, // Autoimune pode ir alto
+    'cpk': { min: 0, max: 50000 }, // Rabdomiólise pode ser altíssimo
+    'pcr': { min: 0, max: 500 }
+};
+
 // --- HIGHLIGHT COMPONENT HELPER ---
 const HighlightText = ({ text, highlight }: { text: string, highlight: string }) => {
     if (!highlight || !text) return <>{text}</>;
@@ -166,175 +184,239 @@ const App: React.FC = () => {
       setBillingTrigger(prev => prev + 1);
   };
 
-  // --- DYNAMIC RISK CALCULATION ENGINE (V4 - HISTORICAL & ROBUST) ---
-  const calculateRealRisks = (metrics: Record<string, MetricPoint[]>): RiskFlag[] => {
+  // --- DYNAMIC RISK CALCULATION ENGINE (V7 - FULL MEDICAL SCAN) ---
+  const calculateRealRisks = (metrics: Record<string, MetricPoint[]>, availableSources: Source[]): RiskFlag[] => {
       const risks: RiskFlag[] = [];
       
-      // Helper robusto para buscar valor por múltiplos nomes (Sinônimos e Variações)
-      // Normaliza inputs para lowercase para aumentar o match
-      // Busca em TODO o histórico (metrics) carregado do DB
-      const getLastValue = (keys: string[]) => {
-          const normalizedKeys = keys.map(k => k.toLowerCase());
+      /**
+       * Helper Robusto: Busca o valor mais recente que seja VALIDADO pelas regras de negócio.
+       * Se o valor for absurdo (ex: Ht 84.3%), ele ignora e procura o anterior.
+       * Retorna também o sourceId vinculando pela data.
+       */
+      const getSanitizedMetric = (searchKeys: string[], guardrailKey?: string) => {
+          const normalizedKeys = searchKeys.map(k => k.toLowerCase());
           
+          let candidates: { value: number, date: string, rawDate: number, sourceId?: string }[] = [];
+
+          // 1. Coleta todos os candidatos em todas as categorias que dão match no nome
           for (const key of Object.keys(metrics)) {
               if (normalizedKeys.some(term => key.toLowerCase().includes(term))) {
                   const arr = metrics[key] || [];
-                  if (arr.length > 0) {
-                      // Ordena pela data para pegar o mais recente
-                      const sorted = [...arr].sort((a,b) => {
-                          // Tenta parsear datas brasileiras DD/MM/AAAA
-                          const partsA = a.date.split('/');
-                          const dateA = partsA.length === 3 ? new Date(`${partsA[2]}-${partsA[1]}-${partsA[0]}`).getTime() : 0;
-                          
-                          const partsB = b.date.split('/');
-                          const dateB = partsB.length === 3 ? new Date(`${partsB[2]}-${partsB[1]}-${partsB[0]}`).getTime() : 0;
-                          
-                          return dateA - dateB;
+                  arr.forEach(item => {
+                      // Parse Date
+                      const parts = item.date.split('/');
+                      const dateTs = parts.length === 3 
+                        ? new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() 
+                        : 0;
+                      
+                      // Find matching source ID by date (Traceability)
+                      const matchingSource = availableSources.find(s => s.date === item.date);
+
+                      candidates.push({
+                          value: typeof item.value === 'number' ? item.value : parseFloat(item.value),
+                          date: item.date,
+                          rawDate: dateTs,
+                          sourceId: matchingSource?.id
                       });
-                      return sorted[sorted.length - 1].value;
-                  }
+                  });
               }
           }
-          return null;
+
+          // 2. Ordena do mais recente para o mais antigo
+          candidates.sort((a,b) => b.rawDate - a.rawDate);
+
+          // 3. Aplica Guardrails (Filtro de Sanidade)
+          // Itera sobre os candidatos até encontrar um que passe no teste
+          if (guardrailKey && BIOLOGICAL_GUARDRAILS[guardrailKey]) {
+              const { min, max } = BIOLOGICAL_GUARDRAILS[guardrailKey];
+              const valid = candidates.find(c => c.value >= min && c.value <= max);
+              return valid ? valid : null; 
+          }
+
+          // Se não tiver guardrail, retorna o mais recente
+          return candidates.length > 0 ? candidates[0] : null;
       };
 
-      // 1. Próstata (PSA e Volume) - ATUALIZADO PARA INCLUIR VOLUME
-      const psa = getLastValue(['PSA', 'Antígeno Prostático', 'Antigeno Prostatico']);
-      const prostVol = getLastValue(['Volume Prostático', 'Volume Prostatico', 'Tamanho Próstata', 'Próstata', 'Prostata', 'Peso Próstata']);
+      // --- 1. PRÓSTATA (Expandido para Hiperplasia e Câncer) ---
+      const psa = getSanitizedMetric(['PSA', 'Antígeno Prostático', 'Antigeno Prostatico', 'Total'], 'psa');
+      const prostVol = getSanitizedMetric(['Volume Prostático', 'Volume Prostatico', 'Tamanho Próstata', 'Próstata', 'Prostata', 'Peso Próstata']);
       
-      if (psa !== null && psa > 4) {
+      if (psa && psa.value > 4) {
            risks.push({
               category: 'Health',
               level: 'HIGH',
-              message: `PSA Elevado (${psa} ng/mL). Marcador importante de saúde prostática.`
+              message: `PSA Elevado (${psa.value} ng/mL). Marcador importante de saúde prostática.`,
+              sourceId: psa.sourceId,
+              date: psa.date
           });
       }
-      // Regra específica para Hiperplasia Benigna (HPB)
-      if (prostVol !== null) {
-          if (prostVol > 40) {
+      if (prostVol) {
+          if (prostVol.value > 40) {
                risks.push({
                   category: 'Health',
                   level: 'HIGH',
-                  message: `Próstata Aumentada (HPB - ${prostVol}g). Risco de retenção urinária. Consulte urologista.`
+                  message: `Próstata Aumentada (HPB - ${prostVol.value}g). Risco de retenção urinária. Consulte urologista.`,
+                  sourceId: prostVol.sourceId,
+                  date: prostVol.date
               });
-          } else if (prostVol > 30) {
+          } else if (prostVol.value > 30) {
                risks.push({
                   category: 'Health',
                   level: 'MEDIUM',
-                  message: `Próstata com volume aumentado (${prostVol}g). Atenção ao fluxo urinário.`
+                  message: `Próstata com volume aumentado (${prostVol.value}g). Atenção ao fluxo urinário.`,
+                  sourceId: prostVol.sourceId,
+                  date: prostVol.date
               });
           }
       }
 
-      // 2. Hematócrito (Risco Cardíaco/Trombose)
-      const hema = getLastValue(['Hematocrito', 'Hematócrito', 'Ht', 'HCT', 'Hematocrit', 'Eritrograma']);
-      if (hema !== null && hema > 53) {
+      // --- 2. RINS (Renal - Crítico) ---
+      // Creatinina
+      const creat = getSanitizedMetric(['Creatinina', 'Creatinine', 'Creat'], 'creatinina');
+      if (creat && creat.value > 1.5) {
           risks.push({
               category: 'Health',
               level: 'HIGH',
-              message: `Hematócrito CRÍTICO (${hema}%). Sangue muito viscoso. Risco cardiovascular elevado.`
+              message: `Creatinina alta (${creat.value}). Atenção à função renal e hidratação.`,
+              sourceId: creat.sourceId,
+              date: creat.date
           });
-      } else if (hema !== null && hema > 50) {
-          risks.push({
+      } else if (creat && creat.value > 1.3) {
+           risks.push({
               category: 'Health',
               level: 'MEDIUM',
-              message: `Hematócrito elevado (${hema}%). Atenção à hidratação.`
+              message: `Creatinina limítrofe (${creat.value}). Monitore sua ingestão de água e proteína.`,
+              sourceId: creat.sourceId,
+              date: creat.date
+          });
+      }
+      // Ureia
+      const ureia = getSanitizedMetric(['Ureia', 'Urea'], 'ureia');
+      if (ureia && ureia.value > 50) {
+           risks.push({
+              category: 'Health',
+              level: 'MEDIUM',
+              message: `Ureia elevada (${ureia.value}). Verifique hidratação e ingestão de proteínas.`,
+              sourceId: ureia.sourceId,
+              date: ureia.date
           });
       }
 
-      // 3. Colesterol (Cardio)
-      const ldl = getLastValue(['LDL', 'Colesterol LDL', 'L.D.L']);
-      if (ldl !== null && ldl > 160) {
-          risks.push({
+      // --- 3. AUTOIMUNE & INFLAMAÇÃO (NOVO: Fator Reumatoide & PCR) ---
+      const fatorReum = getSanitizedMetric(['Fator Reumatoide', 'Reumatoide', 'Fator Reumatóide', 'FR'], 'fator_reumatoide');
+      if (fatorReum && fatorReum.value > 14) {
+           risks.push({
               category: 'Health',
               level: 'HIGH',
-              message: `LDL (Ruim) muito alto (${ldl} mg/dL). Risco aterosclerótico.`
+              message: `Fator Reumatoide Alterado (${fatorReum.value} UI/mL). Marcador de autoimunidade/artrite.`,
+              sourceId: fatorReum.sourceId,
+              date: fatorReum.date
           });
       }
+
+      const pcr = getSanitizedMetric(['PCR', 'Proteína C', 'Proteina C-Reativa', 'C-Reactive'], 'pcr');
+      if (pcr && pcr.value > 5) { // Limite genérico, varia por lab
+           risks.push({
+              category: 'Health',
+              level: 'MEDIUM',
+              message: `PCR Elevado (${pcr.value}). Indica inflamação sistêmica aguda ou crônica.`,
+              sourceId: pcr.sourceId,
+              date: pcr.date
+          });
+      }
+
+      // --- 4. MUSCULAR & TREINO (NOVO: CPK) ---
+      const cpk = getSanitizedMetric(['CPK', 'Creatinoquinase', 'CK Total', 'CK'], 'cpk');
+      if (cpk && cpk.value > 1000) {
+           risks.push({
+              category: 'Training',
+              level: 'MEDIUM',
+              message: `CPK muito alta (${cpk.value}). Indica dano muscular intenso. Atenção à hidratação (risco renal).`,
+              sourceId: cpk.sourceId,
+              date: cpk.date
+          });
+      }
+
+      // --- 5. HEMATOLOGIA (Sangue) ---
+      // Hematócrito (Com Guardrail: Ignora > 65% para evitar erro de OCR '84.3')
+      const hema = getSanitizedMetric(['Hematocrito', 'Hematócrito', 'Ht', 'HCT', 'Hematocrit', 'Eritrograma'], 'hematocrito');
       
-      const trig = getLastValue(['Triglicerídeos', 'Triglicérides', 'Triglycerides']);
-      if (trig !== null && trig > 200) {
-           risks.push({
-              category: 'Health',
-              level: 'MEDIUM',
-              message: `Triglicerídeos altos (${trig} mg/dL). Indicador de dieta desregulada ou resistência à insulina.`
-          });
-      }
-
-      // 4. Fígado (TGO/TGP/GAMA GT)
-      const tgo = getLastValue(['TGO', 'AST', 'Aspartato']);
-      const tgp = getLastValue(['TGP', 'ALT', 'Alanina']);
-      const ggt = getLastValue(['GGT', 'Gama GT', 'Gama-Glutamil']);
-      
-      if ((tgo !== null && tgo > 60) || (tgp !== null && tgp > 60)) {
-          risks.push({
-              category: 'Protocol',
-              level: 'HIGH',
-              message: 'Enzimas hepáticas (TGO/TGP) alteradas. Estresse no fígado detectado.'
-          });
-      }
-      if (ggt !== null && ggt > 70) {
-           risks.push({
-              category: 'Protocol',
-              level: 'MEDIUM',
-              message: `Gama GT elevada (${ggt}). Marcador sensível de estresse hepático.`
-          });
-      }
-
-      // 5. Rins (Creatinina)
-      const creat = getLastValue(['Creatinina', 'Creatinine', 'Creat']);
-      if (creat !== null && creat > 1.5) {
-          risks.push({
-              category: 'Health',
-              level: 'HIGH',
-              message: `Creatinina alta (${creat}). Atenção à função renal e hidratação.`
-          });
-      }
-
-      // 6. Hormônios (Testo/Estradiol)
-      const testo = getLastValue(['Testosterona', 'Testosterone', 'Testo Total', 'Testo']);
-      if (testo !== null && testo < 250) {
-          risks.push({
-              category: 'Health',
-              level: 'HIGH',
-              message: `Testosterona em nível de Hipogonadismo (${testo} ng/dL). Sintomas: Fadiga, baixa libido.`
-          });
-      }
-
-      const e2 = getLastValue(['Estradiol', 'E2', '17-Beta']);
-      if (e2 !== null && e2 > 100) {
-           risks.push({
-              category: 'Protocol',
-              level: 'MEDIUM',
-              message: `Estradiol alto (${e2} pg/mL). Risco de ginecomastia e retenção.`
-          });
-      }
-
-      // 7. Tireoide (TSH)
-      const tsh = getLastValue(['TSH', 'Tireoestimulante']);
-      if (tsh !== null) {
-          if (tsh > 5) {
-               risks.push({
+      if (hema) {
+          if (hema.value > 54) {
+              risks.push({
                   category: 'Health',
-                  level: 'MEDIUM',
-                  message: `TSH Alto (${tsh}). Indício de hipotireoidismo (metabolismo lento).`
+                  level: 'HIGH',
+                  message: `Hematócrito CRÍTICO (${hema.value}%). Sangue muito viscoso. Risco cardiovascular elevado.`,
+                  sourceId: hema.sourceId,
+                  date: hema.date
               });
-          } else if (tsh < 0.2) {
-               risks.push({
+          } else if (hema.value > 50) {
+              risks.push({
                   category: 'Health',
                   level: 'MEDIUM',
-                  message: `TSH Suprimido (${tsh}). Possível hipertireoidismo ou uso exógeno.`
+                  message: `Hematócrito elevado (${hema.value}%). Atenção à hidratação.`,
+                  sourceId: hema.sourceId,
+                  date: hema.date
               });
           }
       }
+
+      // --- 6. FÍGADO ---
+      const tgo = getSanitizedMetric(['TGO', 'AST', 'Aspartato'], 'tgo');
+      const tgp = getSanitizedMetric(['TGP', 'ALT', 'Alanina'], 'tgp');
+      const ggt = getSanitizedMetric(['GGT', 'Gama GT', 'Gama-Glutamil']); 
       
-      // 8. Glicemia
-      const glicose = getLastValue(['Glicose', 'Glicemia', 'Glucose']);
-      if (glicose !== null && glicose > 105) {
+      if ((tgo && tgo.value > 60) || (tgp && tgp.value > 60)) {
+          risks.push({
+              category: 'Protocol',
+              level: 'HIGH',
+              message: 'Enzimas hepáticas alteradas (TGO/TGP). Estresse no fígado detectado.',
+              sourceId: tgo?.sourceId || tgp?.sourceId,
+              date: tgo?.date || tgp?.date
+          });
+      }
+      if (ggt && ggt.value > 70) {
            risks.push({
-              category: 'Health',
+              category: 'Protocol',
               level: 'MEDIUM',
-              message: `Glicemia de jejum alterada (${glicose} mg/dL). Atenção à resistência à insulina.`
+              message: `Gama GT elevada (${ggt.value}). Marcador sensível de estresse hepático.`,
+              sourceId: ggt.sourceId,
+              date: ggt.date
+          });
+      }
+
+      // --- 7. COLESTEROL ---
+      const ldl = getSanitizedMetric(['LDL', 'Colesterol LDL', 'L.D.L']);
+      if (ldl && ldl.value > 160) {
+          risks.push({
+              category: 'Health',
+              level: 'HIGH',
+              message: `LDL (Ruim) muito alto (${ldl.value} mg/dL). Risco aterosclerótico.`,
+              sourceId: ldl.sourceId,
+              date: ldl.date
+          });
+      }
+      
+      // --- 8. HORMÔNIOS ---
+      const testo = getSanitizedMetric(['Testosterona', 'Testosterone', 'Testo Total', 'Testo'], 'testosterona');
+      if (testo && testo.value < 250) {
+          risks.push({
+              category: 'Health',
+              level: 'HIGH',
+              message: `Testosterona em nível de Hipogonadismo (${testo.value} ng/dL). Sintomas: Fadiga, baixa libido.`,
+              sourceId: testo.sourceId,
+              date: testo.date
+          });
+      }
+
+      const e2 = getSanitizedMetric(['Estradiol', 'E2', '17-Beta'], 'estradiol');
+      if (e2 && e2.value > 100) {
+           risks.push({
+              category: 'Protocol',
+              level: 'MEDIUM',
+              message: `Estradiol alto (${e2.value} pg/mL). Risco de ginecomastia e retenção hídrica.`,
+              sourceId: e2.sourceId,
+              date: e2.date
           });
       }
 
@@ -343,9 +425,9 @@ const App: React.FC = () => {
 
   const realRisks = useMemo(() => {
       if (!project || !project.metrics) return [];
-      // Passa o objeto completo de métricas (histórico) para a função
-      return calculateRealRisks(project.metrics);
-  }, [project]);
+      // Passa também a lista de sources para possibilitar o linking
+      return calculateRealRisks(project.metrics, sources);
+  }, [project, sources]);
 
   // 1. Auth Listener
   useEffect(() => {
@@ -1557,6 +1639,11 @@ const App: React.FC = () => {
                 onGenerateProntuario={handleGenerateProntuario}
                 isMobileView={true}
                 isProcessing={isProcessing}
+                onViewSource={(sourceId) => {
+                    // Logic to open source detail (Deep Dive)
+                    const source = sources.find(s => s.id === sourceId);
+                    if (source) setViewingSource(source);
+                }}
             />
         )}
         

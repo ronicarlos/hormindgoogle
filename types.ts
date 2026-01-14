@@ -101,11 +101,13 @@ export interface Project {
   userProfile?: UserProfile;
 }
 
-// NEW: Risk Analysis Interface
+// NEW: Risk Analysis Interface Updated for Traceability
 export interface RiskFlag {
   level: 'LOW' | 'MEDIUM' | 'HIGH';
   message: string;
   category: 'Health' | 'Protocol' | 'Training';
+  sourceId?: string; // ID do documento original
+  date?: string;     // Data do achado
 }
 
 export interface ProtocolItem {
