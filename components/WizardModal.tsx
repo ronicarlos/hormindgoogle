@@ -15,15 +15,18 @@ interface WizardModalProps {
     onUpload: (files: File[]) => Promise<void>;
 }
 
+// Passos reordenados e expandidos para fluxo completo
 const steps = [
     { id: 'bio', title: 'Identificação', icon: IconUser, description: 'Dados básicos para a IA te conhecer.' },
     { id: 'anthro', title: 'Antropometria', icon: IconActivity, description: 'Peso e altura para cálculos metabólicos.' },
-    { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Circunferências corporais.' },
+    { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Circunferências corporais (Biometria).' },
+    { id: 'metrics', title: 'Marcadores Chave', icon: IconScience, description: 'Valores recentes de referência (Opcional).' }, // NOVO
     { id: 'health', title: 'Saúde', icon: IconAlert, description: 'Histórico médico e medicamentos.' },
     { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' },
-    { id: 'routine', title: 'Rotina & Dieta', icon: IconDumbbell, description: 'Contexto de treino e calorias.' },
+    { id: 'diet', title: 'Dieta & Calorias', icon: IconFlame, description: 'Sua ingestão calórica atual.' }, // SEPARADO
+    { id: 'training', title: 'Rotina de Treino', icon: IconDumbbell, description: 'Como você está treinando hoje.' }, // SEPARADO
     { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' },
-    { id: 'goal', title: 'Objetivo Final', icon: IconScience, description: 'Onde vamos chegar?' }
+    { id: 'goal', title: 'Objetivo Final', icon: IconCheck, description: 'Onde vamos chegar?' }
 ];
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
@@ -81,6 +84,10 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     const [trainingNotes, setTrainingNotes] = useState(project.trainingNotes || '');
     const [calories, setCalories] = useState('');
     const [protocol, setProtocol] = useState<ProtocolItem[]>([]);
+    
+    // Novos estados para métricas manuais
+    const [manualTesto, setManualTesto] = useState('');
+    const [manualE2, setManualE2] = useState('');
 
     useEffect(() => {
         if (project.userProfile) {
@@ -93,10 +100,25 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
         if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
         
+        // Carrega o valor mais recente de calorias para o input
         const calMetrics = project.metrics['Calories'];
         if (calMetrics && calMetrics.length > 0) {
-            setCalories(calMetrics[0].value.toString());
+            // Ordena para pegar o mais recente
+            const sorted = [...calMetrics].sort((a,b) => {
+                 const da = a.date.split('/').reverse().join('-');
+                 const db = b.date.split('/').reverse().join('-');
+                 return new Date(db).getTime() - new Date(da).getTime();
+            });
+            setCalories(sorted[0].value.toString());
         }
+        
+        // Tenta preencher métricas manuais se já existirem (pega a mais recente)
+        const testoMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'];
+        if (testoMetrics && testoMetrics.length > 0) setManualTesto(testoMetrics[testoMetrics.length - 1].value.toString());
+        
+        const e2Metrics = project.metrics['Estradiol'];
+        if (e2Metrics && e2Metrics.length > 0) setManualE2(e2Metrics[e2Metrics.length - 1].value.toString());
+
     }, [project, isOpen]);
 
     useEffect(() => {
@@ -108,9 +130,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
             else if (!p.height || !p.weight) startStep = 1;
             // SAFE CHECK with optional chaining
             else if (!p.measurements?.waist || !p.measurements?.hips) startStep = 2;
-            else if (!project.trainingNotes && !calories) startStep = 5; 
-            else if ((!project.currentProtocol || project.currentProtocol.length === 0) && project.objective !== 'Longevity') startStep = 6; 
-            else if (!project.objective) startStep = 7;
+            else if (!manualTesto && !manualE2 && !project.metrics['Testosterone']) startStep = 3; // Step Métricas
+            else if (!p.comorbidities && !p.medications) startStep = 4;
+            // ... resto do fluxo
             else startStep = 0; 
 
             setCurrentStep(startStep);
@@ -166,26 +188,69 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-                if (currentStep <= 3) {
+                // Clone do objeto de métricas para atualização otimista local
+                const updatedMetrics = { ...project.metrics };
+
+                // Steps de Perfil e Biometria
+                if (currentStep <= 4) {
                     await dataService.saveUserProfile(session.user.id, profileData);
                     onUpdateProfile(profileData);
                 }
                 
-                if (currentStep === 5) {
-                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
-                    if (calories) {
-                        const today = new Date().toLocaleDateString('pt-BR');
-                        await dataService.addMetric(project.id, 'Calories', {
-                            date: today,
-                            value: parseInt(calories),
-                            unit: 'kcal',
-                            label: 'Wizard Setup'
-                        });
+                // Step de Métricas Manuais
+                if (currentStep === 3) {
+                    const today = new Date().toLocaleDateString('pt-BR');
+                    
+                    if (manualTesto) {
+                        const point = { date: today, value: parseFloat(manualTesto), unit: 'ng/dL', label: 'Wizard Input' };
+                        await dataService.addMetric(project.id, 'Testosterone', point);
+                        updatedMetrics['Testosterone'] = [...(updatedMetrics['Testosterone'] || []), point];
                     }
-                    onUpdateProject({ ...project, trainingNotes, objective, currentProtocol: protocol });
+                    
+                    if (manualE2) {
+                        const point = { date: today, value: parseFloat(manualE2), unit: 'pg/mL', label: 'Wizard Input' };
+                        await dataService.addMetric(project.id, 'Estradiol', point);
+                        updatedMetrics['Estradiol'] = [...(updatedMetrics['Estradiol'] || []), point];
+                    }
+                    
+                    // Propaga atualização para o App
+                    onUpdateProject({ ...project, metrics: updatedMetrics });
                 }
 
-                if (currentStep >= 6) {
+                // Step de Dieta (FIX: Agora atualiza o estado local 'metrics' com as calorias)
+                if (currentStep === 6) {
+                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
+                    
+                    if (calories) {
+                        const today = new Date().toLocaleDateString('pt-BR');
+                        const point = { 
+                            date: today, 
+                            value: parseInt(calories), 
+                            unit: 'kcal', 
+                            label: 'Wizard Setup' 
+                        };
+                        
+                        await dataService.addMetric(project.id, 'Calories', point);
+                        updatedMetrics['Calories'] = [...(updatedMetrics['Calories'] || []), point];
+                    }
+                    
+                    onUpdateProject({ 
+                        ...project, 
+                        trainingNotes, 
+                        objective, 
+                        currentProtocol: protocol,
+                        metrics: updatedMetrics // Envia as métricas atualizadas
+                    });
+                }
+
+                // Step de Treino
+                if (currentStep === 7) {
+                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
+                    onUpdateProject({ ...project, trainingNotes });
+                }
+
+                // Step de Protocolo e Final
+                if (currentStep >= 8) {
                     const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                     await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes);
                     onUpdateProject({ ...project, objective, currentProtocol: cleanProtocol, trainingNotes });
@@ -310,7 +375,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             <>
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mb-2 flex gap-2 items-start dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
                                     <IconInfo className="w-4 h-4 mt-0.5 shrink-0" />
-                                    <span>As medidas de Cintura e Quadril são obrigatórias para o cálculo de risco cardíaco (RCQ). As demais ajudam no acompanhamento muscular.</span>
+                                    <span>As medidas de Cintura e Quadril são obrigatórias para o cálculo de risco cardíaco (RCQ).</span>
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-4">
@@ -383,7 +448,57 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
+                        {/* NOVO STEP: MÉTRICAS MANUAIS */}
                         {currentStep === 3 && (
+                            <>
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 mb-2 flex gap-2 items-start dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-900/30">
+                                    <IconInfo className="w-4 h-4 mt-0.5 shrink-0" />
+                                    <span>Se você tiver valores recentes de exames, insira-os aqui para popular o dashboard. Caso contrário, apenas avance.</span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <label className="block">
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Testosterona Total</span>
+                                            <Tooltip content="Valor total de referência hormonal." position="top">
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                            </Tooltip>
+                                        </div>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                value={manualTesto} 
+                                                onChange={e => setManualTesto(e.target.value)} 
+                                                className={`${inputClass} pr-12`} 
+                                                placeholder="Ex: 500" 
+                                                autoFocus
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">ng/dL</span>
+                                        </div>
+                                    </label>
+                                    
+                                    <label className="block">
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Estradiol (E2)</span>
+                                            <Tooltip content="Importante para controle de colaterais." position="top">
+                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                            </Tooltip>
+                                        </div>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                value={manualE2} 
+                                                onChange={e => setManualE2(e.target.value)} 
+                                                className={`${inputClass} pr-12`} 
+                                                placeholder="Ex: 30" 
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">pg/mL</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </>
+                        )}
+
+                        {currentStep === 4 && (
                             <>
                                 <label className="block">
                                     <div className="flex items-center gap-1 mb-1">
@@ -401,7 +516,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {currentStep === 4 && (
+                        {currentStep === 5 && (
                             <div className="space-y-4">
                                 <div className="bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl p-6 text-center dark:bg-blue-900/10 dark:border-blue-900/30">
                                     <div className="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3 dark:bg-blue-900 dark:text-blue-300">
@@ -446,39 +561,50 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </div>
                         )}
 
-                        {currentStep === 5 && (
-                            <>
-                                <label className="block">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Dieta: Média Calórica</span>
-                                        <Tooltip content="Quantas calorias você consome em média por dia atualmente? Se não souber, deixe em branco para a IA estimar." position="top">
-                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                        </Tooltip>
-                                    </div>
-                                    <div className="relative">
-                                        <input 
-                                            type="number" 
-                                            value={calories} 
-                                            onChange={e => setCalories(e.target.value)} 
-                                            className={`${inputClass} pr-12`} 
-                                            placeholder="2500" 
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">kcal/dia</span>
-                                    </div>
-                                </label>
-                                <label className="block">
-                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Resumo do Treino / Rotina</span>
-                                    <textarea 
-                                        value={trainingNotes} 
-                                        onChange={e => setTrainingNotes(e.target.value)} 
-                                        className={`${inputClass} h-32`} 
-                                        placeholder="Ex: Musculação ABCDE (Seg a Sex). Cardio 30min TSD. Foco em ombros." 
+                        {/* STEP DIETA (Separado) */}
+                        {currentStep === 6 && (
+                            <label className="block">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Dieta: Média Calórica</span>
+                                    <Tooltip content="Quantas calorias você consome em média por dia atualmente? Se não souber, deixe em branco para a IA estimar." position="top">
+                                        <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
+                                    </Tooltip>
+                                </div>
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        value={calories} 
+                                        onChange={e => setCalories(e.target.value)} 
+                                        className={`${inputClass} pr-12`} 
+                                        placeholder="2500" 
+                                        autoFocus
                                     />
-                                </label>
-                            </>
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">kcal/dia</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2 dark:text-gray-400">
+                                    Dica: Se você usa apps como MyFitnessPal, coloque a média semanal aqui.
+                                </p>
+                            </label>
                         )}
 
-                        {currentStep === 6 && (
+                        {/* STEP TREINO (Separado) */}
+                        {currentStep === 7 && (
+                            <label className="block">
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Resumo do Treino / Rotina</span>
+                                <textarea 
+                                    value={trainingNotes} 
+                                    onChange={e => setTrainingNotes(e.target.value)} 
+                                    className={`${inputClass} h-40`} 
+                                    placeholder="Ex: Musculação ABCDE (Seg a Sex). Cardio 30min TSD. Foco em ombros e pernas." 
+                                    autoFocus
+                                />
+                                <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200 text-xs text-gray-600 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400">
+                                    A IA usará isso para entender seu volume de treino atual.
+                                </div>
+                            </label>
+                        )}
+
+                        {currentStep === 8 && (
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center gap-1">
@@ -532,7 +658,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </div>
                         )}
 
-                        {currentStep === 7 && (
+                        {currentStep === 9 && (
                             <>
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Qual seu foco atual?</span>
