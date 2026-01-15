@@ -4,7 +4,12 @@ import ReactMarkdown from 'react-markdown';
 import { Project, ChatMessage } from '../types';
 import { generateAIResponse } from '../services/geminiService';
 import { dataService } from '../services/dataService';
-import { IconSend, IconSparkles, IconUser, IconRefresh, IconCopy, IconSearch, IconBookmark, IconBookmarkFilled, IconClose, IconArrowLeft } from './Icons';
+import { 
+    IconSend, IconSparkles, IconUser, IconRefresh, IconCopy, 
+    IconSearch, IconBookmark, IconBookmarkFilled, IconClose, 
+    IconArrowLeft, IconActivity, IconShare, IconReportPDF, IconCheck 
+} from './Icons';
+import ProntuarioModal from './ProntuarioModal';
 
 interface ChatInterfaceProps {
     project: Project;
@@ -41,6 +46,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+
+    // Action States
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [pdfContent, setPdfContent] = useState<string | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -135,6 +144,32 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
         setMessages(updatedMessages);
 
         await dataService.toggleMessageBookmark(msg.id, newStatus);
+    };
+
+    const handleCopy = (text: string, id: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const handleShare = async (text: string) => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Análise FitLM',
+                    text: text,
+                });
+            } catch (err) {
+                console.log('Erro ao compartilhar', err);
+            }
+        } else {
+            handleCopy(text, 'share-fallback');
+            alert('Texto copiado para a área de transferência!');
+        }
+    };
+
+    const handleGeneratePDF = (text: string) => {
+        setPdfContent(text);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -257,7 +292,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
                 ) : (
                     filteredMessages.map((msg) => (
                         <div key={msg.id} className={`flex group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`relative max-w-[85%] md:max-w-[70%] rounded-2xl p-4 shadow-sm transition-all ${
+                            <div className={`relative max-w-[85%] md:max-w-[80%] rounded-2xl p-4 shadow-sm transition-all ${
                                 msg.role === 'user' 
                                 ? 'bg-gray-100 text-gray-900 rounded-tr-none dark:bg-gray-800 dark:text-white' 
                                 : 'bg-white border border-gray-100 rounded-tl-none dark:bg-gray-900 dark:border-gray-800 dark:text-gray-200'
@@ -278,26 +313,47 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
                                 {/* Message Content with Highlighter */}
                                 <HighlightText text={msg.text} highlight={searchTerm} />
 
-                                <div className="mt-2 text-[10px] text-gray-400 text-right opacity-70 flex justify-end items-center gap-1">
-                                    {msg.isBookmarked && <IconBookmarkFilled className="w-2.5 h-2.5 text-yellow-500" />}
-                                    <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                {/* Footer & Actions */}
+                                <div className="mt-3 pt-2 flex justify-between items-center border-t border-gray-50 dark:border-gray-800">
+                                    {/* Action Bar (Only for AI messages) */}
+                                    {msg.role === 'model' ? (
+                                        <div className="flex items-center gap-1">
+                                            <button 
+                                                onClick={() => handleCopy(msg.text, msg.id)}
+                                                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                                                title="Copiar texto"
+                                            >
+                                                {copiedId === msg.id ? <IconCheck className="w-3.5 h-3.5 text-green-500" /> : <IconCopy className="w-3.5 h-3.5" />}
+                                            </button>
+                                            
+                                            <button 
+                                                onClick={() => handleShare(msg.text)}
+                                                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                                                title="Compartilhar"
+                                            >
+                                                <IconShare className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button 
+                                                onClick={() => handleGeneratePDF(msg.text)}
+                                                className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                                                title="Gerar Relatório PDF"
+                                            >
+                                                <IconReportPDF className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div /> // Spacer
+                                    )}
+
+                                    <div className="text-[10px] text-gray-400 opacity-70 flex items-center gap-1">
+                                        {msg.isBookmarked && <IconBookmarkFilled className="w-2.5 h-2.5 text-yellow-500" />}
+                                        <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))
-                )}
-
-                {isThinking && (
-                    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
-                        <div className="bg-white border border-gray-100 rounded-2xl rounded-tl-none p-4 flex items-center gap-3 shadow-sm dark:bg-gray-900 dark:border-gray-800">
-                            <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                            </div>
-                            <span className="text-xs text-gray-400 font-medium">Analisando dados...</span>
-                        </div>
-                    </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
@@ -305,29 +361,54 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
             {/* Input Area (Visible UNLESS SEARCHING TEXT) */}
             {!isSearchOpen && (
                 <div className="p-4 bg-white border-t border-gray-100 dark:bg-gray-900 dark:border-gray-800 sticky bottom-0 z-20">
-                    <div className="max-w-4xl mx-auto relative flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all dark:bg-gray-800 dark:border-gray-700">
-                        <textarea 
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Pergunte sobre seus exames ou treino..."
-                            className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 min-h-[44px] py-3 px-2 text-sm text-gray-900 placeholder-gray-400 dark:text-white"
-                            rows={1}
-                            style={{ height: 'auto', minHeight: '44px' }}
-                        />
-                        <button 
-                            onClick={handleSendMessage}
-                            disabled={!inputValue.trim() || isThinking}
-                            className="p-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 dark:bg-blue-600 dark:hover:bg-blue-700"
-                        >
-                            {isThinking ? <IconRefresh className="w-5 h-5 animate-spin" /> : <IconSend className="w-5 h-5" />}
-                        </button>
-                    </div>
-                    <div className="text-center mt-2">
-                        <p className="text-[10px] text-gray-400">A IA pode cometer erros. Verifique informações médicas importantes.</p>
-                    </div>
+                    {isThinking ? (
+                        /* STATUS DE PROCESSAMENTO - Bloqueia Input */
+                        <div className="max-w-4xl mx-auto flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm animate-pulse dark:bg-blue-900/20 dark:border-blue-800/50">
+                            <div className="flex space-x-1 shrink-0">
+                                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                            </div>
+                            <span className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">
+                                A IA está avaliando seu protocolo completo...
+                            </span>
+                        </div>
+                    ) : (
+                        /* INPUT NORMAL */
+                        <>
+                            <div className="max-w-4xl mx-auto relative flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all dark:bg-gray-800 dark:border-gray-700">
+                                <textarea 
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="Pergunte sobre seus exames ou treino..."
+                                    className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 min-h-[44px] py-3 px-2 text-sm text-gray-900 placeholder-gray-400 dark:text-white"
+                                    rows={1}
+                                    style={{ height: 'auto', minHeight: '44px' }}
+                                />
+                                <button 
+                                    onClick={handleSendMessage}
+                                    disabled={!inputValue.trim()}
+                                    className="p-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 dark:bg-blue-600 dark:hover:bg-blue-700"
+                                >
+                                    <IconSend className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="text-center mt-2">
+                                <p className="text-[10px] text-gray-400">A IA pode cometer erros. Verifique informações médicas importantes.</p>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
+
+            {/* Modal para gerar PDF de mensagem individual */}
+            <ProntuarioModal 
+                isOpen={!!pdfContent}
+                onClose={() => setPdfContent(null)}
+                markdownContent={pdfContent || ''}
+                profile={project.userProfile}
+            />
         </div>
     );
 };

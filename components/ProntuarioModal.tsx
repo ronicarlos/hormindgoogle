@@ -123,35 +123,51 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
       <div className="w-full max-w-4xl min-h-screen md:min-h-[80vh] flex flex-col relative">
         
         {/* Toolbar */}
-        <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white md:rounded-t-xl sticky top-0 z-50 shadow-sm dark:bg-gray-900 dark:border-gray-800">
-            <h2 className="font-bold text-gray-800 flex items-center gap-2 dark:text-white">
-                Documento Médico Gerado
-            </h2>
-            <div className="flex gap-2">
-                <button 
-                    onClick={handleDownloadPDF}
-                    disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                >
-                    {isGenerating ? (
-                        <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                            Gerando PDF...
-                        </>
-                    ) : (
-                        <>
-                            <IconDownload className="w-4 h-4" />
-                            Baixar PDF
-                        </>
-                    )}
-                </button>
-                <button 
-                    onClick={onClose}
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors dark:hover:bg-gray-800"
-                >
-                    <IconClose className="w-5 h-5" />
-                </button>
+        <div className="flex flex-col bg-white md:rounded-t-xl sticky top-0 z-50 shadow-sm dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex justify-between items-center p-4">
+                <h2 className="font-bold text-gray-800 flex items-center gap-2 dark:text-white">
+                    Documento Médico Gerado
+                </h2>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={handleDownloadPDF}
+                        disabled={isGenerating}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    >
+                        {isGenerating ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                                Gerando...
+                            </>
+                        ) : (
+                            <>
+                                <IconDownload className="w-4 h-4" />
+                                Baixar PDF
+                            </>
+                        )}
+                    </button>
+                    <button 
+                        onClick={onClose}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors dark:hover:bg-gray-800"
+                    >
+                        <IconClose className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
+            
+            {/* Barra de Progresso (Visível apenas gerando) */}
+            {isGenerating && (
+                <div className="w-full h-1 bg-blue-100 overflow-hidden relative dark:bg-blue-900/30">
+                    <div className="absolute top-0 left-0 bottom-0 bg-blue-600 w-1/3 animate-[progress_1.5s_ease-in-out_infinite]" />
+                    <style>{`
+                        @keyframes progress {
+                            0% { left: -35%; width: 30%; }
+                            50% { width: 60%; }
+                            100% { left: 100%; width: 30%; }
+                        }
+                    `}</style>
+                </div>
+            )}
         </div>
 
         {/* 
@@ -161,7 +177,7 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
         */}
         <div 
             id="prontuario-content" 
-            className="bg-white p-8 md:p-12 md:rounded-b-xl shadow-2xl font-serif text-gray-900 leading-relaxed text-sm md:text-base min-h-[297mm] dark:bg-gray-950 dark:text-gray-200" 
+            className={`bg-white p-8 md:p-12 md:rounded-b-xl shadow-2xl font-serif text-gray-900 leading-relaxed text-sm md:text-base min-h-[297mm] dark:bg-gray-950 dark:text-gray-200 ${isGenerating ? 'opacity-50 pointer-events-none grayscale' : ''} transition-all duration-500`} 
         >
             <style>
               {`

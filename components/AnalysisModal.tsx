@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { IconSparkles, IconAlert, IconClose, IconActivity } from './Icons';
 
 interface AnalysisModalProps {
@@ -10,7 +10,14 @@ interface AnalysisModalProps {
 }
 
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, onConfirm, contextDescription }) => {
+    const [isProcessing, setIsProcessing] = useState(false);
+
     if (!isOpen) return null;
+
+    const handleConfirm = () => {
+        setIsProcessing(true);
+        onConfirm(); // Parent will eventually close this modal
+    };
 
     return (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -24,7 +31,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, onConfir
                     
                     <button 
                         onClick={onClose}
-                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                        disabled={isProcessing}
+                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 disabled:opacity-50"
                     >
                         <IconClose className="w-5 h-5" />
                     </button>
@@ -66,15 +74,26 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, onConfir
                 {/* Footer */}
                 <div className="p-6 pt-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 flex flex-col gap-3">
                     <button 
-                        onClick={onConfirm}
-                        className="w-full py-3.5 bg-black text-white font-bold text-sm rounded-xl hover:bg-gray-800 transition-all shadow-lg shadow-black/10 active:scale-[0.98] flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:shadow-blue-900/20"
+                        onClick={handleConfirm}
+                        disabled={isProcessing}
+                        className="w-full py-3.5 bg-black text-white font-bold text-sm rounded-xl hover:bg-gray-800 transition-all shadow-lg shadow-black/10 active:scale-[0.98] flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:shadow-blue-900/20 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        <IconSparkles className="w-4 h-4" />
-                        Confirmar e Gerar Análise
+                        {isProcessing ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Iniciando Análise...
+                            </>
+                        ) : (
+                            <>
+                                <IconSparkles className="w-4 h-4" />
+                                Confirmar e Gerar Análise
+                            </>
+                        )}
                     </button>
                     <button 
                         onClick={onClose}
-                        className="w-full py-3 text-gray-500 font-bold text-xs hover:text-gray-800 transition-colors dark:text-gray-400 dark:hover:text-gray-200"
+                        disabled={isProcessing}
+                        className="w-full py-3 text-gray-500 font-bold text-xs hover:text-gray-800 transition-colors dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
                     >
                         Apenas Salvar (Sem Análise)
                     </button>
