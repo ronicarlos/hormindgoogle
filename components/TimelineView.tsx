@@ -18,7 +18,7 @@ interface TimelineItem {
     title: string;
     content: string;
     isHighlight?: boolean;
-    originalObject?: any; // To allow downloading files if needed
+    originalObject?: any;
 }
 
 // --- MODAL DE DETALHES (DEEP DIVE) ---
@@ -27,7 +27,6 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
 
     const isSource = item.type === 'SOURCE';
     
-    // Função para baixar arquivo original se disponível
     const handleDownload = () => {
         if (isSource && item.originalObject?.fileUrl) {
             window.open(item.originalObject.fileUrl, '_blank');
@@ -74,23 +73,19 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                 {/* Content Scrollable */}
                 <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-white custom-scrollbar dark:bg-gray-950">
                     <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert">
-                        {/* Se for User Input, formata melhor os dados chave */}
                         {isSource && item.subType === 'USER_INPUT' && (
                             <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm dark:bg-gray-800/50 dark:border-gray-700">
                                 <p className="font-bold text-gray-500 uppercase text-xs mb-2 dark:text-gray-400">Dados Estruturados</p>
-                                {/* A renderização do markdown abaixo cuidará do conteúdo, mas aqui damos destaque */}
                             </div>
                         )}
 
                         <ReactMarkdown components={{
-                            // Customização para tratar Links Quebrados e proteger navegação
                             a: ({node, href, children, ...props}) => {
                                 const isExternal = href?.startsWith('http');
                                 return (
                                     <a 
                                         href={isExternal ? href : '#'}
                                         onClick={(e) => {
-                                            // Se não for link externo real, previne navegação que quebraria o app
                                             if (!isExternal) e.preventDefault();
                                         }}
                                         target={isExternal ? "_blank" : undefined}
@@ -102,15 +97,9 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                                     </a>
                                 );
                             },
-                            // Customização de Tipografia para Contraste no Modo Escuro
                             p: ({node, ...props}) => <p className="mb-4 text-gray-700 leading-relaxed dark:text-gray-300" {...props} />,
                             strong: ({node, ...props}) => <strong className="font-bold text-gray-900 dark:text-white" {...props} />,
                             li: ({node, ...props}) => <li className="text-gray-700 dark:text-gray-300 mb-1" {...props} />,
-                            h1: ({node, ...props}) => <h1 className="text-gray-900 dark:text-white font-black" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-gray-900 dark:text-white font-bold" {...props} />,
-                            h3: ({node, ...props}) => <h3 className="text-gray-900 dark:text-white font-bold" {...props} />,
-                            
-                            // Customizar tabelas para ficarem bonitas e legíveis
                             table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" {...props} /></div>,
                             th: ({node, ...props}) => <th className="px-4 py-3 bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider dark:bg-gray-800 dark:text-gray-300" {...props} />,
                             td: ({node, ...props}) => <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 border-t border-gray-100 dark:text-gray-300 dark:border-gray-700 dark:bg-gray-900" {...props} />,
@@ -153,13 +142,10 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
     const [filter, setFilter] = useState<'ALL' | 'EXAMS' | 'ANALYSIS'>('ALL');
     const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null);
 
-    // --- DATA PROCESSING LOGIC ---
     const timelineData = useMemo(() => {
         const items: TimelineItem[] = [];
 
-        // 1. Process Sources (Exams, Inputs, Documents) - Estes são sempre relevantes
         sources.forEach(source => {
-            // Parse Date from DD/MM/YYYY
             const parts = source.date.split('/');
             let dateObj = new Date();
             if (parts.length === 3) {
@@ -173,36 +159,24 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                 type: 'SOURCE',
                 subType: source.type,
                 title: source.title,
-                content: source.summary || source.content, // Use summary if available
+                content: source.summary || source.content,
                 isHighlight: source.type === SourceType.PDF || source.type === SourceType.IMAGE || source.type === SourceType.PRONTUARIO,
                 originalObject: source
             });
         });
 
-        // 2. Process Messages (Filtro rigoroso para evitar duplicação e ruído)
         messages.forEach(msg => {
-            // Regra 1: Mensagens do Usuário raramente são marcos de timeline (exceto inputs, que já viram Sources)
             if (msg.role !== 'model') return;
-
-            // Regra 2: Prioridade para Favoritos
-            // Se o usuário favoritou, é relevante independente de qualquer outra regra.
             const isBookmarked = msg.isBookmarked;
-
-            // Regra 3: Filtrar Mensagens de Sistema / Transacionais
-            // Mensagens que começam com emojis de status (Check, Loading, Error) geralmente são feedback de UI
-            // ou confirmações de que um Source foi criado (o que geraria duplicidade visual).
+            
             const isSystemNotification = 
                 msg.text.startsWith('✅') || 
                 msg.text.startsWith('🔄') || 
                 msg.text.startsWith('❌') ||
-                msg.text.includes('Prontuário gerado com sucesso') ||
+                msg.text.includes('Prontuário gerado') ||
                 msg.text.includes('processado');
 
             if (isSystemNotification && !isBookmarked) return;
-
-            // Regra 4: Filtro de Relevância por Tamanho
-            // Chat casual ("Olá", "Tudo bem", "Entendido") não deve poluir a timeline.
-            // Apenas análises substanciais (> 200 caracteres) entram.
             if (msg.text.length < 200 && !isBookmarked) return;
 
             const dateObj = new Date(msg.timestamp);
@@ -218,11 +192,9 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
             });
         });
 
-        // 3. Sort Descending (Newest First)
         return items.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
     }, [sources, messages]);
 
-    // Filter Logic
     const filteredData = timelineData.filter(item => {
         if (filter === 'ALL') return true;
         if (filter === 'EXAMS') return item.type === 'SOURCE';
@@ -230,18 +202,15 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
         return true;
     });
 
-    // Helper to group by Month/Year visually
     let lastMonthYear = '';
 
     return (
         <div className="flex-1 bg-gray-50 h-full flex flex-col overflow-hidden dark:bg-gray-950 relative">
             
-            {/* Modal Layer */}
             {selectedItem && (
                 <TimelineEventModal item={selectedItem} onClose={() => setSelectedItem(null)} />
             )}
 
-            {/* Header */}
             <div className="shrink-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center z-10 sticky top-0 dark:bg-gray-900 dark:border-gray-800">
                 <div>
                     <h2 className="text-xl font-black text-gray-900 flex items-center gap-2 dark:text-white">
@@ -253,7 +222,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                     </p>
                 </div>
                 
-                {/* Simple Filter Pills */}
                 <div className="flex bg-gray-100 rounded-lg p-1 gap-1 dark:bg-gray-800">
                     {['ALL', 'EXAMS', 'ANALYSIS'].map(f => (
                         <button
@@ -271,11 +239,10 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                 </div>
             </div>
 
-            {/* Timeline Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar pb-32">
-                <div className="max-w-3xl mx-auto relative pl-4 md:pl-0">
+                <div className="max-w-5xl mx-auto relative pl-4 md:pl-0">
                     
-                    {/* The Vertical Line */}
+                    {/* Linha Central (Desktop) ou Lateral (Mobile) */}
                     <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-800 md:left-1/2 md:-ml-[1px]" />
 
                     {filteredData.map((item, index) => {
@@ -283,42 +250,51 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                         const showMonthHeader = monthYear !== lastMonthYear;
                         if (showMonthHeader) lastMonthYear = monthYear;
 
-                        const isLeft = index % 2 === 0; // Alternating layout for desktop
+                        const isLeft = index % 2 === 0;
 
                         return (
                             <React.Fragment key={item.id}>
-                                {/* Month Header */}
                                 {showMonthHeader && (
-                                    <div className="relative flex justify-center items-center my-8 z-10">
-                                        <span className="bg-gray-200 text-gray-600 text-[10px] font-bold uppercase px-3 py-1 rounded-full border border-white shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">
+                                    <div className="relative flex justify-center items-center my-10 z-10">
+                                        <span className="bg-white text-gray-900 text-[10px] font-black uppercase px-4 py-1.5 rounded-full border border-gray-200 shadow-md tracking-widest dark:bg-gray-800 dark:text-white dark:border-gray-700">
                                             {monthYear}
                                         </span>
                                     </div>
                                 )}
 
-                                {/* Timeline Item Card */}
-                                <div className={`relative mb-8 md:flex md:items-center ${isLeft ? 'md:flex-row-reverse' : ''}`}>
+                                {/* 
+                                    LAYOUT LOGIC:
+                                    Mobile: Flex row (Dot left, content right).
+                                    Desktop: 
+                                        - Row if Right (isLeft = false)
+                                        - Row-Reverse if Left (isLeft = true)
+                                */}
+                                <div className={`relative mb-8 md:flex md:items-start md:justify-between w-full group ${
+                                    isLeft ? 'md:flex-row-reverse' : ''
+                                }`}>
                                     
-                                    {/* The Dot on the Line */}
-                                    <div className={`absolute left-8 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white shadow-sm z-10 md:left-1/2 dark:border-gray-900 ${
-                                        item.type === 'SOURCE' 
-                                            ? 'bg-emerald-500' 
-                                            : 'bg-indigo-500'
+                                    {/* The Dot */}
+                                    <div className={`absolute left-8 -translate-x-1/2 w-4 h-4 rounded-full border-4 border-white shadow-md z-20 md:left-1/2 md:top-6 transition-transform group-hover:scale-125 dark:border-gray-900 ${
+                                        item.type === 'SOURCE' ? 'bg-emerald-500' : 'bg-indigo-500'
                                     }`} />
 
-                                    {/* Spacer for Desktop Centering */}
-                                    <div className="hidden md:block md:w-1/2" />
+                                    {/* Empty Space for Desktop Alignment */}
+                                    <div className="hidden md:block md:w-[45%]" />
 
-                                    {/* The Content Card */}
-                                    <div className={`ml-12 md:ml-0 md:w-1/2 ${isLeft ? 'md:pr-8' : 'md:pl-8'}`}>
+                                    {/* The Card */}
+                                    <div className={`ml-12 md:ml-0 md:w-[45%] transition-all duration-300 ${
+                                        isLeft ? 'md:pr-8 hover:-translate-x-2' : 'md:pl-8 hover:translate-x-2'
+                                    }`}>
                                         <div 
                                             onClick={() => setSelectedItem(item)}
-                                            className={`bg-white rounded-xl p-4 border shadow-sm transition-all hover:scale-[1.02] hover:shadow-md duration-200 group cursor-pointer dark:bg-gray-900 dark:border-gray-800 ${
-                                                item.isHighlight ? 'border-l-4 border-l-blue-500' : 'border-gray-100 dark:border-gray-800'
+                                            className={`bg-white rounded-2xl p-5 border shadow-sm cursor-pointer relative overflow-hidden dark:bg-gray-900 dark:border-gray-800 ${
+                                                item.isHighlight 
+                                                ? 'border-l-4 border-l-blue-500 shadow-md' 
+                                                : 'border-gray-100 hover:border-gray-300 dark:hover:border-gray-700'
                                             }`}
                                         >
-                                            {/* Card Header */}
-                                            <div className="flex items-center justify-between mb-2">
+                                            {/* Date Badge */}
+                                            <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`p-1.5 rounded-lg ${
                                                         item.type === 'SOURCE' 
@@ -335,18 +311,16 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                                                     </span>
                                                 </div>
                                                 {item.type === 'SOURCE' && (
-                                                    <span className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-medium dark:bg-gray-800 dark:text-gray-400">
+                                                    <span className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-bold dark:bg-gray-800 dark:text-gray-400">
                                                         {item.subType}
                                                     </span>
                                                 )}
                                             </div>
 
-                                            {/* Title */}
-                                            <h3 className="text-sm font-bold text-gray-900 mb-2 leading-tight group-hover:text-blue-600 transition-colors dark:text-white dark:group-hover:text-blue-400">
+                                            <h3 className="text-base font-bold text-gray-900 mb-2 leading-tight dark:text-white">
                                                 {item.title}
                                             </h3>
 
-                                            {/* Preview Content */}
                                             <div className="text-xs text-gray-500 leading-relaxed line-clamp-3 prose prose-sm max-w-none dark:text-gray-400 dark:prose-invert">
                                                 <ReactMarkdown>
                                                     {item.content.length > 200 
@@ -355,10 +329,13 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                                                 </ReactMarkdown>
                                             </div>
 
-                                            {/* Call to Action (Visual Hint) */}
-                                            <div className="mt-3 pt-2 border-t border-gray-50 flex items-center justify-end dark:border-gray-800">
-                                                <span className="text-[10px] font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 dark:text-blue-400">
-                                                    Ver Detalhes <IconArrowLeft className="w-3 h-3 rotate-180" />
+                                            {/* Hover Action */}
+                                            <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between dark:border-gray-800">
+                                                <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">
+                                                    {item.type === 'SOURCE' ? 'Documento' : 'Insight'}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity dark:text-blue-400">
+                                                    Abrir <IconArrowLeft className="w-3 h-3 rotate-180" />
                                                 </span>
                                             </div>
                                         </div>

@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload, IconCheck, IconShield, IconArrowLeft, IconFile } from './Icons';
+import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload, IconCheck, IconShield, IconArrowLeft, IconFile, IconSearch } from './Icons';
 import { Tooltip } from './Tooltip';
 
 interface MetricDashboardProps {
@@ -11,7 +11,7 @@ interface MetricDashboardProps {
   onGenerateProntuario: () => void;
   isMobileView?: boolean;
   isProcessing?: boolean;
-  onViewSource?: (sourceId: string) => void; // New prop for deep linking
+  onViewSource?: (sourceId: string) => void;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -33,11 +33,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-// --- CUSTOM LABEL COMPONENT (SHOWS VALUE ON LAST POINT) ---
 const CustomizedLabel = (props: any) => {
   const { x, y, stroke, value, index, dataLength, color } = props;
-  
-  // Show only the last point to avoid clutter
   if (index === dataLength - 1) {
     return (
       <text 
@@ -64,7 +61,7 @@ const EmptyChartState = ({ message }: { message: string }) => (
     </div>
 );
 
-// --- COMPONENTES DE GRÁFICO ---
+// --- COMPONENTES DE GRÁFICO (Mantidos iguais, apenas RiskCard mudou) ---
 
 const BiomarkerChart = ({ 
     title, 
@@ -85,7 +82,6 @@ const BiomarkerChart = ({
 }) => {
     const cleanData = useMemo(() => {
         if (!data || data.length === 0) return [];
-        // Sort by date ascending
         return [...data]
             .map(d => ({...d, value: Number(d.value)}))
             .sort((a,b) => {
@@ -164,14 +160,7 @@ const BiomarkerChart = ({
     );
 };
 
-// 1. HORMONAL RADAR (Testo vs Estradiol)
-const HormonalBalanceChart = ({ 
-    testoData, 
-    e2Data 
-}: { 
-    testoData: MetricPoint[]; 
-    e2Data: MetricPoint[]; 
-}) => {
+const HormonalBalanceChart = ({ testoData, e2Data }: { testoData: MetricPoint[]; e2Data: MetricPoint[]; }) => {
     const mergedData = useMemo(() => {
         const map = new Map();
         testoData.forEach(d => map.set(d.date, { date: d.date, testo: Number(d.value) }));
@@ -179,19 +168,14 @@ const HormonalBalanceChart = ({
             const existing = map.get(d.date) || { date: d.date };
             map.set(d.date, { ...existing, e2: Number(d.value) });
         });
-        
-        return Array.from(map.values())
-            .filter(d => d.testo !== undefined || d.e2 !== undefined)
-            .sort((a,b) => {
-                const da = a.date.split('/').reverse().join('-');
-                const db = b.date.split('/').reverse().join('-');
-                return new Date(da).getTime() - new Date(db).getTime();
-            });
+        return Array.from(map.values()).sort((a,b) => {
+            const da = a.date.split('/').reverse().join('-');
+            const db = b.date.split('/').reverse().join('-');
+            return new Date(da).getTime() - new Date(db).getTime();
+        });
     }, [testoData, e2Data]);
 
     if (!testoData?.length && !e2Data?.length) return null;
-
-    // Se só tiver um dos dados, mostra aviso mas renderiza o que tem
     const isMissingOne = !testoData.length || !e2Data.length;
 
     return (
@@ -208,7 +192,6 @@ const HormonalBalanceChart = ({
                     </p>
                 </div>
             </div>
-            
             {isMissingOne ? (
                 <EmptyChartState message="Adicione exames de Testosterona e Estradiol para desbloquear este insight." />
             ) : (
@@ -221,27 +204,8 @@ const HormonalBalanceChart = ({
                             <YAxis yAxisId="right" orientation="right" hide />
                             <RechartsTooltip content={<CustomTooltip />} />
                             <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: '10px' }}/>
-                            
-                            <Area 
-                                yAxisId="left" 
-                                type="monotone" 
-                                dataKey="testo" 
-                                name="Testosterona" 
-                                fill="#3b82f6" 
-                                stroke="#2563eb" 
-                                fillOpacity={0.1}
-                                label={<CustomizedLabel dataLength={mergedData.length} color="#2563eb" />} 
-                            />
-                            <Line 
-                                yAxisId="right" 
-                                type="monotone" 
-                                dataKey="e2" 
-                                name="Estradiol" 
-                                stroke="#ec4899" 
-                                strokeWidth={2} 
-                                dot={{r:3}}
-                                label={<CustomizedLabel dataLength={mergedData.length} color="#ec4899" />} 
-                            />
+                            <Area yAxisId="left" type="monotone" dataKey="testo" name="Testosterona" fill="#3b82f6" stroke="#2563eb" fillOpacity={0.1} label={<CustomizedLabel dataLength={mergedData.length} color="#2563eb" />} />
+                            <Line yAxisId="right" type="monotone" dataKey="e2" name="Estradiol" stroke="#ec4899" strokeWidth={2} dot={{r:3}} label={<CustomizedLabel dataLength={mergedData.length} color="#ec4899" />} />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </div>
@@ -250,18 +214,10 @@ const HormonalBalanceChart = ({
     );
 };
 
-// 2. CASTELLI INDEX (LDL / HDL Ratio)
-const CastelliChart = ({ 
-    ldlData, 
-    hdlData 
-}: { 
-    ldlData: MetricPoint[]; 
-    hdlData: MetricPoint[]; 
-}) => {
+const CastelliChart = ({ ldlData, hdlData }: { ldlData: MetricPoint[]; hdlData: MetricPoint[]; }) => {
     const ratioData = useMemo(() => {
         const map = new Map();
         ldlData.forEach(d => map.set(d.date, { date: d.date, ldl: Number(d.value) }));
-        
         const result: any[] = [];
         hdlData.forEach(d => {
             const entry = map.get(d.date);
@@ -275,7 +231,6 @@ const CastelliChart = ({
                 });
             }
         });
-        
         return result.sort((a,b) => {
              const da = a.date.split('/').reverse().join('-');
              const db = b.date.split('/').reverse().join('-');
@@ -306,7 +261,6 @@ const CastelliChart = ({
                     {currentRatio}
                 </div>
             </div>
-            
             <div className="h-40 w-full pl-3">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={ratioData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
@@ -321,15 +275,7 @@ const CastelliChart = ({
                         <YAxis hide domain={[0, 'auto']} />
                         <ReferenceLine y={3.5} stroke="red" strokeDasharray="3 3" label={{ value: 'Risco', fontSize: 9, fill: 'red' }} />
                         <RechartsTooltip content={<CustomTooltip />} />
-                        <Area 
-                            type="monotone" 
-                            dataKey="value" 
-                            name="LDL/HDL"
-                            stroke={isDanger ? '#ef4444' : '#10b981'} 
-                            fill="url(#colorRisk)" 
-                            strokeWidth={2}
-                            label={<CustomizedLabel dataLength={ratioData.length} color={isDanger ? '#ef4444' : '#10b981'} />}
-                        />
+                        <Area type="monotone" dataKey="value" name="LDL/HDL" stroke={isDanger ? '#ef4444' : '#10b981'} fill="url(#colorRisk)" strokeWidth={2} label={<CustomizedLabel dataLength={ratioData.length} color={isDanger ? '#ef4444' : '#10b981'} />} />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
@@ -337,24 +283,13 @@ const CastelliChart = ({
     );
 };
 
-// 3. RELATIVE STRENGTH (Strength / Weight)
-const EfficiencyChart = ({ 
-    strengthData, 
-    weightData 
-}: { 
-    strengthData: MetricPoint[]; 
-    weightData: MetricPoint[]; 
-}) => {
+const EfficiencyChart = ({ strengthData, weightData }: { strengthData: MetricPoint[]; weightData: MetricPoint[]; }) => {
     const ratioData = useMemo(() => {
         const map = new Map();
         weightData.forEach(d => map.set(d.date, { date: d.date, bw: Number(d.value) }));
-        
         const result: any[] = [];
         strengthData.forEach(d => {
-            // Find closest weight entry (simplified to exact date match for now, or fallback)
             let entry = map.get(d.date);
-            // If no exact match, use the last known weight? (Simplification: exact match for reliable data)
-            
             if (entry && entry.bw && Number(d.value) > 0) {
                 const ratio = Number(d.value) / entry.bw;
                 result.push({
@@ -364,7 +299,6 @@ const EfficiencyChart = ({
                 });
             }
         });
-        
         return result.sort((a,b) => {
              const da = a.date.split('/').reverse().join('-');
              const db = b.date.split('/').reverse().join('-');
@@ -372,7 +306,7 @@ const EfficiencyChart = ({
         });
     }, [strengthData, weightData]);
 
-    if (!strengthData?.length) return null; // If no strength data, don't show, or show empty state if weight exists
+    if (!strengthData?.length) return null;
 
     return (
         <div className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden dark:bg-gray-900 dark:border-gray-800">
@@ -399,15 +333,7 @@ const EfficiencyChart = ({
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={['auto', 'auto']} />
                             <RechartsTooltip content={<CustomTooltip />} />
-                            <Line 
-                                type="step" 
-                                dataKey="value" 
-                                name="Eficiência"
-                                stroke="#2563eb" 
-                                strokeWidth={3}
-                                dot={{r: 4, fill: '#2563eb'}}
-                                label={<CustomizedLabel dataLength={ratioData.length} color="#2563eb" />}
-                            />
+                            <Line type="step" dataKey="value" name="Eficiência" stroke="#2563eb" strokeWidth={3} dot={{r: 4, fill: '#2563eb'}} label={<CustomizedLabel dataLength={ratioData.length} color="#2563eb" />} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -416,67 +342,78 @@ const EfficiencyChart = ({
     );
 };
 
-const RiskCard = ({ risk, onViewSource }: { risk: RiskFlag, onViewSource?: (id: string) => void }) => (
-    <div className={`p-4 rounded-xl border flex flex-col gap-2 shadow-sm animate-in slide-in-from-top-2 ${
-        risk.level === 'HIGH' 
-        ? 'bg-red-50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30' 
-        : 'bg-orange-50 border-orange-100 dark:bg-orange-900/10 dark:border-orange-900/30'
-    }`}>
-        <div className="flex justify-between items-start">
-            <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
+// --- UPDATED RISK CARD (INTERACTIVE) ---
+const RiskCard = ({ risk, onViewSource }: { risk: RiskFlag, onViewSource?: (id: string) => void }) => {
+    return (
+        <div 
+            onClick={() => risk.sourceId && onViewSource && onViewSource(risk.sourceId)}
+            className={`group relative p-5 rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-pointer ${
                 risk.level === 'HIGH' 
-                ? 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200' 
-                : 'bg-orange-200 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-            }`}>
-                {risk.category}
-            </span>
-            <span className={`text-[10px] font-bold ${
-                risk.level === 'HIGH' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
-            }`}>
-                {risk.level}
-            </span>
-        </div>
-        
-        <p className={`text-sm font-medium leading-relaxed ${
-            risk.level === 'HIGH' ? 'text-red-900 dark:text-red-100' : 'text-orange-900 dark:text-orange-100'
-        }`}>
-            {risk.message}
-        </p>
+                ? 'bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/50 dark:hover:bg-red-900/20' 
+                : 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/50 dark:hover:bg-orange-900/20'
+            }`}
+        >
+            {/* Header Badge */}
+            <div className="flex justify-between items-start mb-3">
+                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm ${
+                    risk.level === 'HIGH' 
+                    ? 'bg-red-600 text-white dark:bg-red-700' 
+                    : 'bg-orange-500 text-white dark:bg-orange-600'
+                }`}>
+                    {risk.category}
+                </span>
+                
+                {/* Date */}
+                <span className={`text-[10px] font-bold opacity-60 ${
+                    risk.level === 'HIGH' ? 'text-red-900 dark:text-red-200' : 'text-orange-900 dark:text-orange-200'
+                }`}>
+                    {risk.date}
+                </span>
+            </div>
+            
+            {/* Icon */}
+            <div className="absolute top-4 right-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <IconAlert className="w-12 h-12" />
+            </div>
 
-        {/* --- SOURCE LINKING BUTTON --- */}
-        {risk.sourceId && (
-            <button 
-                onClick={() => onViewSource && onViewSource(risk.sourceId!)}
-                className={`mt-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors w-fit px-2 py-1 rounded-lg ${
-                    risk.level === 'HIGH'
-                    ? 'text-red-600 bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60'
-                    : 'text-orange-600 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60'
-                }`}
-            >
-                <IconFile className="w-3 h-3" />
-                Ver Exame Original ({risk.date})
-            </button>
-        )}
-    </div>
-);
+            {/* Message Body */}
+            <div className="pr-2">
+                <h4 className={`font-bold text-sm leading-tight mb-2 ${
+                    risk.level === 'HIGH' ? 'text-red-900 dark:text-red-100' : 'text-orange-900 dark:text-orange-100'
+                }`}>
+                    {risk.level === 'HIGH' ? 'Alerta Crítico' : 'Atenção Necessária'}
+                </h4>
+                <p className={`text-xs font-medium leading-relaxed ${
+                    risk.level === 'HIGH' ? 'text-red-800 dark:text-red-200' : 'text-orange-800 dark:text-orange-200'
+                }`}>
+                    {risk.message}
+                </p>
+            </div>
+
+            {/* Call to Action */}
+            {risk.sourceId && (
+                <div className={`mt-4 pt-3 border-t flex items-center justify-between text-xs font-bold uppercase tracking-wider ${
+                    risk.level === 'HIGH' 
+                    ? 'border-red-200 text-red-600 dark:border-red-800 dark:text-red-400' 
+                    : 'border-orange-200 text-orange-600 dark:border-orange-800 dark:text-orange-400'
+                }`}>
+                    <span>Ver Exame Original</span>
+                    <IconFile className="w-4 h-4 transform group-hover:scale-110 transition-transform" />
+                </div>
+            )}
+        </div>
+    );
+};
 
 const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing, onViewSource }) => {
     // 1. Prepare Data for Advanced Charts
     const metrics = project.metrics;
-
-    // Castelli
     const ldl = metrics['LDL'] || [];
     const hdl = metrics['HDL'] || [];
-
-    // Hormonal
     const testo = metrics['Testosterone'] || metrics['Testosterona'] || [];
     const e2 = metrics['Estradiol'] || [];
-
-    // Efficiency (Looks for 'Strength', 'Carga', 'Squat', 'Bench')
     const strength = metrics['Strength'] || metrics['Carga'] || metrics['Força'] || [];
     const weight = metrics['Weight'] || metrics['Peso'] || [];
-
-    // All categories for the bottom list
     const allCategories = Object.keys(metrics);
 
     return (
@@ -493,7 +430,6 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                     </p>
                 </div>
                 
-                {/* BUTTON (Desktop/Tablet) - EXPLICIT 'PRONTUARIO PDF' */}
                 {!isProcessing && (
                     <div className="flex flex-col items-end gap-1">
                         <button 
@@ -503,22 +439,24 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                             <IconReportPDF className="w-4 h-4" />
                             PRONTUÁRIO PDF
                         </button>
-                        <span className="text-[9px] text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full dark:bg-green-900/30 dark:text-green-400 hidden md:block">
-                            ⚡ Modo Econômico Ativo
-                        </span>
                     </div>
                 )}
             </div>
 
-            {/* --- RISK ALERTS SECTION (ALWAYS VISIBLE) --- */}
-            <div className="mb-8">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-gray-500">
-                    <IconShield className="w-4 h-4" />
-                    Monitoramento de Risco
-                </h3>
+            {/* --- RISK ALERTS SECTION (GRID LAYOUT) --- */}
+            <div className="mb-10">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="bg-red-100 p-1.5 rounded-lg dark:bg-red-900/30">
+                        <IconShield className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    </div>
+                    <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest dark:text-white">
+                        Diagnóstico de Riscos ({risks.length})
+                    </h3>
+                </div>
                 
                 {risks && risks.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    /* GRID RESPONSIVO PARA CARDS DE RISCO */
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {risks.map((risk, idx) => (
                             <RiskCard key={idx} risk={risk} onViewSource={onViewSource} />
                         ))}
@@ -531,7 +469,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         <div>
                             <h4 className="font-bold text-emerald-900 text-sm dark:text-emerald-200">Status Saudável</h4>
                             <p className="text-xs text-emerald-700 mt-1 leading-relaxed dark:text-emerald-400/80">
-                                Nenhum marcador crítico (como Hematócrito > 53%, LDL > 160mg/dL ou Enzimas Hepáticas altas) foi detectado nos seus dados recentes.
+                                Nenhum marcador crítico foi detectado nos seus dados recentes. O sistema monitora constantemente novos exames.
                             </p>
                         </div>
                     </div>
@@ -543,17 +481,6 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 <HormonalBalanceChart testoData={testo} e2Data={e2} />
                 <CastelliChart ldlData={ldl} hdlData={hdl} />
                 <EfficiencyChart strengthData={strength} weightData={weight} />
-                
-                {/* Placeholder for future insights if needed */}
-                {(!testo.length && !ldl.length && !strength.length) && (
-                    <div className="col-span-1 lg:col-span-2 bg-blue-50 border border-blue-100 rounded-2xl p-8 flex flex-col items-center justify-center text-center dark:bg-blue-900/10 dark:border-blue-900/30">
-                        <IconSparkles className="w-8 h-8 text-blue-400 mb-2" />
-                        <h3 className="font-bold text-blue-900 dark:text-blue-300">Comece a monitorar</h3>
-                        <p className="text-sm text-blue-700/80 mt-1 max-w-md dark:text-blue-400/80">
-                            Faça upload de exames de sangue ou registre suas cargas de treino para desbloquear os gráficos de inteligência avançada (Risco Cardíaco, Hormônios e Eficiência).
-                        </p>
-                    </div>
-                )}
             </div>
 
             {/* SEPARATOR */}
@@ -576,7 +503,6 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 cat.includes('Peso') ? '#4b5563' :
                                 '#10b981'
                             }
-                            // Example references (would need a real DB mapping)
                             type={cat.includes('Peso') ? 'area' : 'line'}
                         />
                     </div>
@@ -590,10 +516,9 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 </div>
             )}
 
-            {/* Mobile Fab for Report - UPDATED ICON & TOOLTIP */}
             {isMobileView && !isProcessing && (
                 <div className="md:hidden fixed bottom-24 right-4 z-40">
-                    <Tooltip content="Gerar Prontuário PDF (Modo Econômico)" position="left">
+                    <Tooltip content="Gerar Prontuário PDF" position="left">
                         <button 
                             onClick={onGenerateProntuario}
                             className="bg-black text-white p-4 rounded-full shadow-2xl active:scale-90 transition-transform dark:bg-blue-600 border border-gray-800 dark:border-blue-500"

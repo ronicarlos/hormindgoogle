@@ -292,21 +292,22 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         1. Transcreva o texto visível.
         2. Extraia a DATA do exame (formato DD/MM/AAAA). Se não houver, use ${defaultDate}.
         
-        3. EXTRAÇÃO DE MÉTRICAS (CRÍTICO):
-           Procure obsessivamente por valores numéricos para estas categorias:
-           - Rins: Creatinina, Ureia, Taxa de Filtração Glomerular (TFG).
-           - Próstata: PSA Total, PSA Livre, VOLUME DA PRÓSTATA (em gramas ou cm³).
-           - Inflamatórios (Alto Risco): FATOR REUMATOIDE, Proteína C-Reativa (PCR), VHS.
-           - Muscular/Lesão: CPK (Creatinoquinase), CK-MB.
-           - Hormônios: Testosterona Total/Livre, Estradiol, Prolactina, TSH, T3, T4.
-           - Sangue: Hematócrito, Hemoglobina.
+        3. EXTRAÇÃO DE MÉTRICAS (EXTREMAMENTE CRÍTICO):
+           Procure obsessivamente por valores numéricos para estas categorias.
+           IMPORTANTE: CONVERTA VÍRGULA PARA PONTO DECIMAL EM NÚMEROS (Ex: "4,56" -> 4.56).
+           
+           - Próstata: "PSA Total" (Prioridade máxima), "PSA Livre", "Volume Prostático".
+           - Rins: Creatinina, Ureia.
+           - Inflamatórios: PCR, Fator Reumatoide, CPK.
+           - Hormônios: Testosterona Total, Estradiol, Prolactina.
+           - Colesterol: LDL, HDL, Triglicerídeos.
            - Fígado: TGO, TGP, Gama GT.
-           - Perfil Lipídico: LDL, HDL, Triglicerídeos.
+           - Sangue: Hematócrito, Hemoglobina.
 
-        4. REGRAS DE EXTRAÇÃO:
-           - Se encontrar "Volume Prostático: 45g", extraia category: "Volume Prostatico", value: 45, unit: "g".
-           - Se encontrar "Fator Reumatoide Inferior a 10", extraia value: 10 (ou o limite).
-           - Normalize os nomes (Ex: "Creat" -> "Creatinina").
+        4. REGRAS DE NORMALIZAÇÃO:
+           - Se encontrar "PSA Total: 4,20 ng/mL", extraia: { category: "PSA Total", value: 4.20, unit: "ng/mL" }.
+           - Se encontrar apenas "PSA: 5", extraia: { category: "PSA Total", value: 5, unit: "ng/mL" }.
+           - NÃO CONFUNDA "Proteína Total" com "PSA Total".
         
         RETORNE APENAS JSON VÁLIDO: 
         { "transcription": "...", "detectedDate": "...", "metrics": [{ "category": "...", "value": 0, "unit": "..." }] }
