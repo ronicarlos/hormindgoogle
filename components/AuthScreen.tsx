@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IconSparkles, IconAlert, IconCheck, IconEye, IconEyeOff, IconGoogle, IconMoon, IconSun } from './Icons';
+import { dataService } from '../services/dataService';
 
-// VERSÃO DO SISTEMA (Mesma constante do ProfileView)
-const APP_VERSION = "v1.5.0 - 14/01/2026";
+// Fallback version
+const APP_VERSION = "v1.5.7";
 
 const AuthScreen: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -19,6 +20,7 @@ const AuthScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+    const [dynamicVersion, setDynamicVersion] = useState(APP_VERSION);
     
     // Theme toggle state for manual override
     const [isDark, setIsDark] = useState(false);
@@ -37,6 +39,11 @@ const AuthScreen: React.FC = () => {
             setEmail(savedEmail);
             setRememberMe(true);
         }
+
+        // Fetch Version from DB
+        dataService.getLatestAppVersion().then(v => {
+            if (v) setDynamicVersion(`v${v.version}`);
+        });
     }, []);
 
     const toggleTheme = () => {
@@ -84,13 +91,15 @@ const AuthScreen: React.FC = () => {
         setError('');
         setMessage('');
 
-        // Handle "Remember Me" Logic for Email
+        // Handle "Remember Me" Logic for Email (Local) & Prepare Sync to DB
         if (mode === 'login') {
             if (rememberMe) {
                 localStorage.setItem('fitlm_saved_email', email);
             } else {
                 localStorage.removeItem('fitlm_saved_email');
             }
+            // Flag to sync this preference to DB after successful login
+            localStorage.setItem('fitlm_pending_remember_sync', String(rememberMe));
         }
 
         try {
@@ -382,7 +391,7 @@ const AuthScreen: React.FC = () => {
                 {/* DISCREET VERSION LABEL (FOOTER) */}
                 <div className="absolute bottom-2 left-0 right-0 text-center">
                     <span className="text-[10px] text-gray-300 font-mono opacity-50 dark:text-gray-700 select-none">
-                        {APP_VERSION}
+                        {dynamicVersion}
                     </span>
                 </div>
             </div>

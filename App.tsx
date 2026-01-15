@@ -24,9 +24,9 @@ import SubscriptionModal from './components/SubscriptionModal';
 import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
-// --- CONTROLE DE VERSÃO E CACHE ---
-// Atualize esta constante sempre que fizer um deploy para forçar a limpeza de cache nos usuários
-const APP_VERSION = '1.5.3'; 
+// --- CONTROLE DE VERSÃO E CACHE (Fallback manual + DB Sync) ---
+// Esta constante serve como fallback se o banco falhar, ou para marcar a versão do código.
+const CODE_VERSION = '1.5.7'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -43,15 +43,27 @@ export default function App() {
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [currentBill, setCurrentBill] = useState(0);
 
-  // --- AUTO-UPDATE LOGIC ---
+  // --- AUTO-UPDATE LOGIC (DATABASE DRIVEN) ---
   useEffect(() => {
     const checkVersionAndClearCache = async () => {
       const storedVersion = localStorage.getItem('fitlm_app_version');
       
-      if (storedVersion !== APP_VERSION) {
-        console.log(`Nova versão detectada (${APP_VERSION}). Limpando cache antigo...`);
+      // 1. Tenta pegar a versão mais recente do Supabase
+      let targetVersion = CODE_VERSION; 
+      try {
+          const latestDB = await dataService.getLatestAppVersion();
+          if (latestDB) {
+              targetVersion = latestDB.version;
+          }
+      } catch (e) {
+          console.warn("Falha ao checar versão no banco, usando local:", e);
+      }
+
+      // 2. Se a versão alvo (DB ou Code) for diferente da armazenada, limpa tudo.
+      if (storedVersion !== targetVersion) {
+        console.log(`Nova versão detectada (${targetVersion}). Limpando cache antigo...`);
         
-        // 1. Unregister Service Workers
+        // Unregister Service Workers
         if ('serviceWorker' in navigator) {
           try {
             const registrations = await navigator.serviceWorker.getRegistrations();
@@ -63,7 +75,7 @@ export default function App() {
           }
         }
 
-        // 2. Clear Browser Caches (Storage)
+        // Clear Browser Caches (Storage)
         if ('caches' in window) {
           try {
             const keys = await caches.keys();
@@ -73,10 +85,10 @@ export default function App() {
           }
         }
 
-        // 3. Update Stored Version
-        localStorage.setItem('fitlm_app_version', APP_VERSION);
+        // Update Stored Version
+        localStorage.setItem('fitlm_app_version', targetVersion);
 
-        // 4. Force Reload from Server (Ignora Cache)
+        // Force Reload from Server (Ignora Cache)
         window.location.reload();
       }
     };
@@ -108,6 +120,30 @@ export default function App() {
     const proj = await dataService.getOrCreateProject(userId);
     setProject(proj);
     
+    // --- SYNC REMEMBER EMAIL PREFERENCE ---
+    // Check if we have a pending sync from Login screen (User just checked/unchecked the box)
+    const pendingSync = localStorage.getItem('fitlm_pending_remember_sync');
+    
+    if (pendingSync !== null) {
+        // SYNC UP: Local choice -> Database
+        const choice = pendingSync === 'true';
+        await dataService.updateRememberEmailPreference(userId, choice);
+        localStorage.removeItem('fitlm_pending_remember_sync'); // Clear flag
+    } else {
+        // SYNC DOWN: Database preference -> Local Storage
+        // If user logged in on another device and set preference to true, we honor it here.
+        if (proj && proj.userProfile && proj.userProfile.rememberEmail) {
+            const currentEmail = session?.user?.email;
+            if (currentEmail) {
+                localStorage.setItem('fitlm_saved_email', currentEmail);
+            }
+        } else {
+            // If preference is false in DB, ensure we don't remember locally for next time
+            // Note: This logic assumes if I uncheck on Device A, I want it unchecked on Device B next time I log out.
+            localStorage.removeItem('fitlm_saved_email');
+        }
+    }
+
     if (proj && proj.userProfile && !proj.userProfile.termsAcceptedAt) {
         setIsLegalModalOpen(true);
     }

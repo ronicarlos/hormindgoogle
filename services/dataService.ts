@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog } from '../types';
+import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog, AppVersion } from '../types';
 import { embedText } from './geminiService';
 
 // Tipos auxiliares para Banco de Dados
@@ -285,6 +285,7 @@ export const dataService = {
                 termsAcceptedAt: data.terms_accepted_at,
                 hideStartupDisclaimer: data.hide_startup_disclaimer,
                 theme: data.theme || 'light',
+                rememberEmail: data.remember_email || false, // Load preference
                 subscriptionStatus: data.subscription_status || 'free'
             };
         } catch (e) {
@@ -306,6 +307,7 @@ export const dataService = {
             medications: profile.medications,
             measurements: profile.measurements,
             theme: profile.theme,
+            remember_email: profile.rememberEmail, // Save preference
             updated_at: new Date().toISOString()
         };
 
@@ -314,6 +316,15 @@ export const dataService = {
             .upsert(dbProfile, { onConflict: 'user_id' });
 
         if (error) console.error("Error saving profile:", error);
+        return error;
+    },
+
+    // New helper to just update the preference quickly
+    async updateRememberEmailPreference(userId: string, remember: boolean) {
+        const { error } = await supabase
+            .from('user_profiles')
+            .update({ remember_email: remember })
+            .eq('user_id', userId);
         return error;
     },
 
@@ -663,5 +674,29 @@ export const dataService = {
         } catch (e) {
             return [];
         }
+    },
+
+    // --- VERSION CONTROL ---
+    async getAppVersionHistory(): Promise<AppVersion[]> {
+        try {
+            // Supondo que a tabela 'app_versions' exista. Se não existir, retorna array vazio ou erro tratável.
+            const { data, error } = await supabase
+                .from('app_versions')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.warn("Version check failed (Table might be missing):", error.message);
+                return [];
+            }
+            return data as AppVersion[];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    async getLatestAppVersion(): Promise<AppVersion | null> {
+        const history = await this.getAppVersionHistory();
+        return history.length > 0 ? history[0] : null;
     }
 };

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, AppVersion } from '../types';
 import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
 import CostTracker from './CostTracker';
@@ -8,7 +8,7 @@ import { Tooltip } from './Tooltip';
 import { 
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
-    IconWizard, IconCheck, IconInfo, IconCopy
+    IconWizard, IconCheck, IconInfo, IconCopy, IconClock
 } from './Icons';
 
 interface ProfileViewProps {
@@ -21,8 +21,8 @@ interface ProfileViewProps {
     onLogout?: () => void;
 }
 
-// VERSÃO DO SISTEMA (Atualizada para coincidir com App.tsx)
-const APP_VERSION = "v1.5.3 - 14/01/2026 19:30";
+// VERSÃO DO CÓDIGO LOCAL (Fallback)
+const CODE_VERSION = "v1.5.7";
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
@@ -68,6 +68,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     const [newPassword, setNewPassword] = useState('');
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
     const [userId, setUserId] = useState<string>('');
+    const [versionHistory, setVersionHistory] = useState<AppVersion[]>([]);
     
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const birthDateInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +106,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) setUserId(session.user.id);
+        });
+        
+        // Fetch Version History from DB
+        dataService.getAppVersionHistory().then(history => {
+            setVersionHistory(history);
         });
     }, []);
 
@@ -626,27 +632,49 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                             </div>
                         </div>
 
-                        {/* Force App Update (Cache Busting) */}
+                        {/* App Version History (Dynamic from DB) */}
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-                            <div className="flex justify-between items-start mb-3">
+                            <div className="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
                                 <div>
-                                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Atualização do App</h4>
-                                    <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                        Use se notar bugs visuais ou recursos desatualizados no celular (PWA).
+                                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Histórico de Atualizações</h4>
+                                    <p className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">
+                                        Versão Atual: <span className="font-mono text-blue-600 dark:text-blue-400">{versionHistory[0]?.version || CODE_VERSION}</span>
                                     </p>
                                 </div>
-                                <span className="text-[10px] font-mono bg-gray-200 text-gray-600 px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-300">
-                                    {APP_VERSION}
-                                </span>
+                                <button 
+                                    onClick={handleHardRefresh}
+                                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                    title="Forçar Atualização"
+                                >
+                                    <IconRefresh className="w-4 h-4" />
+                                </button>
                             </div>
                             
-                            <button 
-                                onClick={handleHardRefresh}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95 dark:bg-gray-900 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                <IconRefresh className="w-4 h-4" />
-                                Forçar Atualização e Limpar Cache
-                            </button>
+                            {versionHistory.length > 0 ? (
+                                <div className="space-y-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                                    {versionHistory.map((v) => (
+                                        <div key={v.id} className="relative pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                                            <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 bg-gray-300 rounded-full dark:bg-gray-600"></div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-black text-gray-900 bg-white px-1.5 py-0.5 rounded border border-gray-200 dark:bg-gray-900 dark:text-white dark:border-gray-600">
+                                                    {v.version}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                                                    <IconClock className="w-3 h-3" />
+                                                    {new Date(v.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'})}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-600 leading-relaxed dark:text-gray-400">
+                                                {v.description}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-4">
+                                    <p className="text-xs text-gray-400">Carregando histórico...</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* Logout Button */}

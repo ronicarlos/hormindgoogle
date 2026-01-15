@@ -17,6 +17,13 @@ export enum AnalysisType {
 
 export type AppView = 'chat' | 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing' | 'timeline';
 
+export interface AppVersion {
+    id: string;
+    version: string;
+    description: string;
+    created_at: string;
+}
+
 export interface UserProfile {
   id?: string;
   name: string;
@@ -49,6 +56,7 @@ export interface UserProfile {
   hideStartupDisclaimer?: boolean;
   // NEW: UI Preference
   theme?: 'light' | 'dark';
+  rememberEmail?: boolean; // Persisted preference for login
   // NEW: Billing
   subscriptionStatus?: 'free' | 'active' | 'past_due' | 'canceled';
 }
