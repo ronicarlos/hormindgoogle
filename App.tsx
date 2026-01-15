@@ -5,6 +5,8 @@ import { dataService } from './services/dataService';
 import { Project, UserProfile, AppView, Source, Exercise, DailyLogData, SourceType } from './types';
 import AuthScreen from './components/AuthScreen';
 import SourceSidebar from './components/SourceSidebar';
+import MobileNav from './components/MobileNav'; 
+import MobileHeader from './components/MobileHeader'; // NOVO COMPONENTE
 import MetricDashboard from './components/MetricDashboard';
 import ChatInterface from './components/ChatInterface'; 
 import ProfileView from './components/ProfileView';
@@ -61,12 +63,10 @@ export default function App() {
     const proj = await dataService.getOrCreateProject(userId);
     setProject(proj);
     
-    // Check legal terms
     if (proj && proj.userProfile && !proj.userProfile.termsAcceptedAt) {
         setIsLegalModalOpen(true);
     }
 
-    // Apply Saved Theme Logic (Critical Fix)
     if (proj?.userProfile?.theme) {
         if (proj.userProfile.theme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -74,14 +74,12 @@ export default function App() {
             document.documentElement.classList.remove('dark');
         }
     } else {
-        // Fallback to local storage if user profile has no theme set yet
         const savedTheme = localStorage.getItem('fitlm-theme');
         if (savedTheme === 'dark') {
              document.documentElement.classList.add('dark');
         }
     }
     
-    // Refresh billing
     const bill = await dataService.getCurrentMonthBill(userId);
     setCurrentBill(bill);
     
@@ -108,8 +106,6 @@ export default function App() {
       if (session?.user) {
           await dataService.acceptLegalTerms(session.user.id);
           setIsLegalModalOpen(false);
-          
-          // ATUALIZAÇÃO: Abre o Wizard automaticamente para onboarding imediato
           setIsWizardOpen(true);
 
           if (project && project.userProfile) {
@@ -128,26 +124,21 @@ export default function App() {
 
       for (const file of files) {
           try {
-              // 1. Tenta Upload para Storage
               const filePath = await dataService.uploadFileToStorage(file, session.user.id, project.id);
               
               if (!filePath) {
-                  console.error(`Falha no upload do arquivo: ${file.name}`);
                   alert(`Erro ao salvar arquivo: ${file.name}. Verifique se o nome contém caracteres especiais.`);
-                  continue; // Pula para o próximo arquivo se falhar o storage
+                  continue;
               }
 
-              // 2. Processa com Gemini OCR
               const { extractedText, metrics, documentType, detectedDate } = await processDocument(file, new Date().toLocaleDateString('pt-BR'));
               
-              // 3. Salva Métricas (se houver)
               for (const m of metrics) {
                   await dataService.addMetric(project.id, m.category, m.data);
               }
               
-              // 4. Salva o registro do Documento (Source)
               const source: Source = {
-                  id: '', // Gerado pelo Banco
+                  id: '',
                   title: file.name,
                   type: (file.type === 'application/pdf' ? SourceType.PDF : SourceType.IMAGE) as SourceType,
                   date: detectedDate || new Date().toLocaleDateString('pt-BR'),
@@ -160,7 +151,6 @@ export default function App() {
               
               await dataService.addSource(project.id, source);
               
-              // 5. Billing Log
               await dataService.logUsage(session.user.id, project.id, 'OCR', 500, 500); 
               setBillingTrigger(prev => prev + 1);
 
@@ -170,7 +160,6 @@ export default function App() {
           }
       }
       
-      // Reload para atualizar a UI
       loadProject(session.user.id);
   };
 
@@ -226,14 +215,14 @@ export default function App() {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
       
-      {/* Sidebar Navigation */}
-      <div className="hidden md:flex w-64 shrink-0 h-full">
+      {/* Desktop Sidebar (Hidden on Mobile) */}
+      <div className="hidden md:flex w-64 shrink-0 h-full border-r border-gray-200 dark:border-gray-800">
           <SourceSidebar 
               currentView={currentView} 
               onChangeView={setCurrentView} 
               onLogout={handleLogout}
               onOpenWizard={() => setIsWizardOpen(true)}
-              onUpload={handleUpload} // Passando a função de upload direto
+              onUpload={handleUpload}
               className="w-full"
           />
       </div>
@@ -241,19 +230,13 @@ export default function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           
-          {/* Mobile Header */}
-          <div className="md:hidden">
-               <SourceSidebar 
-                  currentView={currentView} 
-                  onChangeView={setCurrentView} 
-                  onLogout={handleLogout}
-                  onOpenWizard={() => setIsWizardOpen(true)}
-                  onUpload={handleUpload} // Passando a função de upload direto
-                  className="w-full h-auto border-b border-gray-200"
-              />
-          </div>
+          {/* MOBILE HEADER (Novo: Wizard e Perfil aqui) */}
+          <MobileHeader 
+              onOpenWizard={() => setIsWizardOpen(true)}
+              onOpenProfile={() => setCurrentView('profile')}
+          />
 
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative pb-[60px] md:pb-0"> 
               {!project && !isLoading && (
                   <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in">
                       <div className="bg-red-50 p-4 rounded-full mb-4 dark:bg-red-900/20">
@@ -273,7 +256,6 @@ export default function App() {
                   </div>
               )}
 
-              {/* ROUTING LOGIC */}
               {project && (
                   <>
                       {currentView === 'chat' && (
@@ -283,10 +265,11 @@ export default function App() {
                       {currentView === 'dashboard' && (
                           <MetricDashboard 
                               project={project}
-                              risks={[]} // Deveria computar riscos
+                              risks={[]}
                               onGenerateProntuario={handleGenerateProntuario}
                               isProcessing={isLoading}
                               onViewSource={(id) => { setSelectedSourceId(id); }}
+                              isMobileView={true} 
                           />
                       )}
 
@@ -295,8 +278,7 @@ export default function App() {
                               project={project}
                               onViewSource={(source) => setSelectedSourceId(source.id)}
                               onUpdateProject={handleUpdateProject}
-                              onUpload={handleUpload} // Passando função direta, sem abrir Wizard
-                              onUploadClick={() => {}} // Deprecated, mantido por compatibilidade de tipo se necessario, mas não usado
+                              onUpload={handleUpload}
                           />
                       )}
 
@@ -333,9 +315,15 @@ export default function App() {
               )}
           </div>
           
-          {/* Floating Actions (Only on Dashboard) */}
+          {/* Mobile Bottom Navigation (CORRIGIDO: 6 Itens, sem upload central) */}
+          <MobileNav 
+              currentView={currentView}
+              onChangeView={setCurrentView}
+          />
+
+          {/* Floating Actions (Dashboard Only) */}
           {currentView === 'dashboard' && project && (
-              <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-3">
+              <div className="absolute bottom-20 right-6 z-30 flex flex-col gap-3 md:bottom-6">
                   <button
                       onClick={() => setIsInputModalOpen(true)}
                       className="p-4 bg-black text-white rounded-full shadow-xl hover:bg-gray-800 transition-transform active:scale-95 dark:bg-blue-600"

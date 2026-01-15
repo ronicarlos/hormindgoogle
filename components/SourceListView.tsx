@@ -9,7 +9,7 @@ interface SourceListViewProps {
     onViewSource: (source: Source) => void;
     onUpdateProject: (p: Project) => void;
     onUpload: (files: File[]) => void;
-    onUploadClick?: () => void; // Compatibilidade de tipo
+    onUploadClick?: () => void;
 }
 
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
@@ -75,7 +75,6 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
         if (!itemToDelete) return;
         const { id, filePath } = itemToDelete;
         
-        // Fecha modal e inicia loading
         setItemToDelete(null);
         setIsDeleting(id);
         
@@ -84,7 +83,6 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
             
             if (error) {
                 console.error("Erro Delete:", error);
-                // Fallback visual para erro (já que alert pode ser bloqueado também)
                 console.log(`ERRO AO EXCLUIR: ${error.message || 'Permissão negada'}. Verifique SQL.`);
             } else {
                 const updatedSources = project.sources.filter(s => s.id !== id);
@@ -118,14 +116,14 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                 onConfirm={handleConfirmDelete} 
             />
 
-            {/* Header */}
-            <div className="shrink-0 bg-white border-b border-gray-200 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 dark:bg-gray-900 dark:border-gray-800">
+            {/* Header: Adjusted for Mobile to be Row-based */}
+            <div className="shrink-0 bg-white border-b border-gray-200 p-4 md:p-6 flex flex-row items-center justify-between gap-4 dark:bg-gray-900 dark:border-gray-800">
                 <div>
-                    <h2 className="text-xl font-black text-gray-900 flex items-center gap-2 dark:text-white">
-                        <IconFolder className="w-6 h-6 text-blue-600" />
+                    <h2 className="text-lg md:text-xl font-black text-gray-900 flex items-center gap-2 dark:text-white">
+                        <IconFolder className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                         MEUS EXAMES
                     </h2>
-                    <p className="text-xs text-gray-500 font-medium mt-1 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 font-medium mt-1 dark:text-gray-400 hidden md:block">
                         Gerenciador de Arquivos & Documentos
                     </p>
                 </div>
@@ -141,10 +139,11 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                     />
                     <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700"
+                        className="flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-black text-white rounded-lg text-xs md:text-sm font-bold hover:bg-gray-800 transition-colors shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700"
                     >
                         <IconPlus className="w-4 h-4" />
-                        Novo Upload
+                        <span className="hidden md:inline">Novo Upload</span>
+                        <span className="md:hidden">Upload</span>
                     </button>
                 </div>
             </div>
@@ -161,12 +160,12 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                         className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                     />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
                     {['ALL', 'PDF', 'IMAGE'].map(t => (
                         <button
                             key={t}
                             onClick={() => setFilterType(t as any)}
-                            className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors border ${
+                            className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors border whitespace-nowrap ${
                                 filterType === t 
                                 ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
                                 : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400'
