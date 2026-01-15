@@ -90,8 +90,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
             return;
         }
 
-        // Use type assertion instead of global declaration
+        // Use type assertion instead of global declaration to avoid runtime syntax errors
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        
         if (!SpeechRecognition) {
             alert("Seu navegador não suporta entrada de voz. Tente usar o Chrome, Edge ou Safari.");
             return;
