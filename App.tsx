@@ -53,16 +53,24 @@ export default function App() {
         
         // 1. Unregister Service Workers
         if ('serviceWorker' in navigator) {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          for (const registration of registrations) {
-            await registration.unregister();
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+              await registration.unregister();
+            }
+          } catch (err) {
+            console.warn("Erro ao limpar ServiceWorker (ignorado):", err);
           }
         }
 
         // 2. Clear Browser Caches (Storage)
         if ('caches' in window) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map(key => caches.delete(key)));
+          try {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(key => caches.delete(key)));
+          } catch (err) {
+            console.warn("Erro ao limpar Cache Storage (ignorado):", err);
+          }
         }
 
         // 3. Update Stored Version

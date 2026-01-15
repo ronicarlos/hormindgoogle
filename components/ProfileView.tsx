@@ -245,23 +245,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     };
 
     // --- HARD REFRESH LOGIC (PWA FIX) ---
-    const handleHardRefresh = () => {
+    const handleHardRefresh = async () => {
         if (!confirm("Isso irá limpar o cache local e forçar o download da versão mais recente do app. Continuar?")) return;
 
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister();
+        try {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for(const registration of registrations) {
+                    await registration.unregister();
                 }
-            });
+            }
+        } catch (e) {
+            console.warn("SW Cleanup error", e);
         }
 
-        if ('caches' in window) {
-            caches.keys().then((names) => {
-                names.forEach((name) => {
-                    caches.delete(name);
-                });
-            });
+        try {
+            if ('caches' in window) {
+                const names = await caches.keys();
+                await Promise.all(names.map(name => caches.delete(name)));
+            }
+        } catch (e) {
+            console.warn("Cache Cleanup error", e);
         }
 
         window.location.reload();
