@@ -119,8 +119,7 @@ export const dataService = {
                 .limit(1);
 
             if (error) {
-                console.error('Error fetching project:', error);
-                // Se falhar o fetch do projeto, não adianta continuar
+                console.error('Error fetching project:', error.message);
                 return null;
             }
 
@@ -141,7 +140,7 @@ export const dataService = {
                     .single();
 
                 if (createError || !newProject) {
-                    console.error('Error creating project:', createError);
+                    console.error('Error creating project:', createError.message);
                     return null;
                 }
                 currentProject = newProject;
@@ -149,7 +148,6 @@ export const dataService = {
 
             const project = await this.hydrateProject(currentProject);
             
-            // Tenta carregar perfil, mas não bloqueia se falhar
             try {
                 const profile = await this.getUserProfile(userId);
                 if (profile) {
@@ -170,9 +168,7 @@ export const dataService = {
         const sources: Source[] = [];
         const groupedMetrics: Record<string, MetricPoint[]> = {};
 
-        // 1. Safe Load Sources
         try {
-            // Select básico para evitar erro se 'specific_type' não existir ainda
             const { data: sourcesData } = await supabase
                 .from('sources')
                 .select('*')
@@ -198,7 +194,7 @@ export const dataService = {
                         selected: s.selected,
                         filePath: s.file_path || undefined,
                         fileUrl: fileUrl,
-                        specificType: s.specific_type || undefined, // Safe access
+                        specificType: s.specific_type || undefined, 
                         createdAt: s.created_at
                     });
                 }
@@ -207,7 +203,6 @@ export const dataService = {
             console.error("Error hydrating sources:", e);
         }
 
-        // 2. Safe Load Metrics
         try {
             const { data: metrics } = await supabase
                 .from('metrics')
@@ -238,7 +233,7 @@ export const dataService = {
             objective: dbProject.objective as any,
             currentProtocol: dbProject.current_protocol || [],
             trainingNotes: dbProject.training_notes || '',
-            dietCalories: dbProject.diet_calories || '', // Hydrate Diet field
+            dietCalories: dbProject.diet_calories || '', 
             sources: sources,
             metrics: groupedMetrics
         };
@@ -287,7 +282,7 @@ export const dataService = {
                 termsAcceptedAt: data.terms_accepted_at,
                 hideStartupDisclaimer: data.hide_startup_disclaimer,
                 theme: data.theme || 'light',
-                rememberEmail: data.remember_email || false, // Load preference
+                rememberEmail: data.remember_email || false,
                 subscriptionStatus: data.subscription_status || 'free'
             };
         } catch (e) {
@@ -309,7 +304,7 @@ export const dataService = {
             medications: profile.medications,
             measurements: profile.measurements,
             theme: profile.theme,
-            remember_email: profile.rememberEmail, // Save preference
+            remember_email: profile.rememberEmail, 
             updated_at: new Date().toISOString()
         };
 
@@ -317,11 +312,10 @@ export const dataService = {
             .from('user_profiles')
             .upsert(dbProfile, { onConflict: 'user_id' });
 
-        if (error) console.error("Error saving profile:", error);
+        if (error) console.error("Error saving profile:", error.message);
         return error;
     },
 
-    // New helper to just update the preference quickly
     async updateRememberEmailPreference(userId: string, remember: boolean) {
         const { error } = await supabase
             .from('user_profiles')
@@ -350,7 +344,6 @@ export const dataService = {
     },
     
     async uploadAvatar(file: File, userId: string): Promise<string | null> {
-        // Sanitize file name for avatar too
         const fileExt = file.name.split('.').pop();
         const safeFileName = `avatar_${Date.now()}.${fileExt}`;
         const filePath = `${userId}/avatars/${safeFileName}`;
@@ -383,7 +376,6 @@ export const dataService = {
     },
 
     async uploadFileToStorage(file: File, userId: string, projectId: string): Promise<string | null> {
-        // SANITIZAÇÃO CRÍTICA DO NOME DO ARQUIVO
         const cleanName = file.name
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
             .replace(/[^a-zA-Z0-9.-]/g, "_");
@@ -421,17 +413,16 @@ export const dataService = {
                 summary: source.summary
             });
         
-        if (error) console.error('Error adding source:', error);
+        if (error) console.error('Error adding source:', error.message);
         return error;
     },
 
     async deleteSource(sourceId: string, filePath?: string) {
         if (filePath) {
             try {
-                const { error: storageError } = await supabase.storage
+                await supabase.storage
                     .from('project_files')
                     .remove([filePath]);
-                if (storageError) console.warn("Storage deletion warning:", storageError);
             } catch (e) {
                 console.warn("Storage deletion error", e);
             }
@@ -442,7 +433,7 @@ export const dataService = {
             .delete()
             .eq('id', sourceId);
         
-        if (error) console.error('Error deleting source:', error);
+        if (error) console.error('Error deleting source:', error.message);
         return error;
     },
 
@@ -452,7 +443,7 @@ export const dataService = {
             .update({ summary: summary })
             .eq('id', sourceId);
         
-        if (error) console.error('Error updating summary:', error);
+        if (error) console.error('Error updating summary:', error.message);
         return error;
     },
 
@@ -462,16 +453,15 @@ export const dataService = {
             .update({ selected: isSelected })
             .eq('id', sourceId);
         
-        if (error) console.error('Error toggling source:', error);
+        if (error) console.error('Error toggling source:', error.message);
     },
 
     async addMetric(projectId: string, category: string, point: MetricPoint) {
-        // Converte data para ISO se vier em formato brasileiro (DD/MM/YYYY)
         let safeDate = point.date;
         if (point.date.includes('/')) {
             const parts = point.date.split('/');
             if (parts.length === 3) {
-                safeDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+                safeDate = `${parts[2]}-${parts[1]}-${parts[0]}`; 
             }
         }
 
@@ -486,10 +476,9 @@ export const dataService = {
                 label: point.label
             });
         
-        if (error) console.error('Error adding metric:', error);
+        if (error) console.error('Error adding metric:', error.message);
     },
 
-    // UPDATE: Added dietCalories parameter to signature and DB Update
     async updateProjectSettings(projectId: string, objective: string, protocol: ProtocolItem[], trainingNotes?: string, dietCalories?: string) {
         const updateData: any = { 
             current_protocol: protocol,
@@ -500,6 +489,7 @@ export const dataService = {
             updateData.training_notes = trainingNotes;
         }
         
+        // Garante que o campo diet_calories existe no update, mesmo vazio, se passado
         if (dietCalories !== undefined) {
             updateData.diet_calories = dietCalories;
         }
@@ -509,7 +499,10 @@ export const dataService = {
             .update(updateData)
             .eq('id', projectId);
             
-        if (error) console.error('Error updating project settings:', error);
+        if (error) {
+            // Log detalhado para debug do usuário
+            console.error('Error updating project settings:', JSON.stringify(error, null, 2));
+        }
     },
 
     async getMessages(projectId: string): Promise<ChatMessage[]> {
@@ -520,7 +513,7 @@ export const dataService = {
             .order('created_at', { ascending: true });
 
         if (error) {
-            console.error('Error fetching messages:', error);
+            console.error('Error fetching messages:', error.message);
             return [];
         }
 
@@ -548,7 +541,7 @@ export const dataService = {
                 is_bookmarked: false
             });
 
-        if (error) console.error('Error adding message:', error);
+        if (error) console.error('Error adding message:', error.message);
     },
 
     async toggleMessageBookmark(messageId: string, isBookmarked: boolean) {
@@ -557,7 +550,7 @@ export const dataService = {
             .update({ is_bookmarked: isBookmarked })
             .eq('id', messageId);
         
-        if (error) console.error('Error toggling bookmark:', error);
+        if (error) console.error('Error toggling bookmark:', error.message);
     },
 
     async searchMessagesSemantic(projectId: string, query: string): Promise<ChatMessage[]> {
@@ -572,7 +565,7 @@ export const dataService = {
         });
 
         if (error) {
-            console.error("Semantic Search Error:", error);
+            console.error("Semantic Search Error:", error.message);
             return [];
         }
 
@@ -604,7 +597,7 @@ export const dataService = {
                 cost_brl: totalCost
             });
 
-        if (error) console.error('Error logging usage:', error);
+        if (error) console.error('Error logging usage:', error.message);
         
         return totalCost;
     },
@@ -617,7 +610,7 @@ export const dataService = {
                 .eq('user_id', userId);
 
             if (error) {
-                console.error('Error fetching bill:', error);
+                console.error('Error fetching bill:', error.message);
                 return 0;
             }
 
@@ -677,7 +670,6 @@ export const dataService = {
                 .order('created_at', { ascending: false });
 
             if (error) {
-                console.warn("Version check failed (Table might be missing):", error.message);
                 return [];
             }
             return data as AppVersion[];

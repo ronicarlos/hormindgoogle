@@ -86,22 +86,23 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     const [manualE2, setManualE2] = useState('');
 
     useEffect(() => {
+        if (!isOpen) return;
+
         if (project.userProfile) {
             setProfileData({
                 ...project.userProfile,
                 measurements: project.userProfile.measurements || {} as any
             });
         }
+
         if (project.objective) setObjective(project.objective);
         if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
         if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
         
-        // CORREÇÃO DA CARGA DE CALORIAS
-        // 1. Tenta pegar da nova coluna dedicada (Project Settings)
+        // CORREÇÃO CRÍTICA DE CARGA DE DADOS
         if (project.dietCalories) {
             setCalories(project.dietCalories);
         } else {
-            // 2. Fallback para métrica antiga se não existir na nova coluna
             const calMetrics = project.metrics['Calories'];
             if (calMetrics && calMetrics.length > 0) {
                 const sorted = [...calMetrics].sort((a,b) => {
@@ -110,6 +111,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                      return new Date(db).getTime() - new Date(da).getTime();
                 });
                 setCalories(sorted[0].value.toString());
+            } else {
+                setCalories(''); 
             }
         }
         
@@ -187,6 +190,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
                 const updatedMetrics = { ...project.metrics };
+                // Garante que não enviamos linhas vazias no protocolo em nenhum passo
+                const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
 
                 if (currentStep <= 4) {
                     await dataService.saveUserProfile(session.user.id, profileData);
@@ -208,10 +213,10 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     onUpdateProject({ ...project, metrics: updatedMetrics });
                 }
 
-                // STEP DE DIETA - CORREÇÃO CRÍTICA
+                // STEP DE DIETA
                 if (currentStep === 6) {
-                    // Agora salva explicitamente na coluna diet_calories do projeto
-                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes, calories);
+                    // Salva configuração fixa e limpa protocolo
+                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
                     
                     const calValue = parseInt(calories);
                     if (!isNaN(calValue) && calValue > 0) {
@@ -223,7 +228,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             label: 'Wizard Setup' 
                         };
                         
-                        // Salva como métrica histórica também
                         await dataService.addMetric(project.id, 'Calories', point);
                         updatedMetrics['Calories'] = [...(updatedMetrics['Calories'] || []), point];
                         
@@ -231,20 +235,26 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             ...project, 
                             trainingNotes, 
                             objective, 
-                            currentProtocol: protocol,
-                            dietCalories: calories, // Atualiza o estado local do projeto
+                            currentProtocol: cleanProtocol,
+                            dietCalories: calories,
                             metrics: updatedMetrics 
+                        });
+                    } else if (calories === '') {
+                         onUpdateProject({ 
+                            ...project, 
+                            dietCalories: '', 
                         });
                     }
                 }
 
+                // STEP DE TREINO
                 if (currentStep === 7) {
-                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes, calories);
+                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
                     onUpdateProject({ ...project, trainingNotes, dietCalories: calories });
                 }
 
+                // STEP DE PROTOCOLO FINAL
                 if (currentStep >= 8) {
-                    const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                     await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
                     onUpdateProject({ ...project, objective, currentProtocol: cleanProtocol, trainingNotes, dietCalories: calories });
                 }

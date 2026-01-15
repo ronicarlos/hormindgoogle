@@ -1,8 +1,8 @@
 
--- RODE ESTE COMANDO NO SQL EDITOR DO SUPABASE --
+-- RODE ESTE COMANDO NO SQL EDITOR DO SUPABASE PARA CORRIGIR O ERRO --
 
 ALTER TABLE projects 
 ADD COLUMN IF NOT EXISTS diet_calories text;
 
--- Comentário: Isso cria o campo para armazenar a meta calórica fixa do projeto,
--- separando do histórico de métricas e do protocolo de fármacos.
+-- Garante que o cache de schema do PostgREST seja atualizado
+NOTIFY pgrst, 'reload config';
