@@ -1,11 +1,14 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
-import { IconUser, IconActivity, IconCheck, IconAlert, IconPlus, IconClose, IconCalendar, IconFlame, IconScience, IconWizard, IconMoon, IconSun, IconInfo, IconRefresh, IconShield } from './Icons';
-import { supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
+import { supabase } from '../lib/supabase';
 import CostTracker from './CostTracker';
 import { Tooltip } from './Tooltip';
+import { 
+    IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
+    IconActivity, IconAlert, IconShield, IconRefresh, 
+    IconWizard, IconCheck, IconInfo, IconCopy
+} from './Icons';
 
 interface ProfileViewProps {
     profile?: UserProfile;
@@ -14,10 +17,11 @@ interface ProfileViewProps {
     // Props para o CostTracker
     billingTrigger: number;
     onOpenSubscription: () => void;
+    onLogout?: () => void;
 }
 
 // VERSÃO DO SISTEMA (Atualize aqui a cada release)
-const APP_VERSION = "v1.5.0 - 14/01/2026 16:45";
+const APP_VERSION = "v1.5.2 - 14/01/2026 18:00";
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
@@ -55,13 +59,14 @@ const MEASUREMENT_HINTS: Record<string, string> = {
     calf: 'Maior circunferência'
 };
 
-const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription, onLogout }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     
     const [newPassword, setNewPassword] = useState('');
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+    const [userId, setUserId] = useState<string>('');
     
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const birthDateInputRef = useRef<HTMLInputElement>(null);
@@ -95,6 +100,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     };
 
     const [formData, setFormData] = useState<UserProfile>(profile || defaultProfile);
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) setUserId(session.user.id);
+        });
+    }, []);
 
     const calculateAge = (dateString: string) => {
         if (!dateString) return null;
@@ -175,6 +186,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
     const handleChange = (field: keyof UserProfile, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+        
+        // FIX CRÍTICO: Aplica o tema imediatamente no DOM
+        if (field === 'theme') {
+            if (value === 'dark') {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('fitlm-theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('fitlm-theme', 'light');
+            }
+        }
     };
 
     const handleMeasurementChange = (field: keyof UserProfile['measurements'], value: string) => {
@@ -225,7 +247,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     const handleHardRefresh = () => {
         if (!confirm("Isso irá limpar o cache local e forçar o download da versão mais recente do app. Continuar?")) return;
 
-        // 1. Unregister Service Workers
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
                 for(let registration of registrations) {
@@ -234,7 +255,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             });
         }
 
-        // 2. Clear Caches
         if ('caches' in window) {
             caches.keys().then((names) => {
                 names.forEach((name) => {
@@ -243,7 +263,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             });
         }
 
-        // 3. Force Reload
         window.location.reload();
     };
     
@@ -276,22 +295,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         }
     };
 
-    const handleDeleteAvatar = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!confirm("Remover foto de perfil?")) return;
-
-        try {
-             const { data: { session } } = await supabase.auth.getSession();
-             if (session?.user) {
-                 await dataService.deleteAvatar(session.user.id);
-                 setFormData(prev => ({ ...prev, avatarUrl: undefined }));
-                 onSave({ ...formData, avatarUrl: undefined });
-             }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
     const handleOpenDatePicker = () => {
         if (birthDateInputRef.current) {
             if (typeof birthDateInputRef.current.showPicker === 'function') {
@@ -300,6 +303,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                 birthDateInputRef.current.focus();
             }
         }
+    };
+
+    const handleOpenWizardSafe = () => {
+        if (onOpenWizard) {
+            onOpenWizard();
+        }
+    };
+
+    const copyUserId = () => {
+        navigator.clipboard.writeText(userId);
+        alert("ID copiado: " + userId);
     };
 
     const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500";
@@ -332,8 +346,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
                 {/* 2. WIZARD BANNER */}
                 <div 
-                    onClick={onOpenWizard}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform group"
+                    onClick={handleOpenWizardSafe}
+                    role="button"
+                    tabIndex={0}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all group"
                 >
                     <div className="flex items-center gap-4">
                         <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:bg-white/30 transition-colors">
@@ -465,14 +481,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
-                {/* 7. ANTROPOMETRIA (Grid de 2 Colunas conforme Screenshot) */}
+                {/* 7. ANTROPOMETRIA */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:border-gray-800 dark:text-gray-500">
                         <IconActivity className="w-4 h-4" />
                         ANTROPOMETRIA (MEDIDAS)
                     </h3>
-                    
-                    {/* Grid de 2 Colunas - Layout Fixo conforme Design do Usuário */}
                     <div className="grid grid-cols-2 gap-6">
                         <label className="block">
                             <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Peitoral (cm)</span>
@@ -573,6 +587,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </h3>
                     
                     <div className="space-y-8">
+                        {/* ID Debug */}
+                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center dark:bg-gray-800 dark:border-gray-700">
+                            <div>
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">ID de Suporte</span>
+                                <code className="text-xs text-gray-600 font-mono dark:text-gray-300">{userId || 'Carregando...'}</code>
+                            </div>
+                            <button onClick={copyUserId} className="text-gray-400 hover:text-blue-600 transition-colors">
+                                <IconCopy className="w-4 h-4" />
+                            </button>
+                        </div>
+
                         {/* Change Password */}
                         <div>
                             <label className="block mb-2">
@@ -618,6 +643,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                 Forçar Atualização e Limpar Cache
                             </button>
                         </div>
+
+                        {/* Logout Button */}
+                        {onLogout && (
+                            <button 
+                                onClick={onLogout}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 border-2 border-red-100 text-red-600 rounded-lg font-bold text-sm hover:bg-red-100 transition-all active:scale-95 dark:bg-red-900/20 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-900/30"
+                            >
+                                Sair da Conta
+                            </button>
+                        )}
                     </div>
                  </div>
 

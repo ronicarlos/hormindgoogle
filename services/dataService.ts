@@ -10,7 +10,7 @@ interface DBProject {
     name: string;
     objective: string;
     current_protocol: any;
-    training_notes?: string; // Add persistence field
+    training_notes?: string;
     created_at: string;
 }
 
@@ -29,7 +29,7 @@ interface DBMessage {
     project_id: string;
     role: 'user' | 'model';
     text: string;
-    is_bookmarked?: boolean; // New field
+    is_bookmarked?: boolean;
     created_at: string;
 }
 
@@ -38,16 +38,17 @@ interface DBSource {
     project_id: string;
     title: string;
     type: string;
+    specific_type?: string; 
     date: string;
     content: string;
-    summary?: string; // Mapped from DB
+    summary?: string;
     selected: boolean;
     file_path: string | null;
+    created_at?: string;
 }
 
-// Helper para calcular idade
 const calculateAge = (dateString: string) => {
-    if (!dateString) return 30; // Fallback
+    if (!dateString) return 30;
     const today = new Date();
     const birthDate = new Date(dateString);
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -58,7 +59,6 @@ const calculateAge = (dateString: string) => {
     return age;
 };
 
-// Helper para realizar a matemática metabólica no Backend/Service Layer
 const calculateMetabolicStats = (
     weight: number, 
     heightCm: number, 
@@ -80,7 +80,6 @@ const calculateMetabolicStats = (
     const heightM = heightCm / 100;
     const age = calculateAge(birthDate);
 
-    // 1. BMI
     const bmi = weight / (heightM * heightM);
     stats.bmi = bmi.toFixed(1);
     if (bmi < 18.5) stats.bmiClassification = 'Abaixo do Peso';
@@ -88,7 +87,6 @@ const calculateMetabolicStats = (
     else if (bmi < 29.9) stats.bmiClassification = 'Sobrepeso';
     else stats.bmiClassification = 'Obesidade';
 
-    // 2. BMR (Mifflin-St Jeor)
     let bmr = (10 * weight) + (6.25 * heightCm) - (5 * age);
     if (gender === 'Masculino') {
         bmr += 5;
@@ -97,7 +95,6 @@ const calculateMetabolicStats = (
     }
     stats.bmr = Math.round(bmr).toString();
 
-    // 3. WHR (Cintura-Quadril)
     if (waist > 0 && hips > 0) {
         const whr = waist / hips;
         stats.whr = whr.toFixed(2);
@@ -112,118 +109,126 @@ const calculateMetabolicStats = (
 };
 
 export const dataService = {
-    /**
-     * Busca ou cria um projeto padrão para o usuário atual
-     * @param userId - ID do usuário autenticado (Garante isolamento SaaS)
-     */
     async getOrCreateProject(userId: string): Promise<Project | null> {
-        // Tenta buscar projeto existente
-        const { data: projects, error } = await supabase
-            .from('projects')
-            .select('*')
-            .eq('user_id', userId)
-            .limit(1);
-
-        if (error) {
-            console.error('Error fetching project:', error);
-            return null;
-        }
-
-        let currentProject: DBProject;
-
-        if (projects && projects.length > 0) {
-            currentProject = projects[0];
-        } else {
-            // Se não existe, cria um padrão
-            const { data: newProject, error: createError } = await supabase
+        try {
+            const { data: projects, error } = await supabase
                 .from('projects')
-                .insert({
-                    user_id: userId,
-                    name: 'Meu Projeto Fitness',
-                    objective: 'Bulking',
-                    current_protocol: []
-                })
-                .select()
-                .single();
+                .select('*')
+                .eq('user_id', userId)
+                .limit(1);
 
-            if (createError || !newProject) {
-                console.error('Error creating project:', createError);
+            if (error) {
+                console.error('Error fetching project:', error);
+                // Se falhar o fetch do projeto, não adianta continuar
                 return null;
             }
-            currentProject = newProject;
-        }
 
-        const project = await this.hydrateProject(currentProject);
-        
-        // Buscar Perfil do Usuário
-        const profile = await this.getUserProfile(userId);
-        if (profile) {
-            project.userProfile = profile;
-        }
+            let currentProject: DBProject;
 
-        return project;
+            if (projects && projects.length > 0) {
+                currentProject = projects[0];
+            } else {
+                const { data: newProject, error: createError } = await supabase
+                    .from('projects')
+                    .insert({
+                        user_id: userId,
+                        name: 'Meu Projeto Fitness',
+                        objective: 'Bulking',
+                        current_protocol: []
+                    })
+                    .select()
+                    .single();
+
+                if (createError || !newProject) {
+                    console.error('Error creating project:', createError);
+                    return null;
+                }
+                currentProject = newProject;
+            }
+
+            const project = await this.hydrateProject(currentProject);
+            
+            // Tenta carregar perfil, mas não bloqueia se falhar
+            try {
+                const profile = await this.getUserProfile(userId);
+                if (profile) {
+                    project.userProfile = profile;
+                }
+            } catch (e) {
+                console.warn("Failed to load profile, using default structure", e);
+            }
+
+            return project;
+        } catch (criticalError) {
+            console.error("Critical error in getOrCreateProject:", criticalError);
+            return null;
+        }
     },
 
-    /**
-     * Carrega dados relacionais e monta o objeto Project completo
-     */
     async hydrateProject(dbProject: DBProject): Promise<Project> {
-        // Buscar Sources
-        const { data: sourcesData } = await supabase
-            .from('sources')
-            .select('*')
-            .eq('project_id', dbProject.id);
-            
-        // Processar Sources para gerar URLs assinadas (Links de Download)
         const sources: Source[] = [];
-        if (sourcesData) {
-            for (const s of (sourcesData as DBSource[])) {
-                let fileUrl = undefined;
-                
-                // Se houver um caminho de arquivo no Storage, gerar URL assinada válida por 1 hora
-                if (s.file_path) {
-                    const { data } = await supabase.storage
-                        .from('project_files')
-                        .createSignedUrl(s.file_path, 3600); // 1 hora
-                    
-                    if (data) fileUrl = data.signedUrl;
-                }
+        const groupedMetrics: Record<string, MetricPoint[]> = {};
 
-                sources.push({
-                    id: s.id,
-                    title: s.title,
-                    type: s.type as SourceType,
-                    date: s.date,
-                    content: s.content,
-                    summary: s.summary || undefined, // Carrega o resumo se existir
-                    selected: s.selected,
-                    filePath: s.file_path || undefined,
-                    fileUrl: fileUrl
-                });
+        // 1. Safe Load Sources
+        try {
+            // Select básico para evitar erro se 'specific_type' não existir ainda
+            const { data: sourcesData } = await supabase
+                .from('sources')
+                .select('*')
+                .eq('project_id', dbProject.id);
+
+            if (sourcesData) {
+                for (const s of (sourcesData as any[])) {
+                    let fileUrl = undefined;
+                    if (s.file_path) {
+                        const { data } = await supabase.storage
+                            .from('project_files')
+                            .createSignedUrl(s.file_path, 3600);
+                        if (data) fileUrl = data.signedUrl;
+                    }
+
+                    sources.push({
+                        id: s.id,
+                        title: s.title,
+                        type: s.type as SourceType,
+                        date: s.date,
+                        content: s.content,
+                        summary: s.summary || undefined,
+                        selected: s.selected,
+                        filePath: s.file_path || undefined,
+                        fileUrl: fileUrl,
+                        specificType: s.specific_type || undefined, // Safe access
+                        createdAt: s.created_at
+                    });
+                }
             }
+        } catch (e) {
+            console.error("Error hydrating sources:", e);
         }
 
-        // Buscar Metrics
-        const { data: metrics } = await supabase
-            .from('metrics')
-            .select('*')
-            .eq('project_id', dbProject.id)
-            .order('created_at', { ascending: true });
+        // 2. Safe Load Metrics
+        try {
+            const { data: metrics } = await supabase
+                .from('metrics')
+                .select('*')
+                .eq('project_id', dbProject.id)
+                .order('created_at', { ascending: true });
 
-        // Agrupar Métricas
-        const groupedMetrics: Record<string, MetricPoint[]> = {};
-        if (metrics) {
-            metrics.forEach((m: DBMetric) => {
-                if (!groupedMetrics[m.category]) {
-                    groupedMetrics[m.category] = [];
-                }
-                groupedMetrics[m.category].push({
-                    date: m.date,
-                    value: m.value,
-                    unit: m.unit,
-                    label: m.label
+            if (metrics) {
+                metrics.forEach((m: DBMetric) => {
+                    if (!groupedMetrics[m.category]) {
+                        groupedMetrics[m.category] = [];
+                    }
+                    groupedMetrics[m.category].push({
+                        date: m.date,
+                        value: m.value,
+                        unit: m.unit,
+                        label: m.label
+                    });
                 });
-            });
+            }
+        } catch (e) {
+            console.error("Error hydrating metrics:", e);
         }
 
         return {
@@ -231,68 +236,68 @@ export const dataService = {
             name: dbProject.name,
             objective: dbProject.objective as any,
             currentProtocol: dbProject.current_protocol || [],
-            trainingNotes: dbProject.training_notes || '', // Map from DB
+            trainingNotes: dbProject.training_notes || '', 
             sources: sources,
             metrics: groupedMetrics
         };
     },
 
     async getUserProfile(userId: string): Promise<UserProfile | undefined> {
-        const { data, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
+        try {
+            const { data, error } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
 
-        if (error || !data) return undefined;
+            if (error || !data) return undefined;
 
-        // Gerar URL assinada para o Avatar se existir
-        let avatarUrl = undefined;
-        if (data.avatar_url) {
-             const { data: signedData } = await supabase.storage
-                .from('project_files')
-                .createSignedUrl(data.avatar_url, 3600);
-             if (signedData) avatarUrl = signedData.signedUrl;
+            let avatarUrl = undefined;
+            if (data.avatar_url) {
+                const { data: signedData } = await supabase.storage
+                    .from('project_files')
+                    .createSignedUrl(data.avatar_url, 3600);
+                if (signedData) avatarUrl = signedData.signedUrl;
+            }
+
+            const measurements = data.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' };
+            const calculatedStats = calculateMetabolicStats(
+                data.weight || 0,
+                data.height || 0,
+                data.birth_date || '',
+                data.gender || 'Masculino',
+                parseFloat(measurements.waist || '0'),
+                parseFloat(measurements.hips || '0')
+            );
+
+            return {
+                name: data.name || '',
+                avatarUrl: avatarUrl,
+                birthDate: data.birth_date || '',
+                gender: data.gender || 'Masculino',
+                height: data.height?.toString() || '',
+                weight: data.weight?.toString() || '',
+                bodyFat: data.body_fat?.toString() || '',
+                comorbidities: data.comorbidities || '',
+                medications: data.medications || '',
+                measurements: measurements,
+                calculatedStats: calculatedStats,
+                termsAcceptedAt: data.terms_accepted_at,
+                hideStartupDisclaimer: data.hide_startup_disclaimer,
+                theme: data.theme || 'light',
+                subscriptionStatus: data.subscription_status || 'free'
+            };
+        } catch (e) {
+            console.error("Profile load error", e);
+            return undefined;
         }
-
-        // --- MATH ENGINE: CALCULAR ESTATÍSTICAS NO LOAD ---
-        // Isso garante que a IA sempre tenha acesso a BMI/TMB/WHR, mesmo se o usuário não abrir a tela de perfil
-        const measurements = data.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' };
-        const calculatedStats = calculateMetabolicStats(
-            data.weight || 0,
-            data.height || 0,
-            data.birth_date || '',
-            data.gender || 'Masculino',
-            parseFloat(measurements.waist || '0'),
-            parseFloat(measurements.hips || '0')
-        );
-
-        return {
-            name: data.name || '',
-            avatarUrl: avatarUrl, // URL assinada
-            birthDate: data.birth_date || '', // Mapped from birth_date
-            gender: data.gender || 'Masculino',
-            height: data.height?.toString() || '',
-            weight: data.weight?.toString() || '',
-            bodyFat: data.body_fat?.toString() || '',
-            comorbidities: data.comorbidities || '',
-            medications: data.medications || '',
-            measurements: measurements,
-            calculatedStats: calculatedStats,
-            // Legal Fields
-            termsAcceptedAt: data.terms_accepted_at,
-            hideStartupDisclaimer: data.hide_startup_disclaimer,
-            // Preference
-            theme: data.theme || 'light',
-            subscriptionStatus: data.subscription_status || 'free'
-        };
     },
 
     async saveUserProfile(userId: string, profile: UserProfile) {
         const dbProfile = {
             user_id: userId,
             name: profile.name,
-            birth_date: profile.birthDate || null, // Saved to birth_date
+            birth_date: profile.birthDate || null, 
             gender: profile.gender,
             height: parseFloat(profile.height) || null,
             weight: parseFloat(profile.weight) || null,
@@ -300,7 +305,7 @@ export const dataService = {
             comorbidities: profile.comorbidities,
             medications: profile.medications,
             measurements: profile.measurements,
-            theme: profile.theme, // Persist theme
+            theme: profile.theme,
             updated_at: new Date().toISOString()
         };
 
@@ -312,7 +317,6 @@ export const dataService = {
         return error;
     },
 
-    // NEW: Accept Legal Terms
     async acceptLegalTerms(userId: string) {
         const { error } = await supabase
             .from('user_profiles')
@@ -324,7 +328,6 @@ export const dataService = {
         return error;
     },
 
-    // NEW: Toggle Startup Disclaimer
     async toggleStartupDisclaimer(userId: string, hide: boolean) {
         const { error } = await supabase
             .from('user_profiles')
@@ -388,6 +391,7 @@ export const dataService = {
                 project_id: projectId,
                 title: source.title,
                 type: source.type,
+                specific_type: source.specificType,
                 date: source.date,
                 content: source.content,
                 selected: source.selected,
@@ -400,8 +404,6 @@ export const dataService = {
     },
 
     async deleteSource(sourceId: string) {
-        // Note: This only deletes the database record, not the file in storage.
-        // For a simple implementation, this is sufficient to hide it from the UI/AI.
         const { error } = await supabase
             .from('sources')
             .delete()
@@ -445,7 +447,6 @@ export const dataService = {
         if (error) console.error('Error adding metric:', error);
     },
 
-    // Updated to accept trainingNotes
     async updateProjectSettings(projectId: string, objective: string, protocol: ProtocolItem[], trainingNotes?: string) {
         const updateData: any = { 
             current_protocol: protocol,
@@ -487,8 +488,6 @@ export const dataService = {
 
     async addMessage(projectId: string, message: ChatMessage) {
         const created_at = new Date(message.timestamp).toISOString();
-        
-        // 1. Generate Embedding
         const embedding = await embedText(message.text);
 
         const { error } = await supabase
@@ -498,7 +497,7 @@ export const dataService = {
                 role: message.role,
                 text: message.text,
                 created_at: created_at,
-                embedding: embedding, // Save Vector
+                embedding: embedding,
                 is_bookmarked: false
             });
 
@@ -514,16 +513,13 @@ export const dataService = {
         if (error) console.error('Error toggling bookmark:', error);
     },
 
-    /**
-     * Performs a semantic search on messages using Supabase Vectors
-     */
     async searchMessagesSemantic(projectId: string, query: string): Promise<ChatMessage[]> {
         const embedding = await embedText(query);
         if (!embedding) return [];
 
         const { data, error } = await supabase.rpc('match_messages', {
             query_embedding: embedding,
-            match_threshold: 0.5, // Alterado de 0.7 para 0.5 para aumentar recall
+            match_threshold: 0.5,
             match_count: 10,
             p_id: projectId
         });
@@ -533,7 +529,6 @@ export const dataService = {
             return [];
         }
 
-        // Map results back to ChatMessage type
         return data.map((msg: any) => ({
             id: msg.id,
             role: msg.role,
@@ -543,15 +538,8 @@ export const dataService = {
         }));
     },
 
-    // --- BILLING & USAGE TRACKING ---
-
-    /**
-     * Registra uso de IA no banco de dados e retorna o custo calculado.
-     */
+    // --- BILLING FIX (RECOVERY & LEGACY SUPPORT) ---
     async logUsage(userId: string, projectId: string | undefined, actionType: string, inputTokens: number, outputTokens: number): Promise<number> {
-        // Preços estimados (BRL) baseados no Gemini Flash + Margem
-        // Input: ~R$ 0.60 / 1M tokens
-        // Output: ~R$ 2.40 / 1M tokens
         const PRICE_PER_1M_INPUT = 0.60;
         const PRICE_PER_1M_OUTPUT = 2.40;
 
@@ -559,6 +547,8 @@ export const dataService = {
         const costOutput = (outputTokens / 1000000) * PRICE_PER_1M_OUTPUT;
         const totalCost = costInput + costOutput;
 
+        // Try to insert into cost_brl.
+        // We do NOT use 'cost' column anymore to avoid SQL errors.
         const { error } = await supabase
             .from('usage_logs')
             .insert({
@@ -576,42 +566,74 @@ export const dataService = {
     },
 
     /**
-     * Retorna o total gasto no mês atual.
+     * Retrieves the total bill. If 'cost_brl' is null (old records), it recalculates from tokens.
      */
     async getCurrentMonthBill(userId: string): Promise<number> {
-        const date = new Date();
-        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
-        
-        const { data, error } = await supabase
-            .from('usage_logs')
-            .select('cost_brl')
-            .eq('user_id', userId)
-            .gte('created_at', firstDay);
+        // Select all fields to be safe against missing columns
+        // Usa select seguro. Se 'cost_brl' não existir no banco, o Supabase ignora ou retorna null,
+        // mas não deve quebrar se usarmos select('*').
+        try {
+            const { data, error } = await supabase
+                .from('usage_logs')
+                .select('*') 
+                .eq('user_id', userId);
 
-        if (error) {
-            console.error('Error fetching bill:', error);
+            if (error) {
+                console.error('Error fetching bill:', error);
+                return 0;
+            }
+
+            const total = data.reduce((acc, curr: any) => {
+                // 1. Try new column
+                if (curr.cost_brl) return acc + curr.cost_brl;
+                
+                // 2. Try old column (if it exists in the returned object)
+                if (curr.cost) return acc + curr.cost;
+
+                // 3. Fallback: Recalculate from tokens (Recovery of lost data)
+                const input = curr.input_tokens || 0;
+                const output = curr.output_tokens || 0;
+                const recalcCost = ((input / 1000000) * 0.60) + ((output / 1000000) * 2.40);
+                
+                return acc + recalcCost;
+            }, 0);
+            
+            return total;
+        } catch (e) {
+            console.error("Critical billing fetch error", e);
             return 0;
         }
-
-        const total = data.reduce((acc, curr) => acc + (curr.cost_brl || 0), 0);
-        return total;
     },
 
     async getUsageHistory(userId: string): Promise<UsageLog[]> {
-        const { data, error } = await supabase
-            .from('usage_logs')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50); // Últimas 50 ações
+        try {
+            const { data, error } = await supabase
+                .from('usage_logs')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(50);
 
-        if (error) return [];
+            if (error) return [];
 
-        return data.map((log: any) => ({
-            id: log.id,
-            actionType: log.action_type,
-            cost: log.cost_brl,
-            createdAt: log.created_at
-        }));
+            return data.map((log: any) => {
+                let cost = log.cost_brl;
+                if (!cost && log.cost) cost = log.cost;
+                if (!cost) {
+                    const input = log.input_tokens || 0;
+                    const output = log.output_tokens || 0;
+                    cost = ((input / 1000000) * 0.60) + ((output / 1000000) * 2.40);
+                }
+
+                return {
+                    id: log.id,
+                    actionType: log.action_type,
+                    cost: cost || 0, 
+                    createdAt: log.created_at
+                };
+            });
+        } catch (e) {
+            return [];
+        }
     }
 };

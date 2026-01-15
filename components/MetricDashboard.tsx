@@ -343,7 +343,7 @@ const EfficiencyChart = ({ strengthData, weightData }: { strengthData: MetricPoi
 };
 
 // --- UPDATED RISK CARD (INTERACTIVE) ---
-const RiskCard = ({ risk, onViewSource }: { risk: RiskFlag, onViewSource?: (id: string) => void }) => {
+const RiskCard: React.FC<{ risk: RiskFlag; onViewSource?: (id: string) => void }> = ({ risk, onViewSource }) => {
     return (
         <div 
             onClick={() => risk.sourceId && onViewSource && onViewSource(risk.sourceId)}

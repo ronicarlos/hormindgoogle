@@ -1,12 +1,13 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Source, ChatMessage, SourceType } from '../types';
+import { dataService } from '../services/dataService';
 import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell, IconClose, IconCalendar, IconArrowLeft, IconDownload } from './Icons';
 import ReactMarkdown from 'react-markdown';
 
 interface TimelineViewProps {
     sources: Source[];
     messages: ChatMessage[];
+    projectId?: string; // Novo prop para permitir fetch autônomo
 }
 
 interface TimelineItem {
@@ -138,9 +139,21 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
     );
 };
 
-const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
+const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialMessages, projectId }) => {
     const [filter, setFilter] = useState<'ALL' | 'EXAMS' | 'ANALYSIS'>('ALL');
     const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null);
+    const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+
+    // Carrega mensagens automaticamente se o array inicial estiver vazio mas tivermos um projectId
+    useEffect(() => {
+        if (projectId && (!initialMessages || initialMessages.length === 0)) {
+            dataService.getMessages(projectId).then(msgs => {
+                setMessages(msgs);
+            });
+        } else {
+            setMessages(initialMessages);
+        }
+    }, [projectId, initialMessages]);
 
     const timelineData = useMemo(() => {
         const items: TimelineItem[] = [];
@@ -169,15 +182,15 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
             if (msg.role !== 'model') return;
             const isBookmarked = msg.isBookmarked;
             
+            // Filtra mensagens de sistema puramente técnicas para não poluir, mas deixa as úteis
             const isSystemNotification = 
                 msg.text.startsWith('✅') || 
                 msg.text.startsWith('🔄') || 
                 msg.text.startsWith('❌') ||
-                msg.text.includes('Prontuário gerado') ||
                 msg.text.includes('processado');
 
             if (isSystemNotification && !isBookmarked) return;
-            if (msg.text.length < 200 && !isBookmarked) return;
+            if (msg.text.length < 50 && !isBookmarked) return; // Ignora mensagens muito curtas não favoritadas
 
             const dateObj = new Date(msg.timestamp);
             items.push({
@@ -185,7 +198,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages }) => {
                 dateObj: dateObj,
                 dateDisplay: dateObj.toLocaleDateString('pt-BR'),
                 type: 'ANALYSIS',
-                title: isBookmarked ? 'Insight Favorito' : 'Análise Estratégica IA',
+                title: isBookmarked ? 'Insight Favorito' : 'Análise IA',
                 content: msg.text,
                 isHighlight: isBookmarked,
                 originalObject: msg

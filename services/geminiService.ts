@@ -34,16 +34,6 @@ const calculateAge = (birthDate?: string): string => {
 
 /**
  * Constructs a context-aware prompt based on profile, sources, AND structured metrics.
- * 
- * --- PROTOCOLO ANTI-ALUCINAÇÃO (FitLM Core) ---
- * Problema Resolvido: A IA tendia a usar dados antigos ou alucinados do histórico do chat 
- * (ex: "87 anos", "braço 55cm") em vez dos dados reais atualizados.
- * 
- * Solução Implementada:
- * 1. Source of Truth (Fonte da Verdade): Injeção dos dados vitais em formato JSON estrito.
- *    LLMs respeitam limites de dados estruturados (JSON) mais do que texto corrido.
- * 2. System Date Injection: Injeção da data atual para evitar confusão temporal.
- * 3. Override Instruction: Instrução explícita para IGNORAR o histórico se houver conflito com o JSON.
  */
 const buildContext = (
     sources: Source[], 
@@ -123,12 +113,16 @@ const buildContext = (
       sources.forEach(source => {
         // Prioritize structured summaries or user inputs
         const prefix = source.type === 'USER_INPUT' ? '[REGISTRO DIÁRIO]' : `[DOC: ${source.title}]`;
+        // Use document specific type if available for better context
+        const typeInfo = source.specificType ? ` (Tipo: ${source.specificType})` : '';
+        const dateInfo = source.date ? ` (Data do Exame: ${source.date})` : '';
+        
         let contentSnippet = source.summary || source.content;
         
         // Truncate massively long texts to keep focus on profile
         if (contentSnippet.length > 8000) contentSnippet = contentSnippet.substring(0, 8000) + "...";
         
-        context += `${prefix} (${source.date}):\n${contentSnippet}\n\n`;
+        context += `${prefix}${typeInfo}${dateInfo}:\n${contentSnippet}\n\n`;
       });
   }
   
@@ -163,7 +157,6 @@ export const generateAIResponse = async (
     const systemInstruction = buildContext(sources, profile, metrics);
     
     // Filter history to reduce hallucination noise
-    // We remove very old model messages that might contain bad data
     const safeHistory = history.slice(-4).map(h => ({ role: h.role, parts: [{ text: h.text }] }));
 
     const response = await ai.models.generateContent({
@@ -174,11 +167,10 @@ export const generateAIResponse = async (
         { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS' acima. Ignore dados contraditórios do histórico): ${message}` }] }
       ],
       config: {
-        temperature: 0.4 // Reduced temp for strict adherence
+        temperature: 0.4 
       }
     });
 
-    // --- BILLING LOGIC ---
     const userId = await getCurrentUserId();
     if (userId && response.usageMetadata) {
         const inputT = response.usageMetadata.promptTokenCount || 0;
@@ -280,37 +272,45 @@ const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string,
   });
 };
 
-export const processDocument = async (file: File, defaultDate: string): Promise<{ extractedText: string, metrics: { category: string, data: MetricPoint }[] }> => {
+export const processDocument = async (file: File, defaultDate: string): Promise<{ extractedText: string, metrics: { category: string, data: MetricPoint }[], documentType?: string, detectedDate?: string }> => {
     if (!apiKey) throw new Error("API Key missing");
 
     try {
         const filePart = await fileToGenerativePart(file);
-        // ATUALIZADO: Prompt muito mais agressivo para extrair dados de medicina esportiva e inflamação
+        // ATUALIZADO: Prompt muito mais agressivo para extrair dados de medicina esportiva e DATA
         const extractionPrompt = `
         ATUE COMO OCR MÉDICO ESPECIALISTA EM MEDICINA ESPORTIVA.
         
-        1. Transcreva o texto visível.
-        2. Extraia a DATA do exame (formato DD/MM/AAAA). Se não houver, use ${defaultDate}.
-        
-        3. EXTRAÇÃO DE MÉTRICAS (EXTREMAMENTE CRÍTICO):
-           Procure obsessivamente por valores numéricos para estas categorias.
-           IMPORTANTE: CONVERTA VÍRGULA PARA PONTO DECIMAL EM NÚMEROS (Ex: "4,56" -> 4.56).
-           
-           - Próstata: "PSA Total" (Prioridade máxima), "PSA Livre", "Volume Prostático".
-           - Rins: Creatinina, Ureia.
-           - Inflamatórios: PCR, Fator Reumatoide, CPK.
-           - Hormônios: Testosterona Total, Estradiol, Prolactina.
-           - Colesterol: LDL, HDL, Triglicerídeos.
-           - Fígado: TGO, TGP, Gama GT.
-           - Sangue: Hematócrito, Hemoglobina.
+        TAREFA 1: CLASSIFICAÇÃO
+        Classifique o documento em UM destes tipos exatos: 'Hemograma', 'Hormonal', 'Bioimpedância', 'Cardíaco', 'Imagem', 'Rotina', 'Outros'. Se for um laudo específico (ex: Testosterona), use o nome do exame principal.
 
-        4. REGRAS DE NORMALIZAÇÃO:
-           - Se encontrar "PSA Total: 4,20 ng/mL", extraia: { category: "PSA Total", value: 4.20, unit: "ng/mL" }.
-           - Se encontrar apenas "PSA: 5", extraia: { category: "PSA Total", value: 5, unit: "ng/mL" }.
-           - NÃO CONFUNDA "Proteína Total" com "PSA Total".
-        
+        TAREFA 2: DATA DO EXAME (CRÍTICO)
+        Encontre a "Data da Coleta", "Data de Realização" ou "Data do Exame" no documento.
+        - Formato de saída OBRIGATÓRIO: DD/MM/AAAA (Ex: 14/01/2025).
+        - Se houver múltiplas datas, prefira a data da COLETA.
+        - Se NÃO encontrar data no texto, retorne null (não invente).
+
+        TAREFA 3: EXTRAÇÃO DE MÉTRICAS
+        Procure obsessivamente por valores numéricos para estas categorias:
+        - Próstata: "PSA Total", "PSA Livre".
+        - Rins: Creatinina, Ureia.
+        - Inflamatórios: PCR, Fator Reumatoide, CPK.
+        - Hormônios: Testosterona Total, Estradiol, Prolactina.
+        - Colesterol: LDL, HDL, Triglicerídeos.
+        - Fígado: TGO, TGP, Gama GT.
+        - Sangue: Hematócrito, Hemoglobina.
+        IMPORTANTE: CONVERTA VÍRGULA PARA PONTO DECIMAL EM NÚMEROS (Ex: "4,56" -> 4.56).
+
+        TAREFA 4: TRANSCRIÇÃO
+        Transcreva o texto visível.
+
         RETORNE APENAS JSON VÁLIDO: 
-        { "transcription": "...", "detectedDate": "...", "metrics": [{ "category": "...", "value": 0, "unit": "..." }] }
+        { 
+          "documentType": "Nome do Tipo Identificado",
+          "detectedDate": "DD/MM/AAAA" or null,
+          "transcription": "...", 
+          "metrics": [{ "category": "...", "value": 0, "unit": "..." }] 
+        }
         `;
 
         const result = await ai.models.generateContent({
@@ -323,6 +323,7 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         if (!jsonText) throw new Error("No data");
 
         const parsed = JSON.parse(jsonText);
+        // Use detected date if available, otherwise use default (today) but flag it
         const finalDate = parsed.detectedDate || defaultDate;
 
         const finalMetrics = (parsed.metrics || []).map((m: any) => ({
@@ -337,7 +338,9 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
 
         return {
             extractedText: parsed.transcription || "Sem texto transcrito.",
-            metrics: finalMetrics
+            metrics: finalMetrics,
+            documentType: parsed.documentType || 'Geral',
+            detectedDate: parsed.detectedDate // Return raw detected date
         };
 
     } catch (error) {

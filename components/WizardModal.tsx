@@ -12,7 +12,7 @@ interface WizardModalProps {
     project: Project;
     onUpdateProfile: (profile: UserProfile) => void;
     onUpdateProject: (project: Project) => void;
-    onUpload: (files: File[]) => Promise<void>; // Updated type
+    onUpload: (files: File[]) => Promise<void>;
 }
 
 const steps = [
@@ -30,10 +30,10 @@ const steps = [
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
     const isMale = gender === 'Masculino';
     
-    // Silhuetas simplificadas (SVG Paths)
+    // Silhuetas simplificadas
     const silhouette = isMale 
-        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z" // Croqui Masculino
-        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z"; // Croqui Feminino
+        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z"
+        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z";
 
     const guides: Record<string, React.ReactNode> = {
         chest: <line x1="28" y1="32" x2="60" y2="32" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
@@ -45,10 +45,9 @@ const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
     };
 
     return (
-        // Reduced size (60x100) while keeping viewBox (90x150) to maintain path integrity
         <svg width="60" height="100" viewBox="0 0 90 150" className="opacity-90">
             <path d={silhouette} fill="#374151" stroke="none" opacity="0.3" />
-            {guides[part]}
+            {guides[part] || null}
         </svg>
     );
 };
@@ -65,38 +64,41 @@ const MEASUREMENT_HINTS: Record<string, string> = {
 const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject, onUpload }) => {
     const [currentStep, setCurrentStep] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
-    
-    // Upload State
     const [isUploading, setIsUploading] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Form States
-    const [profileData, setProfileData] = useState<UserProfile>(project.userProfile || {} as UserProfile);
-    const [objective, setObjective] = useState(project.objective);
+    // Initial safe state (avoid crash on null profile)
+    const [profileData, setProfileData] = useState<UserProfile>(() => {
+        const base = project.userProfile || {} as any;
+        return {
+            ...base,
+            measurements: base.measurements || {}
+        };
+    });
     
-    // Extended Data States (Project Level)
+    const [objective, setObjective] = useState(project.objective);
     const [trainingNotes, setTrainingNotes] = useState(project.trainingNotes || '');
     const [calories, setCalories] = useState('');
     const [protocol, setProtocol] = useState<ProtocolItem[]>([]);
 
-    // Sync local state with project when it changes or opens
     useEffect(() => {
         if (project.userProfile) {
-            setProfileData(project.userProfile);
+            setProfileData({
+                ...project.userProfile,
+                measurements: project.userProfile.measurements || {} as any
+            });
         }
         if (project.objective) setObjective(project.objective);
         if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
         if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
         
-        // Try to get latest calories
         const calMetrics = project.metrics['Calories'];
         if (calMetrics && calMetrics.length > 0) {
             setCalories(calMetrics[0].value.toString());
         }
     }, [project, isOpen]);
 
-    // Intelligent Step Detection
     useEffect(() => {
         if (isOpen && project.userProfile) {
             const p = project.userProfile;
@@ -104,21 +106,18 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
             if (!p.name || !p.birthDate || !p.gender) startStep = 0;
             else if (!p.height || !p.weight) startStep = 1;
-            else if (!p.measurements.waist || !p.measurements.hips) startStep = 2;
-            // Skip health check (optional)
-            // Step 4 is Upload (Optional), we can skip to it if user has sources? No, let them see it.
-            else if (!project.trainingNotes && !calories) startStep = 5; // Jump to Routine (index 5 now)
-            else if ((!project.currentProtocol || project.currentProtocol.length === 0) && project.objective !== 'Longevity') startStep = 6; // Jump to Protocol
+            // SAFE CHECK with optional chaining
+            else if (!p.measurements?.waist || !p.measurements?.hips) startStep = 2;
+            else if (!project.trainingNotes && !calories) startStep = 5; 
+            else if ((!project.currentProtocol || project.currentProtocol.length === 0) && project.objective !== 'Longevity') startStep = 6; 
             else if (!project.objective) startStep = 7;
-            else startStep = 0; // Review mode
+            else startStep = 0; 
 
             setCurrentStep(startStep);
         }
     }, [isOpen]);
 
     if (!isOpen) return null;
-
-    // --- HANDLERS ---
 
     const handleProfileChange = (field: keyof UserProfile, value: string) => {
         setProfileData(prev => ({ ...prev, [field]: value }));
@@ -167,19 +166,13 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-                // 1. Save Profile Data (Steps 0-3)
                 if (currentStep <= 3) {
                     await dataService.saveUserProfile(session.user.id, profileData);
                     onUpdateProfile(profileData);
                 }
                 
-                // Step 4 is Upload (handled immediately by onUpload)
-
-                // 2. Save Routine & Diet (Step 5 - moved index)
                 if (currentStep === 5) {
-                    // Update notes
                     await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
-                    // Add calorie metric if changed/new
                     if (calories) {
                         const today = new Date().toLocaleDateString('pt-BR');
                         await dataService.addMetric(project.id, 'Calories', {
@@ -192,7 +185,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     onUpdateProject({ ...project, trainingNotes, objective, currentProtocol: protocol });
                 }
 
-                // 3. Save Protocol (Step 6) & Final Objective (Step 7)
                 if (currentStep >= 6) {
                     const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                     await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes);
@@ -222,7 +214,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] dark:bg-gray-900 dark:border dark:border-gray-800">
                 
-                {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative shrink-0">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
@@ -233,7 +224,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             <p className="text-blue-100 text-xs font-medium">Passo {currentStep + 1} de {steps.length}</p>
                         </div>
                     </div>
-                    {/* Progress Bar */}
                     <div className="h-1.5 w-full bg-black/20 rounded-full mt-4 overflow-hidden">
                         <div 
                             className="h-full bg-white transition-all duration-500 ease-out"
@@ -245,7 +235,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     </button>
                 </div>
 
-                {/* Body */}
                 <div className="p-8 flex-1 overflow-y-auto custom-scrollbar dark:bg-gray-900">
                     <div className="mb-6">
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-white">
@@ -257,18 +246,16 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
                     <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300" key={currentStep}>
                         
-                        {/* STEP 0: Identificação */}
                         {currentStep === 0 && (
                             <>
                                 <label className="block">
                                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nome ou Apelido</span>
-                                    <input type="text" value={profileData.name} onChange={e => handleProfileChange('name', e.target.value)} className={inputClass} placeholder="Como quer ser chamado?" autoFocus />
+                                    <input type="text" value={profileData.name || ''} onChange={e => handleProfileChange('name', e.target.value)} className={inputClass} placeholder="Como quer ser chamado?" autoFocus />
                                 </label>
-                                {/* Changed grid-cols-2 to grid-cols-1 md:grid-cols-2 to fix mobile overlap */}
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                      <label className="block">
                                         <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nascimento</span>
-                                        <input type="date" value={profileData.birthDate} onChange={e => handleProfileChange('birthDate', e.target.value)} className={inputClass} />
+                                        <input type="date" value={profileData.birthDate || ''} onChange={e => handleProfileChange('birthDate', e.target.value)} className={inputClass} />
                                     </label>
                                     <label className="block">
                                         <div className="flex items-center gap-1">
@@ -277,7 +264,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
-                                        <select value={profileData.gender} onChange={e => handleProfileChange('gender', e.target.value as any)} className={inputClass}>
+                                        <select value={profileData.gender || 'Masculino'} onChange={e => handleProfileChange('gender', e.target.value as any)} className={inputClass}>
                                             <option value="Masculino">Masculino</option>
                                             <option value="Feminino">Feminino</option>
                                         </select>
@@ -286,21 +273,20 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {/* STEP 1: Antropometria */}
                         {currentStep === 1 && (
                             <>
                                 <div className="grid grid-cols-2 gap-4">
                                      <label className="block">
                                         <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Altura</span>
                                         <div className="relative">
-                                            <input type="number" value={profileData.height} onChange={e => handleProfileChange('height', e.target.value)} className={`${inputClass} pr-8`} placeholder="175" autoFocus />
+                                            <input type="number" value={profileData.height || ''} onChange={e => handleProfileChange('height', e.target.value)} className={`${inputClass} pr-8`} placeholder="175" autoFocus />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
                                         </div>
                                     </label>
                                     <label className="block">
                                         <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Peso</span>
                                         <div className="relative">
-                                            <input type="number" value={profileData.weight} onChange={e => handleProfileChange('weight', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" />
+                                            <input type="number" value={profileData.weight || ''} onChange={e => handleProfileChange('weight', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">kg</span>
                                         </div>
                                     </label>
@@ -313,15 +299,13 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                         </Tooltip>
                                     </div>
                                     <div className="relative">
-                                        <input type="number" value={profileData.bodyFat} onChange={e => handleProfileChange('bodyFat', e.target.value)} className={`${inputClass} pr-8`} placeholder="15" />
+                                        <input type="number" value={profileData.bodyFat || ''} onChange={e => handleProfileChange('bodyFat', e.target.value)} className={`${inputClass} pr-8`} placeholder="15" />
                                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">%</span>
                                     </div>
                                 </label>
-                                <p className="text-xs text-gray-500 bg-gray-100 p-2 rounded dark:bg-gray-800 dark:text-gray-400">O percentual de gordura corporal total é essencial para calcular sua Massa Magra real e TMB precisa.</p>
                             </>
                         )}
 
-                        {/* STEP 2: Medidas (COMPLETO AGORA) */}
                         {currentStep === 2 && (
                             <>
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mb-2 flex gap-2 items-start dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
@@ -338,7 +322,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                             </Tooltip>
                                         </div>
                                         <div className="relative">
-                                            <input type="number" value={profileData.measurements.waist} onChange={e => handleMeasurementChange('waist', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" autoFocus />
+                                            <input type="number" value={profileData.measurements?.waist || ''} onChange={e => handleMeasurementChange('waist', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" autoFocus />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
                                         </div>
                                     </label>
@@ -350,7 +334,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                             </Tooltip>
                                         </div>
                                         <div className="relative">
-                                            <input type="number" value={profileData.measurements.hips} onChange={e => handleMeasurementChange('hips', e.target.value)} className={`${inputClass} pr-8`} placeholder="100" />
+                                            <input type="number" value={profileData.measurements?.hips || ''} onChange={e => handleMeasurementChange('hips', e.target.value)} className={`${inputClass} pr-8`} placeholder="100" />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
                                         </div>
                                     </label>
@@ -366,7 +350,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
-                                        <input type="number" value={profileData.measurements.chest} onChange={e => handleMeasurementChange('chest', e.target.value)} className={inputClass} placeholder="0" />
+                                        <input type="number" value={profileData.measurements?.chest || ''} onChange={e => handleMeasurementChange('chest', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                     <label className="block">
                                         <div className="flex items-center gap-1 mb-1">
@@ -375,7 +359,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
-                                        <input type="number" value={profileData.measurements.arm} onChange={e => handleMeasurementChange('arm', e.target.value)} className={inputClass} placeholder="0" />
+                                        <input type="number" value={profileData.measurements?.arm || ''} onChange={e => handleMeasurementChange('arm', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                     <label className="block">
                                         <div className="flex items-center gap-1 mb-1">
@@ -384,7 +368,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
-                                        <input type="number" value={profileData.measurements.thigh} onChange={e => handleMeasurementChange('thigh', e.target.value)} className={inputClass} placeholder="0" />
+                                        <input type="number" value={profileData.measurements?.thigh || ''} onChange={e => handleMeasurementChange('thigh', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                     <label className="block">
                                         <div className="flex items-center gap-1 mb-1">
@@ -393,13 +377,12 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                                 <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                             </Tooltip>
                                         </div>
-                                        <input type="number" value={profileData.measurements.calf} onChange={e => handleMeasurementChange('calf', e.target.value)} className={inputClass} placeholder="0" />
+                                        <input type="number" value={profileData.measurements?.calf || ''} onChange={e => handleMeasurementChange('calf', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                 </div>
                             </>
                         )}
 
-                        {/* STEP 3: Saúde */}
                         {currentStep === 3 && (
                             <>
                                 <label className="block">
@@ -409,16 +392,15 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                             <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                         </Tooltip>
                                     </div>
-                                    <textarea value={profileData.comorbidities} onChange={e => handleProfileChange('comorbidities', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Hipertensão, Diabetes, Lesão no joelho..." />
+                                    <textarea value={profileData.comorbidities || ''} onChange={e => handleProfileChange('comorbidities', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Hipertensão, Diabetes, Lesão no joelho..." />
                                 </label>
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Medicamentos em Uso</span>
-                                    <textarea value={profileData.medications} onChange={e => handleProfileChange('medications', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Antidepressivos, Losartana..." />
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Medicamentos de Uso Contínuo</span>
+                                    <textarea value={profileData.medications || ''} onChange={e => handleProfileChange('medications', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Antidepressivos, Losartana..." />
                                 </label>
                             </>
                         )}
 
-                        {/* STEP 4: Exames e Arquivos (NEW) */}
                         {currentStep === 4 && (
                             <div className="space-y-4">
                                 <div className="bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl p-6 text-center dark:bg-blue-900/10 dark:border-blue-900/30">
@@ -461,14 +443,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                         ))}
                                     </div>
                                 )}
-                                
-                                <p className="text-[10px] text-gray-400 text-center italic dark:text-gray-500">
-                                    Os dados extraídos dos exames (como testosterona, colesterol) aparecerão no seu painel assim que processados.
-                                </p>
                             </div>
                         )}
 
-                        {/* STEP 5: Rotina e Dieta (Moved index) */}
                         {currentStep === 5 && (
                             <>
                                 <label className="block">
@@ -501,7 +478,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {/* STEP 6: Protocolo (Moved index) */}
                         {currentStep === 6 && (
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center mb-2">
@@ -553,13 +529,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                         </button>
                                     </div>
                                 ))}
-                                <div className="bg-blue-50 p-3 rounded-lg text-xs text-blue-800 leading-relaxed dark:bg-blue-900/20 dark:text-blue-200">
-                                    Se você for <strong>Natural</strong>, deixe vazio ou escreva "Natural". A IA usará isso para ajustar expectativas de recuperação.
-                                </div>
                             </div>
                         )}
 
-                        {/* STEP 7: Objetivo (Moved index) */}
                         {currentStep === 7 && (
                             <>
                                 <label className="block">
@@ -577,7 +549,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="p-6 border-t border-gray-100 flex justify-between bg-gray-50 shrink-0 dark:bg-gray-900 dark:border-gray-800">
                     <button 
                         onClick={handleBack}
@@ -589,7 +560,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     </button>
                     <button 
                         onClick={handleNext}
-                        disabled={isSaving || isUploading} // Disable if uploading
+                        disabled={isSaving || isUploading}
                         className="px-8 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all active:scale-95 shadow-lg flex items-center gap-2 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
                     >
                         {isSaving ? 'Salvando...' : currentStep === steps.length - 1 ? 'Concluir' : 'Próximo'}

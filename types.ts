@@ -15,7 +15,7 @@ export enum AnalysisType {
   FULL_PRONTUARIO = 'FULL_PRONTUARIO'
 }
 
-export type AppView = 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing' | 'timeline';
+export type AppView = 'chat' | 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing' | 'timeline';
 
 export interface UserProfile {
   id?: string;
@@ -64,7 +64,9 @@ export interface Source {
   id: string;
   title: string;
   type: SourceType;
-  date: string;
+  date: string; // Data do Conteúdo (Exame/Coleta)
+  createdAt?: string; // Data do Upload (Sistema)
+  specificType?: string; // Tipo específico (Hemograma, Bioimpedância, etc)
   content: string; 
   summary?: string;
   selected: boolean;
