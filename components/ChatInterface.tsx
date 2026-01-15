@@ -7,7 +7,8 @@ import { dataService } from '../services/dataService';
 import { 
     IconSend, IconSparkles, IconUser, IconRefresh, IconCopy, 
     IconSearch, IconBookmark, IconBookmarkFilled, IconClose, 
-    IconArrowLeft, IconActivity, IconShare, IconReportPDF, IconCheck 
+    IconArrowLeft, IconActivity, IconShare, IconReportPDF, IconCheck,
+    IconMic 
 } from './Icons';
 import ProntuarioModal from './ProntuarioModal';
 
@@ -41,6 +42,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isThinking, setIsThinking] = useState(false);
+    
+    // Voice Input State
+    const [isRecording, setIsRecording] = useState(false);
+    const recognitionRef = useRef<any>(null);
     
     // Search & Filter States
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -76,6 +81,50 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
             searchInputRef.current.focus();
         }
     }, [isSearchOpen]);
+
+    // --- VOICE INPUT LOGIC ---
+    const handleVoiceInput = () => {
+        if (isRecording) {
+            recognitionRef.current?.stop();
+            setIsRecording(false);
+            return;
+        }
+
+        // Use type assertion instead of global declaration
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Seu navegador não suporta entrada de voz. Tente usar o Chrome, Edge ou Safari.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.continuous = false; // Para ao terminar de falar
+        recognition.interimResults = true; // Mostra resultados enquanto fala
+
+        recognition.onstart = () => setIsRecording(true);
+        recognition.onend = () => setIsRecording(false);
+        recognition.onerror = (event: any) => {
+            console.error("Speech Recognition Error", event.error);
+            setIsRecording(false);
+        };
+
+        let initialText = inputValue; // Captura texto já existente
+
+        recognition.onresult = (event: any) => {
+            let transcript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
+            }
+            
+            // Adiciona espaço se já houver texto e não terminar com espaço
+            const prefix = initialText + (initialText && !initialText.endsWith(' ') ? ' ' : '');
+            setInputValue(prefix + transcript);
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+    };
 
     const handleSendMessage = async () => {
         if (!inputValue.trim()) return;
@@ -377,11 +426,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
                         /* INPUT NORMAL */
                         <>
                             <div className="max-w-4xl mx-auto relative flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all dark:bg-gray-800 dark:border-gray-700">
+                                {/* Botão de Microfone (Speech-to-Text) */}
+                                <button
+                                    onClick={handleVoiceInput}
+                                    className={`p-3 rounded-xl transition-all shrink-0 ${
+                                        isRecording 
+                                        ? 'bg-red-100 text-red-600 animate-pulse dark:bg-red-900/30 dark:text-red-400' 
+                                        : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300'
+                                    }`}
+                                    title={isRecording ? "Parar gravação" : "Falar mensagem"}
+                                >
+                                    <IconMic className={`w-5 h-5 ${isRecording ? 'scale-110' : ''}`} />
+                                </button>
+
                                 <textarea 
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="Pergunte sobre seus exames ou treino..."
+                                    placeholder="Digite ou fale sobre seus exames..."
                                     className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 min-h-[44px] py-3 px-2 text-sm text-gray-900 placeholder-gray-400 dark:text-white"
                                     rows={1}
                                     style={{ height: 'auto', minHeight: '44px' }}
