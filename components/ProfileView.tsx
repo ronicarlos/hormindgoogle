@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import { dataService } from '../services/dataService';
@@ -20,8 +21,8 @@ interface ProfileViewProps {
     onLogout?: () => void;
 }
 
-// VERSÃO DO SISTEMA (Atualize aqui a cada release)
-const APP_VERSION = "v1.5.2 - 14/01/2026 18:00";
+// VERSÃO DO SISTEMA (Atualizada para coincidir com App.tsx)
+const APP_VERSION = "v1.5.3 - 14/01/2026 19:30";
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {

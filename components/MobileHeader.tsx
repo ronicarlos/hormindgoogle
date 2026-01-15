@@ -1,13 +1,14 @@
 
 import React from 'react';
-import { IconWizard, IconUser } from './Icons';
+import { IconWizard, IconUser, IconList } from './Icons';
 
 interface MobileHeaderProps {
     onOpenWizard: () => void;
     onOpenProfile: () => void;
+    onOpenParameters: () => void; // Nova prop
 }
 
-const MobileHeader: React.FC<MobileHeaderProps> = ({ onOpenWizard, onOpenProfile }) => {
+const MobileHeader: React.FC<MobileHeaderProps> = ({ onOpenWizard, onOpenProfile, onOpenParameters }) => {
     return (
         <div className="md:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 px-4 py-3 flex items-center justify-between dark:bg-gray-900/95 dark:border-gray-800">
             {/* Logo area */}
@@ -21,7 +22,16 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onOpenWizard, onOpenProfile
             </div>
 
             {/* Actions Area */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+                {/* Botão Parâmetros (Novo) */}
+                <button 
+                    onClick={onOpenParameters}
+                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors dark:text-gray-300 dark:hover:bg-gray-800"
+                    title="Parâmetros & Métricas"
+                >
+                    <IconList className="w-5 h-5" />
+                </button>
+
                 <button 
                     onClick={onOpenWizard}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-sm active:scale-95 transition-transform"

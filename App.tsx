@@ -6,7 +6,7 @@ import { Project, UserProfile, AppView, Source, Exercise, DailyLogData, SourceTy
 import AuthScreen from './components/AuthScreen';
 import SourceSidebar from './components/SourceSidebar';
 import MobileNav from './components/MobileNav'; 
-import MobileHeader from './components/MobileHeader'; // NOVO COMPONENTE
+import MobileHeader from './components/MobileHeader'; 
 import MetricDashboard from './components/MetricDashboard';
 import ChatInterface from './components/ChatInterface'; 
 import ProfileView from './components/ProfileView';
@@ -24,6 +24,10 @@ import SubscriptionModal from './components/SubscriptionModal';
 import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
+// --- CONTROLE DE VERSÃO E CACHE ---
+// Atualize esta constante sempre que fizer um deploy para forçar a limpeza de cache nos usuários
+const APP_VERSION = '1.5.3'; 
+
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [project, setProject] = useState<Project | null>(null);
@@ -38,6 +42,39 @@ export default function App() {
   const [billingTrigger, setBillingTrigger] = useState(0);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [currentBill, setCurrentBill] = useState(0);
+
+  // --- AUTO-UPDATE LOGIC ---
+  useEffect(() => {
+    const checkVersionAndClearCache = async () => {
+      const storedVersion = localStorage.getItem('fitlm_app_version');
+      
+      if (storedVersion !== APP_VERSION) {
+        console.log(`Nova versão detectada (${APP_VERSION}). Limpando cache antigo...`);
+        
+        // 1. Unregister Service Workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+        }
+
+        // 2. Clear Browser Caches (Storage)
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(key => caches.delete(key)));
+        }
+
+        // 3. Update Stored Version
+        localStorage.setItem('fitlm_app_version', APP_VERSION);
+
+        // 4. Force Reload from Server (Ignora Cache)
+        window.location.reload();
+      }
+    };
+
+    checkVersionAndClearCache();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -230,10 +267,11 @@ export default function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           
-          {/* MOBILE HEADER (Novo: Wizard e Perfil aqui) */}
+          {/* MOBILE HEADER - Agora com onOpenParameters */}
           <MobileHeader 
               onOpenWizard={() => setIsWizardOpen(true)}
               onOpenProfile={() => setCurrentView('profile')}
+              onOpenParameters={() => setIsInputModalOpen(true)}
           />
 
           <div className="flex-1 overflow-hidden relative pb-[60px] md:pb-0"> 
@@ -315,7 +353,7 @@ export default function App() {
               )}
           </div>
           
-          {/* Mobile Bottom Navigation (CORRIGIDO: 6 Itens, sem upload central) */}
+          {/* Mobile Bottom Navigation */}
           <MobileNav 
               currentView={currentView}
               onChangeView={setCurrentView}
