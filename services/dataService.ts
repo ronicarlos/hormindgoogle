@@ -11,6 +11,7 @@ interface DBProject {
     objective: string;
     current_protocol: any;
     training_notes?: string;
+    diet_calories?: string; // NOVO CAMPO DB
     created_at: string;
 }
 
@@ -236,7 +237,8 @@ export const dataService = {
             name: dbProject.name,
             objective: dbProject.objective as any,
             currentProtocol: dbProject.current_protocol || [],
-            trainingNotes: dbProject.training_notes || '', 
+            trainingNotes: dbProject.training_notes || '',
+            dietCalories: dbProject.diet_calories || '', // Hydrate Diet field
             sources: sources,
             metrics: groupedMetrics
         };
@@ -382,15 +384,12 @@ export const dataService = {
 
     async uploadFileToStorage(file: File, userId: string, projectId: string): Promise<string | null> {
         // SANITIZAÇÃO CRÍTICA DO NOME DO ARQUIVO
-        // Remove acentos, espaços e caracteres especiais que quebram o Storage
         const cleanName = file.name
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-            .replace(/[^a-zA-Z0-9.-]/g, "_"); // Troca espaços e símbolos por _
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+            .replace(/[^a-zA-Z0-9.-]/g, "_");
 
         const fileName = `${Date.now()}_${cleanName}`;
         const filePath = `${userId}/${projectId}/${fileName}`;
-
-        console.log("Tentando upload para:", filePath);
 
         const { error, data } = await supabase.storage
             .from('project_files')
@@ -401,11 +400,9 @@ export const dataService = {
 
         if (error) {
             console.error('CRITICAL STORAGE ERROR:', error);
-            // Tenta retornar null para avisar o front que falhou
             return null;
         }
         
-        console.log("Upload sucesso:", data);
         return filePath;
     },
 
@@ -429,20 +426,17 @@ export const dataService = {
     },
 
     async deleteSource(sourceId: string, filePath?: string) {
-        // 1. Tenta deletar o arquivo do storage se existir
         if (filePath) {
             try {
                 const { error: storageError } = await supabase.storage
                     .from('project_files')
                     .remove([filePath]);
-                
                 if (storageError) console.warn("Storage deletion warning:", storageError);
             } catch (e) {
                 console.warn("Storage deletion error", e);
             }
         }
 
-        // 2. Deleta o registro do banco
         const { error } = await supabase
             .from('sources')
             .delete()
@@ -472,12 +466,21 @@ export const dataService = {
     },
 
     async addMetric(projectId: string, category: string, point: MetricPoint) {
+        // Converte data para ISO se vier em formato brasileiro (DD/MM/YYYY)
+        let safeDate = point.date;
+        if (point.date.includes('/')) {
+            const parts = point.date.split('/');
+            if (parts.length === 3) {
+                safeDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+            }
+        }
+
         const { error } = await supabase
             .from('metrics')
             .insert({
                 project_id: projectId,
                 category: category,
-                date: point.date,
+                date: safeDate,
                 value: point.value,
                 unit: point.unit,
                 label: point.label
@@ -486,7 +489,8 @@ export const dataService = {
         if (error) console.error('Error adding metric:', error);
     },
 
-    async updateProjectSettings(projectId: string, objective: string, protocol: ProtocolItem[], trainingNotes?: string) {
+    // UPDATE: Added dietCalories parameter to signature and DB Update
+    async updateProjectSettings(projectId: string, objective: string, protocol: ProtocolItem[], trainingNotes?: string, dietCalories?: string) {
         const updateData: any = { 
             current_protocol: protocol,
             objective: objective
@@ -494,6 +498,10 @@ export const dataService = {
 
         if (trainingNotes !== undefined) {
             updateData.training_notes = trainingNotes;
+        }
+        
+        if (dietCalories !== undefined) {
+            updateData.diet_calories = dietCalories;
         }
 
         const { error } = await supabase
@@ -577,7 +585,6 @@ export const dataService = {
         }));
     },
 
-    // --- BILLING FIX (RECOVERY & LEGACY SUPPORT) ---
     async logUsage(userId: string, projectId: string | undefined, actionType: string, inputTokens: number, outputTokens: number): Promise<number> {
         const PRICE_PER_1M_INPUT = 0.60;
         const PRICE_PER_1M_OUTPUT = 2.40;
@@ -586,8 +593,6 @@ export const dataService = {
         const costOutput = (outputTokens / 1000000) * PRICE_PER_1M_OUTPUT;
         const totalCost = costInput + costOutput;
 
-        // Try to insert into cost_brl.
-        // We do NOT use 'cost' column anymore to avoid SQL errors.
         const { error } = await supabase
             .from('usage_logs')
             .insert({
@@ -604,13 +609,7 @@ export const dataService = {
         return totalCost;
     },
 
-    /**
-     * Retrieves the total bill. If 'cost_brl' is null (old records), it recalculates from tokens.
-     */
     async getCurrentMonthBill(userId: string): Promise<number> {
-        // Select all fields to be safe against missing columns
-        // Usa select seguro. Se 'cost_brl' não existir no banco, o Supabase ignora ou retorna null,
-        // mas não deve quebrar se usarmos select('*').
         try {
             const { data, error } = await supabase
                 .from('usage_logs')
@@ -623,17 +622,11 @@ export const dataService = {
             }
 
             const total = data.reduce((acc, curr: any) => {
-                // 1. Try new column
                 if (curr.cost_brl) return acc + curr.cost_brl;
-                
-                // 2. Try old column (if it exists in the returned object)
                 if (curr.cost) return acc + curr.cost;
-
-                // 3. Fallback: Recalculate from tokens (Recovery of lost data)
                 const input = curr.input_tokens || 0;
                 const output = curr.output_tokens || 0;
                 const recalcCost = ((input / 1000000) * 0.60) + ((output / 1000000) * 2.40);
-                
                 return acc + recalcCost;
             }, 0);
             
@@ -676,10 +669,8 @@ export const dataService = {
         }
     },
 
-    // --- VERSION CONTROL ---
     async getAppVersionHistory(): Promise<AppVersion[]> {
         try {
-            // Supondo que a tabela 'app_versions' exista. Se não existir, retorna array vazio ou erro tratável.
             const { data, error } = await supabase
                 .from('app_versions')
                 .select('*')

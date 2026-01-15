@@ -9,6 +9,7 @@ import { IconSend, IconSparkles, IconUser, IconRefresh, IconCopy, IconSearch, Ic
 interface ChatInterfaceProps {
     project: Project;
     onUpdateProject: (p: Project) => void;
+    refreshTrigger?: number; // Prop para forçar recarregamento externo
 }
 
 // Helper para destacar texto
@@ -31,7 +32,7 @@ const HighlightText = ({ text, highlight }: { text: string, highlight: string })
     );
 };
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject, refreshTrigger = 0 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isThinking, setIsThinking] = useState(false);
@@ -44,14 +45,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // Carrega mensagens do banco ao iniciar
+    // Carrega mensagens do banco ao iniciar E quando refreshTrigger mudar
     useEffect(() => {
         const loadMessages = async () => {
             const msgs = await dataService.getMessages(project.id);
             setMessages(msgs);
         };
         loadMessages();
-    }, [project.id]);
+    }, [project.id, refreshTrigger]);
 
     // Scroll para baixo apenas se NÃO estiver buscando (para não pular enquanto lê histórico)
     useEffect(() => {

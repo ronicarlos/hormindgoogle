@@ -29,10 +29,15 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
         // Load persistent Training Notes
         setTrainingNotes(initialData.trainingNotes || '');
         
-        // Try to find latest calorie entry
-        const calMetrics = initialData.metrics['Calories'];
-        if (calMetrics && calMetrics.length > 0) {
-            setCalories(calMetrics[calMetrics.length - 1].value.toString());
+        // CORREÇÃO CALORIAS: Prioriza a nova coluna de configurações do projeto
+        if (initialData.dietCalories) {
+            setCalories(initialData.dietCalories);
+        } else {
+            // Fallback para histórico se não houver configuração fixa
+            const calMetrics = initialData.metrics['Calories'];
+            if (calMetrics && calMetrics.length > 0) {
+                setCalories(calMetrics[calMetrics.length - 1].value.toString());
+            }
         }
 
         // Load existing protocol
@@ -67,7 +72,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
 
     onSave({
         goal,
-        calories,
+        calories, // Isso agora será passado para updateProjectSettings como dietCalories
         trainingNotes,
         protocol: cleanProtocol
     });

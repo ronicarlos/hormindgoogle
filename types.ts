@@ -107,6 +107,7 @@ export interface Project {
   metrics: Record<string, MetricPoint[]>; 
   currentProtocol?: ProtocolItem[]; 
   trainingNotes?: string; // NEW: Added for persistence
+  dietCalories?: string; // NEW: Persisted Diet Target
   lastAnalysis?: string;
   userProfile?: UserProfile;
 }

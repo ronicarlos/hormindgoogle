@@ -27,7 +27,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.5.8'; 
+const APP_VERSION = '1.5.9'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -189,25 +189,26 @@ export default function App() {
   const handleExecuteAnalysis = async () => {
       if (!project || !session?.user || !pendingAnalysisContext) return;
       
-      setIsAnalysisModalOpen(false); // Close modal immediately
-      setCurrentView('chat'); // Redirect to chat UI
-      setIsLoading(true); // Show loading indicator (optional, chat handles it too)
+      setIsAnalysisModalOpen(false); // Close modal
+      setIsLoading(true);
 
       try {
-          // 1. Create User Context Message
+          // 1. Create User Context Message & Save FIRST
           const userMsg: ChatMessage = {
               id: Date.now().toString(),
               role: 'user',
               text: `[SISTEMA - ATUALIZAÇÃO DE CONTEXTO]\n${pendingAnalysisContext}\n\nCom base nessas mudanças e nos novos dados, faça uma análise detalhada do meu cenário atual.`,
               timestamp: Date.now()
           };
-          
           await dataService.addMessage(project.id, userMsg);
 
-          // 2. Fetch History for Context
+          // 2. NOW redirect to Chat (it will load the just-added message)
+          setCurrentView('chat'); 
+
+          // 3. Fetch History for Context
           const history = await dataService.getMessages(project.id);
 
-          // 3. Call AI
+          // 4. Call AI
           const responseText = await generateAIResponse(
               userMsg.text,
               project.sources,
@@ -216,7 +217,7 @@ export default function App() {
               project.metrics
           );
 
-          // 4. Save AI Response
+          // 5. Save AI Response
           const aiMsg: ChatMessage = {
               id: (Date.now() + 1).toString(),
               role: 'model',
@@ -225,12 +226,9 @@ export default function App() {
           };
           await dataService.addMessage(project.id, aiMsg);
 
-          // 5. Update Billing
-          setBillingTrigger(prev => prev + 1);
+          // 6. Update Billing & Force Chat Refresh via Trigger
+          setBillingTrigger(prev => prev + 1); // This updates ChatInterface instantly
           
-          // Force reload to update chat view
-          // Ideally ChatInterface should listen to DB changes or we pass the new message down, 
-          // but reloading project ensures consistency.
           await loadProject(session.user.id); 
 
       } catch (err) {
@@ -297,7 +295,14 @@ export default function App() {
   const handleSaveDailyLog = async (data: DailyLogData) => {
       if (!project || !session?.user) return;
       
-      await dataService.updateProjectSettings(project.id, data.goal, data.protocol, data.trainingNotes);
+      // FIX: Agora passa 'data.calories' para o updateProjectSettings para salvar na nova coluna
+      await dataService.updateProjectSettings(
+          project.id, 
+          data.goal, 
+          data.protocol, 
+          data.trainingNotes, 
+          data.calories // <-- Nova coluna diet_calories
+      );
       
       if (data.calories) {
           await dataService.addMetric(project.id, 'Calories', {
@@ -390,7 +395,11 @@ export default function App() {
               {project && (
                   <>
                       {currentView === 'chat' && (
-                          <ChatInterface project={project} onUpdateProject={handleUpdateProject} />
+                          <ChatInterface 
+                              project={project} 
+                              onUpdateProject={handleUpdateProject} 
+                              refreshTrigger={billingTrigger} // Pass trigger to force update
+                          />
                       )}
 
                       {currentView === 'dashboard' && (
@@ -430,6 +439,7 @@ export default function App() {
                               billingTrigger={billingTrigger}
                               onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
                               onLogout={handleLogout}
+                              onRequestAnalysis={(ctx) => handleTriggerAnalysisConfirmation(ctx)}
                           />
                       )}
 
@@ -474,6 +484,7 @@ export default function App() {
               onUpdateProfile={handleUpdateProfile}
               onUpdateProject={handleUpdateProject}
               onUpload={handleUpload}
+              onRequestAnalysis={(ctx) => handleTriggerAnalysisConfirmation(ctx)}
           />
       )}
 

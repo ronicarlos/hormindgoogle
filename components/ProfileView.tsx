@@ -19,10 +19,11 @@ interface ProfileViewProps {
     billingTrigger: number;
     onOpenSubscription: () => void;
     onLogout?: () => void;
+    onRequestAnalysis?: (context: string) => void; // New prop for analysis trigger
 }
 
 // VERSÃO DO CÓDIGO LOCAL (Fallback)
-const CODE_VERSION = "v1.5.7";
+const CODE_VERSION = "v1.5.9";
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
@@ -60,7 +61,7 @@ const MEASUREMENT_HINTS: Record<string, string> = {
     calf: 'Maior circunferência'
 };
 
-const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription, onLogout }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription, onLogout, onRequestAnalysis }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -102,6 +103,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     };
 
     const [formData, setFormData] = useState<UserProfile>(profile || defaultProfile);
+    const [initialFormData, setInitialFormData] = useState<UserProfile>(profile || defaultProfile); // For Dirty Checking
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -178,16 +180,18 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
     useEffect(() => {
         if (profile) {
-            setFormData(prev => ({
+            const newProfile = {
                 ...defaultProfile, 
                 ...profile,        
                 measurements: {    
                     ...defaultProfile.measurements,
                     ...(profile.measurements || {})
                 },
-                calculatedStats: prev.calculatedStats,
+                calculatedStats: defaultProfile.calculatedStats, // Ignore calc in diff
                 theme: profile.theme || 'light'
-            }));
+            };
+            setFormData(newProfile);
+            setInitialFormData(JSON.parse(JSON.stringify(newProfile))); // Deep copy for baseline
         }
     }, [profile]);
 
@@ -213,6 +217,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         }));
     };
 
+    const detectCriticalChanges = (): string | null => {
+        const changes: string[] = [];
+        
+        if (formData.weight !== initialFormData.weight) changes.push(`Peso: ${initialFormData.weight || '0'} -> ${formData.weight}`);
+        if (JSON.stringify(formData.measurements) !== JSON.stringify(initialFormData.measurements)) changes.push("Medidas corporais atualizadas.");
+        if (formData.comorbidities !== initialFormData.comorbidities) changes.push("Histórico de doenças alterado.");
+        if (formData.medications !== initialFormData.medications) changes.push("Medicamentos em uso alterados.");
+        
+        return changes.length > 0 ? changes.join('\n') : null;
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         try {
@@ -220,7 +235,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             if (session?.user) {
                 await dataService.saveUserProfile(session.user.id, formData);
                 onSave(formData);
-                setSuccessMsg('Perfil atualizado com sucesso! A IA agora usará estes dados.');
+                setSuccessMsg('Perfil salvo com sucesso!');
+                
+                // Trigger Logic
+                const changes = detectCriticalChanges();
+                if (changes && onRequestAnalysis) {
+                    onRequestAnalysis(`O usuário atualizou dados críticos do perfil:\n${changes}`);
+                }
+                
+                setInitialFormData(JSON.parse(JSON.stringify(formData))); // Update baseline
                 setTimeout(() => setSuccessMsg(''), 3000);
             }
         } catch (error) {
@@ -340,9 +363,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                 <button 
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700"
+                    className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-2"
                 >
-                    {isSaving ? 'Salvando...' : 'Salvar Perfil'}
+                    {isSaving ? <IconRefresh className="w-4 h-4 animate-spin" /> : <IconCheck className="w-4 h-4" />}
+                    Salvar Perfil
                 </button>
             </div>
 

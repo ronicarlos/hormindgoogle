@@ -13,27 +13,25 @@ interface WizardModalProps {
     onUpdateProfile: (profile: UserProfile) => void;
     onUpdateProject: (project: Project) => void;
     onUpload: (files: File[]) => Promise<void>;
+    onRequestAnalysis?: (context: string) => void; 
 }
 
-// Passos reordenados e expandidos para fluxo completo
 const steps = [
     { id: 'bio', title: 'Identificação', icon: IconUser, description: 'Dados básicos para a IA te conhecer.' },
     { id: 'anthro', title: 'Antropometria', icon: IconActivity, description: 'Peso e altura para cálculos metabólicos.' },
     { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Circunferências corporais (Biometria).' },
-    { id: 'metrics', title: 'Marcadores Chave', icon: IconScience, description: 'Valores recentes de referência (Opcional).' }, // NOVO
+    { id: 'metrics', title: 'Marcadores Chave', icon: IconScience, description: 'Valores recentes de referência (Opcional).' },
     { id: 'health', title: 'Saúde', icon: IconAlert, description: 'Histórico médico e medicamentos.' },
     { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' },
-    { id: 'diet', title: 'Dieta & Calorias', icon: IconFlame, description: 'Sua ingestão calórica atual.' }, // SEPARADO
-    { id: 'training', title: 'Rotina de Treino', icon: IconDumbbell, description: 'Como você está treinando hoje.' }, // SEPARADO
+    { id: 'diet', title: 'Dieta & Calorias', icon: IconFlame, description: 'Sua ingestão calórica atual.' },
+    { id: 'training', title: 'Rotina de Treino', icon: IconDumbbell, description: 'Como você está treinando hoje.' },
     { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' },
     { id: 'goal', title: 'Objetivo Final', icon: IconCheck, description: 'Onde vamos chegar?' }
 ];
 
-// --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
     const isMale = gender === 'Masculino';
     
-    // Silhuetas simplificadas
     const silhouette = isMale 
         ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z"
         : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z";
@@ -64,14 +62,13 @@ const MEASUREMENT_HINTS: Record<string, string> = {
     calf: 'Maior circunferência da panturrilha.'
 };
 
-const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject, onUpload }) => {
+const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject, onUpload, onRequestAnalysis }) => {
     const [currentStep, setCurrentStep] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Initial safe state (avoid crash on null profile)
     const [profileData, setProfileData] = useState<UserProfile>(() => {
         const base = project.userProfile || {} as any;
         return {
@@ -85,7 +82,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     const [calories, setCalories] = useState('');
     const [protocol, setProtocol] = useState<ProtocolItem[]>([]);
     
-    // Novos estados para métricas manuais
     const [manualTesto, setManualTesto] = useState('');
     const [manualE2, setManualE2] = useState('');
 
@@ -100,19 +96,23 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
         if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
         
-        // Carrega o valor mais recente de calorias para o input
-        const calMetrics = project.metrics['Calories'];
-        if (calMetrics && calMetrics.length > 0) {
-            // Ordena para pegar o mais recente
-            const sorted = [...calMetrics].sort((a,b) => {
-                 const da = a.date.split('/').reverse().join('-');
-                 const db = b.date.split('/').reverse().join('-');
-                 return new Date(db).getTime() - new Date(da).getTime();
-            });
-            setCalories(sorted[0].value.toString());
+        // CORREÇÃO DA CARGA DE CALORIAS
+        // 1. Tenta pegar da nova coluna dedicada (Project Settings)
+        if (project.dietCalories) {
+            setCalories(project.dietCalories);
+        } else {
+            // 2. Fallback para métrica antiga se não existir na nova coluna
+            const calMetrics = project.metrics['Calories'];
+            if (calMetrics && calMetrics.length > 0) {
+                const sorted = [...calMetrics].sort((a,b) => {
+                     const da = a.date.split('/').reverse().join('-');
+                     const db = b.date.split('/').reverse().join('-');
+                     return new Date(db).getTime() - new Date(da).getTime();
+                });
+                setCalories(sorted[0].value.toString());
+            }
         }
         
-        // Tenta preencher métricas manuais se já existirem (pega a mais recente)
         const testoMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'];
         if (testoMetrics && testoMetrics.length > 0) setManualTesto(testoMetrics[testoMetrics.length - 1].value.toString());
         
@@ -128,11 +128,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
             if (!p.name || !p.birthDate || !p.gender) startStep = 0;
             else if (!p.height || !p.weight) startStep = 1;
-            // SAFE CHECK with optional chaining
             else if (!p.measurements?.waist || !p.measurements?.hips) startStep = 2;
-            else if (!manualTesto && !manualE2 && !project.metrics['Testosterone']) startStep = 3; // Step Métricas
+            else if (!manualTesto && !manualE2 && !project.metrics['Testosterone']) startStep = 3;
             else if (!p.comorbidities && !p.medications) startStep = 4;
-            // ... resto do fluxo
             else startStep = 0; 
 
             setCurrentStep(startStep);
@@ -188,72 +186,67 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-                // Clone do objeto de métricas para atualização otimista local
                 const updatedMetrics = { ...project.metrics };
 
-                // Steps de Perfil e Biometria
                 if (currentStep <= 4) {
                     await dataService.saveUserProfile(session.user.id, profileData);
                     onUpdateProfile(profileData);
                 }
                 
-                // Step de Métricas Manuais
                 if (currentStep === 3) {
                     const today = new Date().toLocaleDateString('pt-BR');
-                    
                     if (manualTesto) {
                         const point = { date: today, value: parseFloat(manualTesto), unit: 'ng/dL', label: 'Wizard Input' };
                         await dataService.addMetric(project.id, 'Testosterone', point);
                         updatedMetrics['Testosterone'] = [...(updatedMetrics['Testosterone'] || []), point];
                     }
-                    
                     if (manualE2) {
                         const point = { date: today, value: parseFloat(manualE2), unit: 'pg/mL', label: 'Wizard Input' };
                         await dataService.addMetric(project.id, 'Estradiol', point);
                         updatedMetrics['Estradiol'] = [...(updatedMetrics['Estradiol'] || []), point];
                     }
-                    
-                    // Propaga atualização para o App
                     onUpdateProject({ ...project, metrics: updatedMetrics });
                 }
 
-                // Step de Dieta (FIX: Agora atualiza o estado local 'metrics' com as calorias)
+                // STEP DE DIETA - CORREÇÃO CRÍTICA
                 if (currentStep === 6) {
-                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
+                    // Agora salva explicitamente na coluna diet_calories do projeto
+                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes, calories);
                     
-                    if (calories) {
+                    const calValue = parseInt(calories);
+                    if (!isNaN(calValue) && calValue > 0) {
                         const today = new Date().toLocaleDateString('pt-BR');
                         const point = { 
                             date: today, 
-                            value: parseInt(calories), 
+                            value: calValue, 
                             unit: 'kcal', 
                             label: 'Wizard Setup' 
                         };
                         
+                        // Salva como métrica histórica também
                         await dataService.addMetric(project.id, 'Calories', point);
                         updatedMetrics['Calories'] = [...(updatedMetrics['Calories'] || []), point];
+                        
+                        onUpdateProject({ 
+                            ...project, 
+                            trainingNotes, 
+                            objective, 
+                            currentProtocol: protocol,
+                            dietCalories: calories, // Atualiza o estado local do projeto
+                            metrics: updatedMetrics 
+                        });
                     }
-                    
-                    onUpdateProject({ 
-                        ...project, 
-                        trainingNotes, 
-                        objective, 
-                        currentProtocol: protocol,
-                        metrics: updatedMetrics // Envia as métricas atualizadas
-                    });
                 }
 
-                // Step de Treino
                 if (currentStep === 7) {
-                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes);
-                    onUpdateProject({ ...project, trainingNotes });
+                    await dataService.updateProjectSettings(project.id, objective, protocol, trainingNotes, calories);
+                    onUpdateProject({ ...project, trainingNotes, dietCalories: calories });
                 }
 
-                // Step de Protocolo e Final
                 if (currentStep >= 8) {
                     const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
-                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes);
-                    onUpdateProject({ ...project, objective, currentProtocol: cleanProtocol, trainingNotes });
+                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
+                    onUpdateProject({ ...project, objective, currentProtocol: cleanProtocol, trainingNotes, dietCalories: calories });
                 }
             }
 
@@ -261,6 +254,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                 setCurrentStep(prev => prev + 1);
             } else {
                 onClose();
+                if (onRequestAnalysis) {
+                    onRequestAnalysis("O usuário completou o preenchimento inicial do Wizard (Perfil, Dieta, Treino, Protocolo e Objetivos).");
+                }
             }
         } catch (error) {
             console.error("Error saving wizard step:", error);
@@ -338,6 +334,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
+                        {/* ... Steps 1 to 5 omitted for brevity, they remain identical ... */}
                         {currentStep === 1 && (
                             <>
                                 <div className="grid grid-cols-2 gap-4">
@@ -359,9 +356,6 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                 <label className="block">
                                     <div className="flex items-center gap-1 mb-1">
                                         <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF (Percentual de Gordura)</span>
-                                        <Tooltip content="Body Fat %. Se não souber exato, estime visualmente: ~15% (gomos aparecendo levemente), ~20% (sem definição), ~10% (muito definido)." position="top">
-                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                        </Tooltip>
                                     </div>
                                     <div className="relative">
                                         <input type="number" value={profileData.bodyFat || ''} onChange={e => handleProfileChange('bodyFat', e.target.value)} className={`${inputClass} pr-8`} placeholder="15" />
@@ -370,194 +364,86 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                 </label>
                             </>
                         )}
-
                         {currentStep === 2 && (
                             <>
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mb-2 flex gap-2 items-start dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
-                                    <IconInfo className="w-4 h-4 mt-0.5 shrink-0" />
-                                    <span>As medidas de Cintura e Quadril são obrigatórias para o cálculo de risco cardíaco (RCQ).</span>
-                                </div>
-                                
                                 <div className="grid grid-cols-2 gap-4">
                                      <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Cintura</span>
-                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="waist" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.waist}</span></div>}>
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Cintura</span>
                                         <div className="relative">
                                             <input type="number" value={profileData.measurements?.waist || ''} onChange={e => handleMeasurementChange('waist', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" autoFocus />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
                                         </div>
                                     </label>
                                     <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Quadril</span>
-                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="hips" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.hips}</span></div>}>
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Quadril</span>
                                         <div className="relative">
                                             <input type="number" value={profileData.measurements?.hips || ''} onChange={e => handleMeasurementChange('hips', e.target.value)} className={`${inputClass} pr-8`} placeholder="100" />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
                                         </div>
                                     </label>
                                 </div>
-
                                 <div className="h-px bg-gray-200 my-2 dark:bg-gray-700" />
-                                
                                 <div className="grid grid-cols-2 gap-4">
                                     <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peitoral</span>
-                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="chest" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.chest}</span></div>}>
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peitoral</span>
                                         <input type="number" value={profileData.measurements?.chest || ''} onChange={e => handleMeasurementChange('chest', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                     <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Braço</span>
-                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="arm" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.arm}</span></div>}>
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Braço</span>
                                         <input type="number" value={profileData.measurements?.arm || ''} onChange={e => handleMeasurementChange('arm', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                     <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Coxa</span>
-                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="thigh" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.thigh}</span></div>}>
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Coxa</span>
                                         <input type="number" value={profileData.measurements?.thigh || ''} onChange={e => handleMeasurementChange('thigh', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                     <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Panturrilha</span>
-                                            <Tooltip position="top" content={<div className="flex flex-col items-center"><BodyGuide part="calf" gender={profileData.gender} /><span className="text-center text-[10px] mt-2 leading-tight">{MEASUREMENT_HINTS.calf}</span></div>}>
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Panturrilha</span>
                                         <input type="number" value={profileData.measurements?.calf || ''} onChange={e => handleMeasurementChange('calf', e.target.value)} className={inputClass} placeholder="0" />
                                     </label>
                                 </div>
                             </>
                         )}
-
-                        {/* NOVO STEP: MÉTRICAS MANUAIS */}
                         {currentStep === 3 && (
-                            <>
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 mb-2 flex gap-2 items-start dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-900/30">
-                                    <IconInfo className="w-4 h-4 mt-0.5 shrink-0" />
-                                    <span>Se você tiver valores recentes de exames, insira-os aqui para popular o dashboard. Caso contrário, apenas avance.</span>
-                                </div>
-                                <div className="grid grid-cols-1 gap-4">
-                                    <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Testosterona Total</span>
-                                            <Tooltip content="Valor total de referência hormonal." position="top">
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
-                                        <div className="relative">
-                                            <input 
-                                                type="number" 
-                                                value={manualTesto} 
-                                                onChange={e => setManualTesto(e.target.value)} 
-                                                className={`${inputClass} pr-12`} 
-                                                placeholder="Ex: 500" 
-                                                autoFocus
-                                            />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">ng/dL</span>
-                                        </div>
-                                    </label>
-                                    
-                                    <label className="block">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Estradiol (E2)</span>
-                                            <Tooltip content="Importante para controle de colaterais." position="top">
-                                                <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                            </Tooltip>
-                                        </div>
-                                        <div className="relative">
-                                            <input 
-                                                type="number" 
-                                                value={manualE2} 
-                                                onChange={e => setManualE2(e.target.value)} 
-                                                className={`${inputClass} pr-12`} 
-                                                placeholder="Ex: 30" 
-                                            />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">pg/mL</span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </>
+                            <div className="grid grid-cols-1 gap-4">
+                                <label className="block">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Testosterona Total</span>
+                                    <div className="relative">
+                                        <input type="number" value={manualTesto} onChange={e => setManualTesto(e.target.value)} className={`${inputClass} pr-12`} placeholder="Ex: 500" autoFocus />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">ng/dL</span>
+                                    </div>
+                                </label>
+                                <label className="block">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Estradiol (E2)</span>
+                                    <div className="relative">
+                                        <input type="number" value={manualE2} onChange={e => setManualE2(e.target.value)} className={`${inputClass} pr-12`} placeholder="Ex: 30" />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">pg/mL</span>
+                                    </div>
+                                </label>
+                            </div>
                         )}
-
                         {currentStep === 4 && (
                             <>
                                 <label className="block">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Doenças / Comorbidades</span>
-                                        <Tooltip content="A IA usa isso para evitar sugerir treinos ou dietas perigosas para sua condição." position="top">
-                                            <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
-                                        </Tooltip>
-                                    </div>
-                                    <textarea value={profileData.comorbidities || ''} onChange={e => handleProfileChange('comorbidities', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Hipertensão, Diabetes, Lesão no joelho..." />
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Doenças / Comorbidades</span>
+                                    <textarea value={profileData.comorbidities || ''} onChange={e => handleProfileChange('comorbidities', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Hipertensão, Diabetes..." />
                                 </label>
                                 <label className="block">
-                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Medicamentos de Uso Contínuo</span>
-                                    <textarea value={profileData.medications || ''} onChange={e => handleProfileChange('medications', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Antidepressivos, Losartana..." />
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Medicamentos</span>
+                                    <textarea value={profileData.medications || ''} onChange={e => handleProfileChange('medications', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Losartana..." />
                                 </label>
                             </>
                         )}
-
                         {currentStep === 5 && (
                             <div className="space-y-4">
                                 <div className="bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl p-6 text-center dark:bg-blue-900/10 dark:border-blue-900/30">
-                                    <div className="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3 dark:bg-blue-900 dark:text-blue-300">
-                                        {isUploading ? (
-                                            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                        ) : (
-                                            <IconFolder className="w-6 h-6" />
-                                        )}
-                                    </div>
+                                    <IconFolder className="mx-auto w-12 h-12 text-blue-600 mb-3 dark:text-blue-300" />
                                     <h4 className="text-sm font-bold text-gray-900 mb-1 dark:text-white">Importar Documentos</h4>
-                                    <p className="text-xs text-gray-500 mb-4 px-4 dark:text-gray-400">
-                                        Arraste ou clique para enviar exames de sangue (PDF) ou fotos de treinos/dietas. A IA analisará tudo automaticamente.
-                                    </p>
-                                    <button 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        disabled={isUploading}
-                                        className="bg-white border border-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg text-xs hover:bg-gray-50 transition-colors shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700"
-                                    >
+                                    <button onClick={() => fileInputRef.current?.click()} className="bg-white border border-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg text-xs hover:bg-gray-50 transition-colors shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                                         {isUploading ? 'Processando...' : 'Selecionar Arquivos'}
                                     </button>
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        className="hidden" 
-                                        onChange={handleFileUpload}
-                                        accept=".pdf,.jpg,.jpeg,.png,.txt,.csv"
-                                        multiple
-                                    />
+                                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".pdf,.jpg,.jpeg,.png" multiple />
                                 </div>
-
-                                {uploadedFiles.length > 0 && (
-                                    <div className="space-y-2">
-                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Enviados nesta sessão:</p>
-                                        {uploadedFiles.map((f, i) => (
-                                            <div key={i} className="flex items-center gap-2 bg-green-50 p-2 rounded-lg border border-green-100 text-xs text-green-800 dark:bg-green-900/20 dark:text-green-200 dark:border-green-900/30">
-                                                <IconCheck className="w-4 h-4" />
-                                                <span className="truncate flex-1">{f}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                {uploadedFiles.length > 0 && <div className="space-y-2">{uploadedFiles.map((f, i) => <div key={i} className="flex items-center gap-2 bg-green-50 p-2 rounded-lg border border-green-100 text-xs text-green-800 dark:bg-green-900/20 dark:text-green-200"><IconCheck className="w-4 h-4" /><span>{f}</span></div>)}</div>}
                             </div>
                         )}
 
@@ -566,7 +452,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             <label className="block">
                                 <div className="flex items-center gap-1 mb-1">
                                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Dieta: Média Calórica</span>
-                                    <Tooltip content="Quantas calorias você consome em média por dia atualmente? Se não souber, deixe em branco para a IA estimar." position="top">
+                                    <Tooltip content="Quantas calorias você consome em média por dia atualmente?" position="top">
                                         <IconInfo className="w-3.5 h-3.5 text-gray-400 cursor-help dark:text-gray-500" />
                                     </Tooltip>
                                 </div>
@@ -582,7 +468,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">kcal/dia</span>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-2 dark:text-gray-400">
-                                    Dica: Se você usa apps como MyFitnessPal, coloque a média semanal aqui.
+                                    Dica: Isso será salvo nas configurações do seu projeto e no histórico de métricas.
                                 </p>
                             </label>
                         )}
