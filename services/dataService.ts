@@ -337,9 +337,10 @@ export const dataService = {
     },
     
     async uploadAvatar(file: File, userId: string): Promise<string | null> {
+        // Sanitize file name for avatar too
         const fileExt = file.name.split('.').pop();
-        const fileName = `avatar_${Date.now()}.${fileExt}`;
-        const filePath = `${userId}/avatars/${fileName}`;
+        const safeFileName = `avatar_${Date.now()}.${fileExt}`;
+        const filePath = `${userId}/avatars/${safeFileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('project_files')
@@ -369,18 +370,31 @@ export const dataService = {
     },
 
     async uploadFileToStorage(file: File, userId: string, projectId: string): Promise<string | null> {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        // SANITIZAÇÃO CRÍTICA DO NOME DO ARQUIVO
+        // Remove acentos, espaços e caracteres especiais que quebram o Storage
+        const cleanName = file.name
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/[^a-zA-Z0-9.-]/g, "_"); // Troca espaços e símbolos por _
+
+        const fileName = `${Date.now()}_${cleanName}`;
         const filePath = `${userId}/${projectId}/${fileName}`;
 
-        const { error } = await supabase.storage
+        console.log("Tentando upload para:", filePath);
+
+        const { error, data } = await supabase.storage
             .from('project_files')
-            .upload(filePath, file);
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false
+            });
 
         if (error) {
-            console.error('Error uploading file:', error);
+            console.error('CRITICAL STORAGE ERROR:', error);
+            // Tenta retornar null para avisar o front que falhou
             return null;
         }
+        
+        console.log("Upload sucesso:", data);
         return filePath;
     },
 
@@ -403,7 +417,21 @@ export const dataService = {
         return error;
     },
 
-    async deleteSource(sourceId: string) {
+    async deleteSource(sourceId: string, filePath?: string) {
+        // 1. Tenta deletar o arquivo do storage se existir
+        if (filePath) {
+            try {
+                const { error: storageError } = await supabase.storage
+                    .from('project_files')
+                    .remove([filePath]);
+                
+                if (storageError) console.warn("Storage deletion warning:", storageError);
+            } catch (e) {
+                console.warn("Storage deletion error", e);
+            }
+        }
+
+        // 2. Deleta o registro do banco
         const { error } = await supabase
             .from('sources')
             .delete()
