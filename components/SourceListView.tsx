@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Project, Source, SourceType } from '../types';
-import { IconFile, IconTrash, IconEye, IconDownload, IconSearch, IconFolder, IconPlus, IconAlert } from './Icons';
+import { IconFile, IconTrash, IconEye, IconDownload, IconSearch, IconFolder, IconPlus, IconAlert, IconSparkles } from './Icons';
 import { dataService } from '../services/dataService';
 
 interface SourceListViewProps {
@@ -9,7 +9,7 @@ interface SourceListViewProps {
     onViewSource: (source: Source) => void;
     onUpdateProject: (p: Project) => void;
     onUpload: (files: File[]) => void;
-    onUploadClick?: () => void;
+    onManualAnalysis?: () => void; // New prop for manual analysis trigger
 }
 
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
@@ -45,7 +45,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm }: { isOpen: boole
     );
 };
 
-const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, onUpdateProject, onUpload }) => {
+const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, onUpdateProject, onUpload, onManualAnalysis }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'ALL' | 'PDF' | 'IMAGE'>('ALL');
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -83,7 +83,6 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
             
             if (error) {
                 console.error("Erro Delete:", error);
-                console.log(`ERRO AO EXCLUIR: ${error.message || 'Permissão negada'}. Verifique SQL.`);
             } else {
                 const updatedSources = project.sources.filter(s => s.id !== id);
                 onUpdateProject({ ...project, sources: updatedSources });
@@ -108,7 +107,7 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
     };
 
     return (
-        <div className="flex-1 bg-gray-50 h-full flex flex-col overflow-hidden dark:bg-gray-950 relative">
+        <div className="flex-1 bg-gray-50 h-full flex flex-col overflow-hidden dark:bg-gray-900 relative">
             
             <DeleteConfirmationModal 
                 isOpen={!!itemToDelete} 
@@ -116,7 +115,7 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                 onConfirm={handleConfirmDelete} 
             />
 
-            {/* Header: Adjusted for Mobile to be Row-based */}
+            {/* Header */}
             <div className="shrink-0 bg-white border-b border-gray-200 p-4 md:p-6 flex flex-row items-center justify-between gap-4 dark:bg-gray-900 dark:border-gray-800">
                 <div>
                     <h2 className="text-lg md:text-xl font-black text-gray-900 flex items-center gap-2 dark:text-white">
@@ -129,6 +128,16 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                 </div>
 
                 <div className="flex gap-2">
+                    {onManualAnalysis && (
+                        <button 
+                            onClick={onManualAnalysis}
+                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-900/30"
+                            title="Forçar reanálise de todos os documentos pela IA"
+                        >
+                            <IconSparkles className="w-4 h-4" />
+                            Reanalisar Tudo
+                        </button>
+                    )}
                     <input 
                         type="file" 
                         ref={fileInputRef} 
@@ -147,6 +156,19 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                     </button>
                 </div>
             </div>
+
+            {/* Mobile "Reanalyze" Button (Visible only on small screens) */}
+            {onManualAnalysis && (
+                <div className="md:hidden px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+                    <button 
+                        onClick={onManualAnalysis}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-900/30"
+                    >
+                        <IconSparkles className="w-4 h-4" />
+                        Solicitar Reanálise Completa
+                    </button>
+                </div>
+            )}
 
             {/* Filters & Search */}
             <div className="p-4 border-b border-gray-200 bg-white/50 backdrop-blur-sm flex flex-col md:flex-row gap-3 dark:bg-gray-900/50 dark:border-gray-800">
@@ -202,7 +224,6 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                                         <IconFile className="w-5 h-5" />
                                     </div>
                                     
-                                    {/* AÇÕES: Visível SEMPRE no mobile (opacity-100), Hover no Desktop (md:opacity-0) */}
                                     <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity relative z-20 bg-white/90 backdrop-blur-sm rounded-lg p-1 border border-gray-100 shadow-sm dark:bg-gray-900/90 dark:border-gray-700">
                                         {source.fileUrl && (
                                             <button 

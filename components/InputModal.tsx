@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { IconDumbbell, IconFlame, IconPill, IconCheck, IconClose, IconPlus } from './Icons';
+import { IconDumbbell, IconFlame, IconPill, IconCheck, IconClose, IconPlus, IconSparkles } from './Icons';
 import { ProtocolItem, DailyLogData, Project } from '../types';
 
 interface InputModalProps {
@@ -230,7 +230,13 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, initia
         {/* Footer */}
         <div className="p-6 border-t border-gray-100 flex justify-end gap-3 dark:border-gray-800">
             <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg dark:text-gray-300 dark:hover:bg-gray-800">Cancelar</button>
-            <button onClick={handleSave} className="px-6 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700">Salvar & Analisar</button>
+            <button 
+              onClick={handleSave} 
+              className="px-6 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 flex items-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700"
+            >
+              <IconSparkles className="w-4 h-4" />
+              Salvar & Analisar
+            </button>
         </div>
       </div>
     </div>

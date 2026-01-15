@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { dataService } from './services/dataService';
-import { Project, UserProfile, AppView, Source, Exercise, DailyLogData, SourceType } from './types';
+import { generateAIResponse } from './services/geminiService'; // Import necessary for direct analysis
+import { Project, UserProfile, AppView, Source, Exercise, DailyLogData, SourceType, ChatMessage } from './types';
 import AuthScreen from './components/AuthScreen';
 import SourceSidebar from './components/SourceSidebar';
 import MobileNav from './components/MobileNav'; 
@@ -21,12 +22,12 @@ import SourceDetailModal from './components/SourceDetailModal';
 import LegalContractModal from './components/LegalContractModal';
 import { IOSInstallPrompt } from './components/IOSInstallPrompt';
 import SubscriptionModal from './components/SubscriptionModal';
+import AnalysisModal from './components/AnalysisModal';
 import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
-// --- CONTROLE DE VERSÃO E CACHE (Fallback manual + DB Sync) ---
-// Esta constante serve como fallback se o banco falhar, ou para marcar a versão do código.
-const CODE_VERSION = '1.5.7'; 
+// --- CONTROLE DE VERSÃO E CACHE ---
+const APP_VERSION = '1.5.8'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -34,22 +35,28 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Modals State
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [prontuarioContent, setProntuarioContent] = useState('');
   const [isProntuarioModalOpen, setIsProntuarioModalOpen] = useState(false);
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
-  const [billingTrigger, setBillingTrigger] = useState(0);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  
+  // New Analysis Logic State
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const [pendingAnalysisContext, setPendingAnalysisContext] = useState('');
+  
+  const [billingTrigger, setBillingTrigger] = useState(0);
   const [currentBill, setCurrentBill] = useState(0);
 
-  // --- AUTO-UPDATE LOGIC (DATABASE DRIVEN) ---
+  // --- AUTO-UPDATE LOGIC ---
   useEffect(() => {
     const checkVersionAndClearCache = async () => {
       const storedVersion = localStorage.getItem('fitlm_app_version');
       
-      // 1. Tenta pegar a versão mais recente do Supabase
-      let targetVersion = CODE_VERSION; 
+      let targetVersion = APP_VERSION; 
       try {
           const latestDB = await dataService.getLatestAppVersion();
           if (latestDB) {
@@ -59,11 +66,8 @@ export default function App() {
           console.warn("Falha ao checar versão no banco, usando local:", e);
       }
 
-      // 2. Se a versão alvo (DB ou Code) for diferente da armazenada, limpa tudo.
       if (storedVersion !== targetVersion) {
         console.log(`Nova versão detectada (${targetVersion}). Limpando cache antigo...`);
-        
-        // Unregister Service Workers
         if ('serviceWorker' in navigator) {
           try {
             const registrations = await navigator.serviceWorker.getRegistrations();
@@ -74,8 +78,6 @@ export default function App() {
             console.warn("Erro ao limpar ServiceWorker (ignorado):", err);
           }
         }
-
-        // Clear Browser Caches (Storage)
         if ('caches' in window) {
           try {
             const keys = await caches.keys();
@@ -84,11 +86,7 @@ export default function App() {
             console.warn("Erro ao limpar Cache Storage (ignorado):", err);
           }
         }
-
-        // Update Stored Version
         localStorage.setItem('fitlm_app_version', targetVersion);
-
-        // Force Reload from Server (Ignora Cache)
         window.location.reload();
       }
     };
@@ -120,26 +118,16 @@ export default function App() {
     const proj = await dataService.getOrCreateProject(userId);
     setProject(proj);
     
-    // --- SYNC REMEMBER EMAIL PREFERENCE ---
-    // Check if we have a pending sync from Login screen (User just checked/unchecked the box)
+    // Sync Remember Email
     const pendingSync = localStorage.getItem('fitlm_pending_remember_sync');
-    
     if (pendingSync !== null) {
-        // SYNC UP: Local choice -> Database
-        const choice = pendingSync === 'true';
-        await dataService.updateRememberEmailPreference(userId, choice);
-        localStorage.removeItem('fitlm_pending_remember_sync'); // Clear flag
+        await dataService.updateRememberEmailPreference(userId, pendingSync === 'true');
+        localStorage.removeItem('fitlm_pending_remember_sync');
     } else {
-        // SYNC DOWN: Database preference -> Local Storage
-        // If user logged in on another device and set preference to true, we honor it here.
         if (proj && proj.userProfile && proj.userProfile.rememberEmail) {
             const currentEmail = session?.user?.email;
-            if (currentEmail) {
-                localStorage.setItem('fitlm_saved_email', currentEmail);
-            }
+            if (currentEmail) localStorage.setItem('fitlm_saved_email', currentEmail);
         } else {
-            // If preference is false in DB, ensure we don't remember locally for next time
-            // Note: This logic assumes if I uncheck on Device A, I want it unchecked on Device B next time I log out.
             localStorage.removeItem('fitlm_saved_email');
         }
     }
@@ -148,17 +136,10 @@ export default function App() {
         setIsLegalModalOpen(true);
     }
 
-    if (proj?.userProfile?.theme) {
-        if (proj.userProfile.theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+    if (proj?.userProfile?.theme === 'dark' || (!proj?.userProfile?.theme && localStorage.getItem('fitlm-theme') === 'dark')) {
+        document.documentElement.classList.add('dark');
     } else {
-        const savedTheme = localStorage.getItem('fitlm-theme');
-        if (savedTheme === 'dark') {
-             document.documentElement.classList.add('dark');
-        }
+        document.documentElement.classList.remove('dark');
     }
     
     const bill = await dataService.getCurrentMonthBill(userId);
@@ -198,10 +179,74 @@ export default function App() {
       }
   };
 
+  // --- CORE INTELLIGENCE LOGIC ---
+
+  const handleTriggerAnalysisConfirmation = (context: string) => {
+      setPendingAnalysisContext(context);
+      setIsAnalysisModalOpen(true);
+  };
+
+  const handleExecuteAnalysis = async () => {
+      if (!project || !session?.user || !pendingAnalysisContext) return;
+      
+      setIsAnalysisModalOpen(false); // Close modal immediately
+      setCurrentView('chat'); // Redirect to chat UI
+      setIsLoading(true); // Show loading indicator (optional, chat handles it too)
+
+      try {
+          // 1. Create User Context Message
+          const userMsg: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'user',
+              text: `[SISTEMA - ATUALIZAÇÃO DE CONTEXTO]\n${pendingAnalysisContext}\n\nCom base nessas mudanças e nos novos dados, faça uma análise detalhada do meu cenário atual.`,
+              timestamp: Date.now()
+          };
+          
+          await dataService.addMessage(project.id, userMsg);
+
+          // 2. Fetch History for Context
+          const history = await dataService.getMessages(project.id);
+
+          // 3. Call AI
+          const responseText = await generateAIResponse(
+              userMsg.text,
+              project.sources,
+              history,
+              project.userProfile,
+              project.metrics
+          );
+
+          // 4. Save AI Response
+          const aiMsg: ChatMessage = {
+              id: (Date.now() + 1).toString(),
+              role: 'model',
+              text: responseText,
+              timestamp: Date.now()
+          };
+          await dataService.addMessage(project.id, aiMsg);
+
+          // 5. Update Billing
+          setBillingTrigger(prev => prev + 1);
+          
+          // Force reload to update chat view
+          // Ideally ChatInterface should listen to DB changes or we pass the new message down, 
+          // but reloading project ensures consistency.
+          await loadProject(session.user.id); 
+
+      } catch (err) {
+          console.error("Analysis failed", err);
+          alert("Erro ao processar análise. Tente novamente.");
+      } finally {
+          setIsLoading(false);
+          setPendingAnalysisContext('');
+      }
+  };
+
   const handleUpload = async (files: File[]) => {
       if (!session?.user || !project) return;
       
       setIsLoading(true);
+      let newFilesCount = 0;
 
       for (const file of files) {
           try {
@@ -231,9 +276,8 @@ export default function App() {
               };
               
               await dataService.addSource(project.id, source);
-              
               await dataService.logUsage(session.user.id, project.id, 'OCR', 500, 500); 
-              setBillingTrigger(prev => prev + 1);
+              newFilesCount++;
 
           } catch (err) {
               console.error(`Erro crítico processando ${file.name}:`, err);
@@ -241,22 +285,13 @@ export default function App() {
           }
       }
       
-      loadProject(session.user.id);
-  };
-
-  const handleGenerateProntuario = async () => {
-      if (!project || !session?.user) return;
-      setIsLoading(true); 
-      const text = await generateProntuario(project.sources, project.userProfile, project.metrics);
-      setProntuarioContent(text);
-      setIsProntuarioModalOpen(true);
-      setIsLoading(false);
-      
       setBillingTrigger(prev => prev + 1);
-  };
+      await loadProject(session.user.id);
+      setIsLoading(false);
 
-  const handleAddExercise = (exercise: Exercise) => {
-      alert(`Adicionado: ${exercise.name}`);
+      if (newFilesCount > 0) {
+          handleTriggerAnalysisConfirmation(`Novos documentos processados (${newFilesCount} arquivos). O usuário fez upload de exames ou planilhas recentes.`);
+      }
   };
 
   const handleSaveDailyLog = async (data: DailyLogData) => {
@@ -273,7 +308,25 @@ export default function App() {
           });
       }
 
-      loadProject(session.user.id);
+      await loadProject(session.user.id);
+      
+      // Trigger Analysis Prompt
+      const context = `O usuário atualizou seus parâmetros manualmente:\n- Objetivo: ${data.goal}\n- Dieta: ${data.calories} kcal\n- Protocolo: ${data.protocol.map(p => `${p.compound} (${p.dosage})`).join(', ')}\n- Notas de Treino: ${data.trainingNotes}`;
+      handleTriggerAnalysisConfirmation(context);
+  };
+
+  const handleGenerateProntuario = async () => {
+      if (!project || !session?.user) return;
+      setIsLoading(true); 
+      const text = await generateProntuario(project.sources, project.userProfile, project.metrics);
+      setProntuarioContent(text);
+      setIsProntuarioModalOpen(true);
+      setIsLoading(false);
+      setBillingTrigger(prev => prev + 1);
+  };
+
+  const handleAddExercise = (exercise: Exercise) => {
+      alert(`Adicionado: ${exercise.name}`);
   };
 
   if (!session) {
@@ -286,7 +339,7 @@ export default function App() {
         <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-gray-500 font-medium animate-pulse">
-                Processando dados...
+                Sincronizando Inteligência...
             </p>
         </div>
       </div>
@@ -296,7 +349,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
       
-      {/* Desktop Sidebar (Hidden on Mobile) */}
+      {/* Desktop Sidebar */}
       <div className="hidden md:flex w-64 shrink-0 h-full border-r border-gray-200 dark:border-gray-800">
           <SourceSidebar 
               currentView={currentView} 
@@ -308,10 +361,9 @@ export default function App() {
           />
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           
-          {/* MOBILE HEADER - Agora com onOpenParameters */}
           <MobileHeader 
               onOpenWizard={() => setIsWizardOpen(true)}
               onOpenProfile={() => setCurrentView('profile')}
@@ -325,9 +377,6 @@ export default function App() {
                           <IconAlert className="w-8 h-8 text-red-500" />
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 mb-2 dark:text-white">Erro ao carregar projeto</h3>
-                      <p className="text-sm text-gray-500 max-w-xs mb-6 dark:text-gray-400">
-                          Não foi possível conectar ao banco de dados. Tente recarregar.
-                      </p>
                       <button 
                           onClick={() => session?.user && loadProject(session.user.id)}
                           className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
@@ -361,6 +410,7 @@ export default function App() {
                               onViewSource={(source) => setSelectedSourceId(source.id)}
                               onUpdateProject={handleUpdateProject}
                               onUpload={handleUpload}
+                              onManualAnalysis={() => handleTriggerAnalysisConfirmation("O usuário solicitou uma REANÁLISE COMPLETA manual de todos os documentos e dados atuais.")}
                           />
                       )}
 
@@ -397,13 +447,11 @@ export default function App() {
               )}
           </div>
           
-          {/* Mobile Bottom Navigation */}
           <MobileNav 
               currentView={currentView}
               onChangeView={setCurrentView}
           />
 
-          {/* Floating Actions (Dashboard Only) */}
           {currentView === 'dashboard' && project && (
               <div className="absolute bottom-20 right-6 z-30 flex flex-col gap-3 md:bottom-6">
                   <button
@@ -434,6 +482,13 @@ export default function App() {
           onClose={() => setIsInputModalOpen(false)}
           onSave={handleSaveDailyLog}
           initialData={project}
+      />
+
+      <AnalysisModal 
+          isOpen={isAnalysisModalOpen}
+          onClose={() => setIsAnalysisModalOpen(false)}
+          onConfirm={handleExecuteAnalysis}
+          contextDescription={pendingAnalysisContext}
       />
 
       <ProntuarioModal 
