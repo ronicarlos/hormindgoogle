@@ -28,7 +28,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.11'; 
+const APP_VERSION = '1.6.14'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -473,8 +473,9 @@ export default function App() {
 
                       {currentView === 'profile' && (
                           <ProfileView 
-                              profile={project.userProfile}
+                              project={project}
                               onSave={handleUpdateProfile}
+                              onUpdateProject={handleUpdateProject}
                               onOpenWizard={() => setIsWizardOpen(true)}
                               billingTrigger={billingTrigger}
                               onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
