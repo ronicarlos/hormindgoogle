@@ -8,6 +8,8 @@
     
     <!-- PWA Settings -->
     <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Dynamic Theme Colors (Serão atualizadas pelo script abaixo) -->
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
     
@@ -17,24 +19,72 @@
     <meta name="apple-mobile-web-app-title" content="FitLM">
     <link rel="apple-touch-icon" href="https://placehold.co/180x180/000000/ffffff?text=FitLM">
 
-    <!-- THEME LOADER CRITICAL SCRIPT (ZERO FLASH) -->
+    <!-- 
+      ================================================================
+      CRITICAL THEME LOADER (ZERO FLASH ARCHITECTURE)
+      Este script DEVE permanecer no <head> antes de qualquer CSS/JS externo.
+      Ele garante que o tema escuro seja aplicado antes do First Paint.
+      ================================================================
+    -->
     <script>
       (function() {
         try {
+          // 1. Recupera preferência salva ou do sistema
           var localTheme = localStorage.getItem('fitlm-theme');
           var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           
-          if (localTheme === 'dark' || (!localTheme && systemDark)) {
+          // 2. Determina se deve ativar modo escuro
+          var isDark = localTheme === 'dark' || (!localTheme && systemDark);
+
+          // 3. Aplica classe e meta tags IMEDIATAMENTE
+          if (isDark) {
             document.documentElement.classList.add('dark');
-            // Atualiza meta tag para status bar mobile ficar escura imediatamente
-            document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: dark)"]').setAttribute('content', '#0f172a');
+            // Força a meta tag de cor para garantir status bar escura no mobile logo na abertura
+            var metaDark = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: dark)"]');
+            if (metaDark) metaDark.setAttribute('content', '#0f172a');
           } else {
             document.documentElement.classList.remove('dark');
-            document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: light)"]').setAttribute('content', '#ffffff');
+            var metaLight = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: light)"]');
+            if (metaLight) metaLight.setAttribute('content', '#ffffff');
           }
-        } catch (e) { console.error('Theme loader error', e); }
+        } catch (e) { 
+          console.error('FitLM Theme Loader Error:', e); 
+        }
       })();
     </script>
+
+    <!-- CRITICAL CSS: Garante a cor de fundo correta durante o carregamento do Tailwind -->
+    <style>
+      html { background-color: #f3f4f6; } /* Light Default */
+      html.dark { background-color: #0f172a; } /* Dark Default */
+      
+      /* Otimizações Globais de UI */
+      :root {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        overscroll-behavior-y: none; /* Previne pull-to-refresh indesejado */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      /* Scrollbar Customizada (Desktop) */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .dark ::-webkit-scrollbar-thumb { background: #475569; }
+      .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+      /* Mobile Utilities */
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .touch-pan-x { touch-action: pan-x; }
+      .touch-pan-y { touch-action: pan-y; }
+      .scroll-touch { -webkit-overflow-scrolling: touch; }
+    </style>
 
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
@@ -43,71 +93,15 @@
         theme: {
           extend: {
             colors: {
-              // Mantendo o padrão do sistema, sem overrides
+              // Mantendo cores do sistema
             }
           }
         }
       }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Adicionando biblioteca para geração de PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <style>
-      :root {
-        -webkit-tap-highlight-color: transparent;
-        touch-action: manipulation;
-      }
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
-        overscroll-behavior-y: none; /* Prevents pull-to-refresh on mobile */
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      /* Custom Scrollbar for Notebook feel (Desktop) */
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 3px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-
-      /* Dark Mode Scrollbar */
-      .dark ::-webkit-scrollbar-thumb {
-        background: #475569;
-      }
-      .dark ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-      }
-      .dark body {
-        background-color: #0f172a; /* Slate 900 matches app background */
-      }
-
-      /* Utilities for Mobile Native Feel */
-      .no-scrollbar::-webkit-scrollbar {
-          display: none;
-      }
-      .no-scrollbar {
-          -ms-overflow-style: none;  /* IE and Edge */
-          scrollbar-width: none;  /* Firefox */
-      }
-      .touch-pan-x {
-          touch-action: pan-x;
-      }
-      
-      /* FORÇAR SCROLL SUAVE EM ELEMENTOS ROLÁVEIS NO IOS */
-      .scroll-touch {
-          -webkit-overflow-scrolling: touch;
-      }
-    </style>
+  
   <script type="importmap">
 {
   "imports": {
@@ -125,8 +119,6 @@
 </head>
   <body>
     <div id="root"></div>
-
-    <!-- Firebase Config Snippet (Adicionado conforme solicitado) -->
     <script src="https://www.gstatic.com/firebasejs/8.0/firebase.js"></script>
     <script>
       var config = {

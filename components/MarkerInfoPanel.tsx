@@ -45,7 +45,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
 
     // 1. Empty State (Desktop Only)
     if (!activeData || !info || !analysis) {
-        if (isMobile) return null; // No mobile não mostra nada se não tiver dados
+        if (isMobile) return null;
         return (
             <div className="hidden md:flex flex-col h-full bg-white border-l border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800 w-80 shrink-0">
                 <div className="flex flex-col items-center justify-center h-full text-center opacity-50 space-y-4">
@@ -87,15 +87,13 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     const IconStatus = analysis.status === 'NORMAL' ? IconCheck : IconAlert;
 
     // Componente de Conteúdo Reutilizável
-    // Estrutura: Header Fixo + Body Scrollable + Footer Fixo
-    // FIX DE SCROLL: Adicionado 'scroll-touch' e 'overscroll-contain'
+    // AVISO: 'touch-pan-y' é crucial aqui para permitir o scroll vertical no container
     const Content = ({ isModal = false }) => (
         <div className="flex flex-col h-full w-full bg-transparent overflow-hidden">
             
             {/* Header (Fixo) */}
             <div className={`shrink-0 border-b border-gray-100 dark:border-gray-800 ${isModal ? 'p-6 pb-4' : 'pb-4'}`}>
                 
-                {/* Alerta de Marcador Genérico */}
                 {info.isGeneric && (
                     <div className="mb-4 bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded-lg border border-yellow-100 flex items-start gap-2 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
                         <IconInfo className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -119,23 +117,18 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 </div>
                 
-                {/* Status Badge */}
                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold uppercase tracking-wide ${statusColor}`}>
                     <IconStatus className="w-3.5 h-3.5" />
                     <span>{labelStatus}</span>
                 </div>
             </div>
 
-            {/* Body Scrolling Area (Flex-1) */}
-            {/* min-h-0 garante que o flex item respeite o tamanho do pai e force o scroll */}
-            {/* scroll-touch força o scroll nativo do iOS */}
-            {/* overscroll-contain impede que o scroll propague para o body */}
+            {/* Body Scrolling Area */}
+            {/* min-h-0 + flex-1 garante que o flexbox calcule o tamanho restante corretamente */}
+            {/* touch-pan-y informa ao navegador que gestos verticais devem ser tratados como scroll deste elemento */}
             <div 
-                className={`flex-1 overflow-y-auto custom-scrollbar space-y-6 min-h-0 scroll-touch overscroll-contain ${isModal ? 'p-6 pt-4' : 'py-6 pr-1'}`}
-                style={{ WebkitOverflowScrolling: 'touch' }} 
+                className={`flex-1 overflow-y-auto custom-scrollbar space-y-6 min-h-0 scroll-touch overscroll-contain touch-pan-y ${isModal ? 'p-6 pt-4' : 'py-6 pr-1'}`}
             >
-                
-                {/* Definição */}
                 <div>
                     <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
                         <IconScience className="w-3.5 h-3.5 text-indigo-500" />
@@ -146,7 +139,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </p>
                 </div>
 
-                {/* Análise Inteligente */}
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
                     <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
                         <IconActivity className="w-3.5 h-3.5 text-blue-500" />
@@ -157,26 +149,22 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </p>
                 </div>
 
-                {/* Riscos (Se houver) */}
                 {analysis.status !== 'NORMAL' && (
                     <div>
                         <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
                             <IconAlert className="w-3.5 h-3.5 text-orange-500" />
-                            {/* Ajuste de título para marcadores genéricos ou específicos */}
                             {info.isGeneric 
                                 ? 'Interpretação Geral' 
                                 : (analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? 'Riscos se elevado' : 'Riscos se baixo')
                             }
                         </h4>
                         <ul className="space-y-2">
-                            {/* Se for genérico, mostra ambos para educar. Se for específico, mostra o relevante. */}
                             {(info.isGeneric || analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
                                 <li key={`high-${i}`} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span className="mt-1.5 w-1.5 h-1.5 bg-orange-400 rounded-full shrink-0" />
                                     {info.isGeneric ? `Alto: ${risk}` : risk}
                                 </li>
                             ))}
-                            {/* Para genéricos, mostra também o low */}
                             {info.isGeneric && info.risks.low.map((risk, i) => (
                                 <li key={`low-${i}`} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span className="mt-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full shrink-0" />
@@ -187,7 +175,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 )}
 
-                {/* Dicas Genéricas */}
                 {info.tips.length > 0 && (
                      <div>
                         <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
@@ -204,7 +191,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 )}
 
-                {/* Fontes */}
                 {info.sources.length > 0 && (
                     <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
                         <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Fonte Confiável</p>
@@ -222,7 +208,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 )}
                 
-                {/* Spacer final para garantir scroll completo no mobile */}
                 <div className="h-8"></div>
             </div>
 
@@ -236,15 +221,17 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     );
 
     // 2. Mobile View (Modal via Portal)
+    // AVISO: 'touch-none' no overlay previne que o scroll vaze para o body (rubber band effect indesejado)
     if (isMobile) {
         return createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-none" onClick={onClose}>
-                {/* Container Modal Limitado com Altura Máxima Aumentada para 85vh e layout Flex */}
+            <div 
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-none touch-none" 
+                onClick={onClose}
+            >
                 <div 
-                    className="bg-white w-[92vw] max-h-[85vh] h-full rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
-                    onClick={(e) => e.stopPropagation()} // Previne fechar ao clicar dentro
+                    className="bg-white w-[92vw] max-h-[85vh] h-auto flex flex-col rounded-2xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
+                    onClick={(e) => e.stopPropagation()} 
                 >
-                    {/* Botão Fechar Flutuante */}
                     <button 
                         onClick={onClose}
                         className="absolute top-3 right-3 z-50 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700 shadow-sm"
@@ -252,7 +239,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                         <IconClose className="w-5 h-5" />
                     </button>
 
-                    {/* Conteúdo com Scroll Interno Preservado */}
                     <Content isModal={true} />
                 </div>
             </div>,
