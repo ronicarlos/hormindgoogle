@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IconSparkles, IconAlert, IconCheck, IconEye, IconEyeOff, IconGoogle, IconMoon, IconSun } from './Icons';
 import { dataService } from '../services/dataService';
 
 // Fallback version
-const APP_VERSION = "v1.6.11";
+const APP_VERSION = "v1.6.22";
 
 const AuthScreen: React.FC = () => {
     const [email, setEmail] = useState('');

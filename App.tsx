@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { dataService } from './services/dataService';
@@ -28,7 +27,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.17'; 
+const APP_VERSION = '1.6.23'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -195,55 +194,60 @@ export default function App() {
   const handleExecuteAnalysis = async () => {
       if (!project || !session?.user || !pendingAnalysisContext) return;
       
-      setIsAnalysisModalOpen(false); // Close modal
-      setIsLoading(true);
+      // FIX CRÍTICO: Fechar modal imediatamente
+      setIsAnalysisModalOpen(false);
+      
+      // Delay pequeno para garantir que a UI atualize (feche o modal) antes de travar a thread com carregamento
+      setTimeout(async () => {
+          setIsLoading(true);
 
-      try {
-          // 1. Create User Context Message & Save FIRST
-          const userMsg: ChatMessage = {
-              id: Date.now().toString(),
-              role: 'user',
-              text: `[SISTEMA - ATUALIZAÇÃO DE CONTEXTO]\n${pendingAnalysisContext}\n\nCom base nessas mudanças e nos novos dados, faça uma análise detalhada do meu cenário atual.`,
-              timestamp: Date.now()
-          };
-          await dataService.addMessage(project.id, userMsg);
+          try {
+              // 1. Create User Context Message & Save FIRST
+              const userMsg: ChatMessage = {
+                  id: Date.now().toString(),
+                  role: 'user',
+                  text: `[SISTEMA - ATUALIZAÇÃO DE CONTEXTO]\n${pendingAnalysisContext}\n\nCom base nessas mudanças e nos novos dados, faça uma análise detalhada do meu cenário atual.`,
+                  timestamp: Date.now()
+              };
+              await dataService.addMessage(project.id, userMsg);
 
-          // 2. NOW redirect to Chat (it will load the just-added message)
-          setCurrentView('chat'); 
+              // 2. NOW redirect to Chat (it will load the just-added message)
+              setCurrentView('chat'); 
 
-          // 3. Fetch History for Context
-          const history = await dataService.getMessages(project.id);
+              // 3. Fetch History for Context
+              const history = await dataService.getMessages(project.id);
 
-          // 4. Call AI
-          const responseText = await generateAIResponse(
-              userMsg.text,
-              project.sources,
-              history,
-              project.userProfile,
-              project.metrics
-          );
+              // 4. Call AI
+              const responseText = await generateAIResponse(
+                  userMsg.text,
+                  project.sources,
+                  history,
+                  project.userProfile,
+                  project.metrics
+              );
 
-          // 5. Save AI Response
-          const aiMsg: ChatMessage = {
-              id: (Date.now() + 1).toString(),
-              role: 'model',
-              text: responseText,
-              timestamp: Date.now()
-          };
-          await dataService.addMessage(project.id, aiMsg);
+              // 5. Save AI Response
+              const aiMsg: ChatMessage = {
+                  id: (Date.now() + 1).toString(),
+                  role: 'model',
+                  text: responseText,
+                  timestamp: Date.now()
+              };
+              await dataService.addMessage(project.id, aiMsg);
 
-          // 6. Update Billing & Force Chat Refresh via Trigger
-          setBillingTrigger(prev => prev + 1); // This updates ChatInterface instantly
-          
-          await loadProject(session.user.id); 
+              // 6. Update Billing & Force Chat Refresh via Trigger
+              setBillingTrigger(prev => prev + 1); // This updates ChatInterface instantly
+              
+              await loadProject(session.user.id); 
 
-      } catch (err) {
-          console.error("Analysis failed", err);
-          alert("Erro ao processar análise. Tente novamente.");
-      } finally {
-          setIsLoading(false);
-          setPendingAnalysisContext('');
-      }
+          } catch (err) {
+              console.error("Analysis failed", err);
+              alert("Erro ao processar análise. Tente novamente.");
+          } finally {
+              setIsLoading(false);
+              setPendingAnalysisContext('');
+          }
+      }, 100);
   };
 
   const handleUpload = async (files: File[]) => {

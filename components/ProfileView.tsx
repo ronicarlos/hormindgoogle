@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, AppVersion, Project, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
@@ -25,7 +24,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.17";
+const CODE_VERSION = "v1.6.22";
 
 const ProfileView: React.FC<ProfileViewProps> = ({ 
     project, 

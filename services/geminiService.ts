@@ -1,14 +1,19 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Source, ChatMessage, UserProfile, MetricPoint } from '../types';
 import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 import { dataService } from './dataService';
 import { supabase } from '../lib/supabase';
 
-// Initialize Gemini Client
-const apiKey = process.env.API_KEY || '';
+// --- INICIALIZAÇÃO ROBUSTA DA API KEY ---
+const getApiKey = () => {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+        return (import.meta as any).env.VITE_GEMINI_API_KEY || (import.meta as any).env.VITE_API_KEY;
+    }
+    return process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
+};
 
-// --- VERIFICAÇÃO DE CHAVE (DEBUG) ---
+const apiKey = getApiKey() || '';
+
 if (!apiKey) {
     console.error("❌ ERRO CRÍTICO: GEMINI API_KEY NÃO ENCONTRADA.");
 } else {
@@ -18,11 +23,32 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey });
 
-// --- CONFIGURAÇÃO DE MODELOS ---
-// Prioridade: Gemini 2.0 Flash (Experimental) -> Melhor visão e raciocínio
-// Fallback: Gemini 1.5 Flash -> Estável
-const MODEL_PRIORITY_LIST = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
+// --- CONFIGURAÇÃO DE MODELOS (TWO-STAGE ARCHITECTURE) ---
+
+// 1. Modelo de Extração (OCR/Visão Rápida)
+const getOcrModel = () => {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+        return (import.meta as any).env.VITE_GEMINI_MODEL; // Ex: gemini-2.0-flash-lite
+    }
+    return null;
+}
+
+// 2. Modelo de Análise Clínica (Raciocínio Profundo)
+const getMedicalModel = () => {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+        return (import.meta as any).env.VITE_GEMINI_MODEL_MEDICAL; // Ex: gemini-3-pro-preview
+    }
+    return null;
+}
+
+const OCR_MODEL = getOcrModel() || 'gemini-2.0-flash-lite-preview-02-05';
+const MEDICAL_MODEL = getMedicalModel() || 'gemini-3-pro-preview';
+
+console.log(`🤖 Arquitetura Ativa:\n - OCR: ${OCR_MODEL}\n - Cérebro Clínico: ${MEDICAL_MODEL}`);
+
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
+
+// --- HELPERS ---
 
 const calculateAge = (birthDate?: string): string => {
     if (!birthDate) return 'Não informada (Assumir adulto saudável)';
@@ -46,7 +72,7 @@ const buildContext = (
   
   let context = `DATA DO SISTEMA: ${today}\n`;
   context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n\n";
-  context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica e farmacológica.\n";
+  context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica e farmacológica (Medical Grade).\n";
   context += "REGRA DE OURO (ANTI-ALUCINAÇÃO): O histórico de chat pode conter dados antigos ou incorretos. IGNORE COMPLETAMENTE quaisquer medidas, idades ou datas citadas em mensagens anteriores se diferirem dos DADOS VITAIS abaixo.\n";
   context += "A ÚNICA FONTE DE VERDADE para a condição física atual é o bloco JSON 'CURRENT_BIOMETRICS' e o 'HISTÓRICO DE EXAMES'.\n\n";
 
@@ -81,7 +107,6 @@ const buildContext = (
       context += "\n```\n";
       context += "DIRETRIZ DE INTERPRETAÇÃO CORPORAL:\n";
       context += "- Se algum dado estiver como 'N/A' ou vazio, ASSUMA QUE NÃO FOI MEDIDO. Não invente valores.\n";
-      context += "- Ao analisar o IMC: CRUZE OBRIGATORIAMENTE com o Percentual de Gordura (BF). Se o usuário tem IMC > 25 mas BF baixo (homem < 16%, mulher < 24%) ou usa esteroides, classifique como 'Sobrecarga Muscular/Atlético', JAMAIS como Obesidade.\n";
       context += "- Priorize os valores de bioimpedância (BF%) sobre o IMC isolado sempre.\n";
       context += `=======================================================\n\n`;
   }
@@ -117,10 +142,10 @@ const buildContext = (
       });
   }
   
-  context += `\nDIRETRIZES DE RESPOSTA:
-1. Responda em Português do Brasil (pt-BR).
+  context += `\nDIRETRIZES DE RESPOSTA MÉDICA:
+1. Use seu conhecimento clínico avançado (Medical Model).
 2. Prioridade Absoluta: Use os dados do bloco JSON 'CURRENT_BIOMETRICS'.
-3. Ao analisar exames, considere TODO o histórico disponível na seção 2. NÃO IGNORE NENHUM MARCADOR (Hematócrito, Plaquetas, TGO, TGP, etc). Se está na lista, é relevante.
+3. Ao analisar exames, considere TODO o histórico disponível na seção 2.
 `;
   return context;
 };
@@ -128,94 +153,6 @@ const buildContext = (
 const getCurrentUserId = async () => {
     const { data } = await supabase.auth.getSession();
     return data.session?.user?.id;
-};
-
-// --- FUNÇÃO AUXILIAR PARA TENTATIVA DE MODELO COM FALLBACK ---
-const generateWithFallback = async (params: any): Promise<any> => {
-    // Tenta o modelo experimental (2.0 Flash)
-    try {
-        console.log(`Tentando modelo principal: ${MODEL_PRIORITY_LIST[0]}`);
-        return await ai.models.generateContent({
-            ...params,
-            model: MODEL_PRIORITY_LIST[0]
-        });
-    } catch (error: any) {
-        // Se der 404 (Not Found) ou 400 (Bad Request), tenta o estável (1.5 Flash)
-        if (error.message?.includes('404') || error.message?.includes('not found') || error.message?.includes('400')) {
-            console.warn(`Modelo principal falhou (${error.message}). Tentando fallback: ${MODEL_PRIORITY_LIST[1]}`);
-            return await ai.models.generateContent({
-                ...params,
-                model: MODEL_PRIORITY_LIST[1]
-            });
-        }
-        throw error; // Se for outro erro (ex: quota), repassa
-    }
-};
-
-export const generateAIResponse = async (
-  message: string,
-  sources: Source[],
-  history: ChatMessage[],
-  profile?: UserProfile,
-  metrics?: Record<string, MetricPoint[]>
-): Promise<string> => {
-  if (!apiKey) return "Erro: Chave de API ausente.";
-
-  try {
-    const systemInstruction = buildContext(sources, profile, metrics);
-    const safeHistory = history.slice(-4).map(h => ({ role: h.role, parts: [{ text: h.text }] }));
-
-    const response = await generateWithFallback({
-      contents: [
-        { role: 'user', parts: [{ text: systemInstruction }] }, 
-        ...safeHistory,
-        { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS' e na seção 'HISTÓRICO DE EXAMES'. Use dados reais extraídos.): ${message}` }] }
-      ],
-      config: { temperature: 0.4 }
-    });
-
-    const userId = await getCurrentUserId();
-    if (userId && response.usageMetadata) {
-        await dataService.logUsage(userId, undefined, 'CHAT', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
-    }
-
-    return response.text || "Sem resposta.";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Erro ao analisar dados. Verifique sua conexão e chave de API.";
-  }
-};
-
-export const generateProntuario = async (
-    sources: Source[], 
-    profile?: UserProfile,
-    metrics?: Record<string, MetricPoint[]>
-): Promise<string> => {
-    if (!apiKey) return "Chave de API ausente.";
-    const systemInstruction = buildContext(sources, profile, metrics);
-    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nInclua análise detalhada de TODOS os exames disponíveis no histórico (Série Vermelha, Branca, Bioquímica, Hormonal).`;
- 
-     try {
-       const response = await generateWithFallback({ contents: prompt });
-       const userId = await getCurrentUserId();
-       if (userId && response.usageMetadata) {
-           await dataService.logUsage(userId, undefined, 'PRONTUARIO', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
-       }
-       return response.text || "Erro.";
-     } catch (err) {
-         console.error(err);
-         return "Erro ao comunicar com a IA.";
-     }
-};
-
-export const embedText = async (text: string): Promise<number[] | null> => {
-  if (!apiKey) return null;
-  try {
-    const result = await ai.models.embedContent({ model: EMBEDDING_MODEL_ID, contents: text });
-    return (result as any).embedding?.values || null;
-  } catch (error) {
-    return null;
-  }
 };
 
 const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string, mimeType: string } }> => {
@@ -231,17 +168,18 @@ const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string,
   });
 };
 
+// --- FUNÇÃO DE OCR (USA VITE_GEMINI_MODEL - FLASH LITE) ---
 export const processDocument = async (file: File, defaultDate: string): Promise<{ extractedText: string, metrics: { category: string, data: MetricPoint }[], documentType?: string, detectedDate?: string }> => {
     if (!apiKey) throw new Error("API Key missing");
 
     try {
+        console.log(`FitLM OCR: Iniciando leitura com ${OCR_MODEL}...`);
         const filePart = await fileToGenerativePart(file);
         
-        // PROMPT ATUALIZADO: "RAG VISUAL & JSON PARSER"
         const extractionPrompt = `
         VOCÊ É UM SISTEMA DE VISÃO COMPUTACIONAL E EXTRAÇÃO DE DADOS CLÍNICOS (GEMINI VISION).
         
-        OBJETIVO: Converter este documento (Imagem/PDF) em dados estruturados para análise médica.
+        OBJETIVO: Converter este documento (Imagem/PDF) em dados estruturados para análise posterior.
         
         === TAREFA 1: TRANSCRIÇÃO VISUAL (MARKDOWN) ===
         - Leia o documento de cima a baixo.
@@ -267,8 +205,9 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         }
         `;
 
-        // Usa a função com fallback para garantir que o OCR funcione mesmo se o 2.0 falhar
-        const result = await generateWithFallback({
+        // CHAMADA DIRETA PARA O MODELO OCR (SEM FALLBACK COMPLEXO PARA NÃO MISTURAR LOGICA)
+        const result = await ai.models.generateContent({
+            model: OCR_MODEL,
             contents: { parts: [filePart, { text: extractionPrompt }] },
         });
 
@@ -278,7 +217,7 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         let visibleContent = parts[0].trim();
         let jsonContent = parts.length > 1 ? parts[1].trim() : "{}";
 
-        // Limpeza robusta do JSON (remove markdown block quotes ```json ...)
+        // Limpeza robusta do JSON
         jsonContent = jsonContent.replace(/```json/g, '').replace(/```/g, '').trim();
 
         let parsed: any = {};
@@ -286,13 +225,18 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             parsed = JSON.parse(jsonContent);
         } catch (e) {
             console.warn("Falha ao parsear JSON de métricas (mantendo texto OCR):", e);
-            // Tenta recuperar JSON parcial se possível, senão segue apenas com texto
-            return {
-                extractedText: visibleContent,
-                metrics: [],
-                documentType: 'Documento (OCR)',
-                detectedDate: defaultDate
-            };
+            // Tenta limpar caracteres invisíveis ou erros comuns
+            try {
+                const cleanJson = jsonContent.replace(/[\u0000-\u0019]+/g,""); 
+                parsed = JSON.parse(cleanJson);
+            } catch (e2) {
+                 return {
+                    extractedText: visibleContent,
+                    metrics: [],
+                    documentType: 'Documento (OCR)',
+                    detectedDate: defaultDate
+                };
+            }
         }
 
         const finalDate = parsed.detectedDate || defaultDate;
@@ -315,6 +259,100 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
 
     } catch (error) {
         console.error("OCR Critical Error:", error);
-        return { extractedText: `[Erro OCR: Falha crítica na leitura. O arquivo pode estar corrompido ou o modelo indisponível.]`, metrics: [] };
+        return { extractedText: `[Erro OCR: Falha crítica na leitura com modelo ${OCR_MODEL}. Verifique a imagem ou tente novamente.]`, metrics: [] };
     }
+};
+
+// --- FUNÇÃO DE ANÁLISE CLÍNICA (USA VITE_GEMINI_MODEL_MEDICAL - PRO/MED) ---
+export const generateAIResponse = async (
+  message: string,
+  sources: Source[],
+  history: ChatMessage[],
+  profile?: UserProfile,
+  metrics?: Record<string, MetricPoint[]>
+): Promise<string> => {
+  if (!apiKey) return "Erro: Chave de API ausente.";
+
+  try {
+    console.log(`FitLM Brain: Iniciando análise clínica com ${MEDICAL_MODEL}...`);
+    const systemInstruction = buildContext(sources, profile, metrics);
+    const safeHistory = history.slice(-4).map(h => ({ role: h.role, parts: [{ text: h.text }] }));
+
+    // Tentativa principal com modelo Médico/Pro
+    try {
+        const response = await ai.models.generateContent({
+            model: MEDICAL_MODEL,
+            contents: [
+                { role: 'user', parts: [{ text: systemInstruction }] }, 
+                ...safeHistory,
+                { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS' e na seção 'HISTÓRICO DE EXAMES'. Use dados reais extraídos.): ${message}` }] }
+            ],
+            config: { temperature: 0.3 } // Temperatura mais baixa para precisão médica
+        });
+
+        const userId = await getCurrentUserId();
+        if (userId && response.usageMetadata) {
+            await dataService.logUsage(userId, undefined, 'CHAT', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
+        }
+
+        return response.text || "Sem resposta.";
+
+    } catch (primaryError: any) {
+        console.warn(`FitLM: Modelo Médico (${MEDICAL_MODEL}) falhou. Tentando fallback para Flash...`);
+        // Fallback apenas se o modelo médico falhar (ex: quota, indisponibilidade)
+        // Usa o modelo de OCR como estepe pois é mais leve
+        const responseFallback = await ai.models.generateContent({
+            model: OCR_MODEL, 
+            contents: [
+                { role: 'user', parts: [{ text: systemInstruction + "\n[NOTA: MODO DE FALLBACK ATIVADO]" }] },
+                { role: 'user', parts: [{ text: message }] }
+            ]
+        });
+        return responseFallback.text || "Sem resposta (Fallback).";
+    }
+
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    return "Erro ao analisar dados. Verifique sua conexão e chave de API.";
+  }
+};
+
+export const generateProntuario = async (
+    sources: Source[], 
+    profile?: UserProfile,
+    metrics?: Record<string, MetricPoint[]>
+): Promise<string> => {
+    if (!apiKey) return "Chave de API ausente.";
+    
+    // Prontuário sempre usa o modelo médico robusto
+    const systemInstruction = buildContext(sources, profile, metrics);
+    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nInclua análise detalhada de TODOS os exames disponíveis no histórico (Série Vermelha, Branca, Bioquímica, Hormonal).`;
+ 
+     try {
+       console.log(`FitLM Prontuário: Gerando com ${MEDICAL_MODEL}...`);
+       const response = await ai.models.generateContent({
+           model: MEDICAL_MODEL,
+           contents: prompt 
+       });
+       
+       const userId = await getCurrentUserId();
+       if (userId && response.usageMetadata) {
+           await dataService.logUsage(userId, undefined, 'PRONTUARIO', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
+       }
+       return response.text || "Erro.";
+     } catch (err) {
+         console.error(err);
+         return "Erro ao comunicar com a IA.";
+     }
+};
+
+export const embedText = async (text: string): Promise<number[] | null> => {
+  if (!apiKey) return null;
+  try {
+    const result = await ai.models.embedContent({ model: EMBEDDING_MODEL_ID, contents: text });
+    return (result as any).embedding?.values || null;
+  } catch (error) {
+    console.warn("Embedding Error (Ignored):", error);
+    return null;
+  }
 };
