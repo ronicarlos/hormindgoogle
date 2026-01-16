@@ -9,27 +9,19 @@ import { supabase } from '../lib/supabase';
 const apiKey = process.env.API_KEY || '';
 
 // --- VERIFICAÇÃO DE CHAVE (DEBUG) ---
-// Isso ajuda o usuário a saber qual chave está sendo carregada sem expor a chave inteira.
 if (!apiKey) {
-    console.error("❌ ERRO CRÍTICO: GEMINI API_KEY NÃO ENCONTRADA. Verifique suas variáveis de ambiente.");
+    console.error("❌ ERRO CRÍTICO: GEMINI API_KEY NÃO ENCONTRADA.");
 } else {
     const keyPrefix = apiKey.substring(0, 10);
-    console.log(`✅ Gemini Service Active. Model: gemini-1.5-flash. Key Prefix: ${keyPrefix}...`);
-    
-    // Verificação específica solicitada pelo usuário
-    if (keyPrefix === 'AIzaSyA46H') {
-        console.log("✅ A chave carregada CORRESPONDE à chave 'AIzaSyA46...' solicitada.");
-    } else {
-        console.warn(`⚠️ ALERTA: A chave carregada (${keyPrefix}...) PARECE DIFERENTE da chave AIzaSyA46... Verifique seu .env.`);
-    }
+    console.log(`✅ Gemini Service Active. Key Prefix: ${keyPrefix}...`);
 }
 
 const ai = new GoogleGenAI({ apiKey });
 
-// Modelo Flash 1.5 Stable para garantir leitura de PDF sem erros 400
-// O modelo 2.0-exp estava causando instabilidade com chaves de API comuns
-const MODEL_ID = 'gemini-1.5-flash'; 
-const VISION_MODEL_ID = 'gemini-1.5-flash'; 
+// --- CONFIGURAÇÃO DE MODELOS ---
+// Prioridade: Gemini 2.0 Flash (Experimental) -> Melhor visão e raciocínio
+// Fallback: Gemini 1.5 Flash -> Estável
+const MODEL_PRIORITY_LIST = ['gemini-2.0-flash-exp', 'gemini-1.5-flash'];
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
 
 const calculateAge = (birthDate?: string): string => {
@@ -96,7 +88,6 @@ const buildContext = (
 
   if (metrics && Object.keys(metrics).length > 0) {
       context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS COMPLETO) ===\n`;
-      // Ordena métricas para garantir que o Hematócrito e outros apareçam
       for (const [category, points] of Object.entries(metrics)) {
           const sorted = [...points].sort((a,b) => {
               const dateA = a.date.split('/').reverse().join('-'); 
@@ -139,6 +130,28 @@ const getCurrentUserId = async () => {
     return data.session?.user?.id;
 };
 
+// --- FUNÇÃO AUXILIAR PARA TENTATIVA DE MODELO COM FALLBACK ---
+const generateWithFallback = async (params: any): Promise<any> => {
+    // Tenta o modelo experimental (2.0 Flash)
+    try {
+        console.log(`Tentando modelo principal: ${MODEL_PRIORITY_LIST[0]}`);
+        return await ai.models.generateContent({
+            ...params,
+            model: MODEL_PRIORITY_LIST[0]
+        });
+    } catch (error: any) {
+        // Se der 404 (Not Found) ou 400 (Bad Request), tenta o estável (1.5 Flash)
+        if (error.message?.includes('404') || error.message?.includes('not found') || error.message?.includes('400')) {
+            console.warn(`Modelo principal falhou (${error.message}). Tentando fallback: ${MODEL_PRIORITY_LIST[1]}`);
+            return await ai.models.generateContent({
+                ...params,
+                model: MODEL_PRIORITY_LIST[1]
+            });
+        }
+        throw error; // Se for outro erro (ex: quota), repassa
+    }
+};
+
 export const generateAIResponse = async (
   message: string,
   sources: Source[],
@@ -152,8 +165,7 @@ export const generateAIResponse = async (
     const systemInstruction = buildContext(sources, profile, metrics);
     const safeHistory = history.slice(-4).map(h => ({ role: h.role, parts: [{ text: h.text }] }));
 
-    const response = await ai.models.generateContent({
-      model: MODEL_ID, 
+    const response = await generateWithFallback({
       contents: [
         { role: 'user', parts: [{ text: systemInstruction }] }, 
         ...safeHistory,
@@ -184,7 +196,7 @@ export const generateProntuario = async (
     const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nInclua análise detalhada de TODOS os exames disponíveis no histórico (Série Vermelha, Branca, Bioquímica, Hormonal).`;
  
      try {
-       const response = await ai.models.generateContent({ model: MODEL_ID, contents: prompt });
+       const response = await generateWithFallback({ contents: prompt });
        const userId = await getCurrentUserId();
        if (userId && response.usageMetadata) {
            await dataService.logUsage(userId, undefined, 'PRONTUARIO', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
@@ -225,49 +237,38 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
     try {
         const filePart = await fileToGenerativePart(file);
         
-        // PROMPT "ANALISTA DE ELITE" - VARREDURA UNIVERSAL v1.6.8
+        // PROMPT ATUALIZADO: "RAG VISUAL & JSON PARSER"
         const extractionPrompt = `
-        ATUE COMO UM SISTEMA UNIVERSAL DE EXTRAÇÃO DE DADOS LABORATORIAIS.
+        VOCÊ É UM SISTEMA DE VISÃO COMPUTACIONAL E EXTRAÇÃO DE DADOS CLÍNICOS (GEMINI VISION).
         
-        Sua tarefa é processar este documento e extrair TUDO o que for um resultado quantitativo.
+        OBJETIVO: Converter este documento (Imagem/PDF) em dados estruturados para análise médica.
         
-        === PARTE 1: RELATÓRIO DE LEITURA (Markdown Visível) ===
-        - Transcreva o conteúdo relevante.
-        - Mantenha tabelas e observações.
+        === TAREFA 1: TRANSCRIÇÃO VISUAL (MARKDOWN) ===
+        - Leia o documento de cima a baixo.
+        - Transcreva TODO o texto visível, mantendo a formatação de tabelas (se houver).
+        - Se for um exame de sangue, liste: Exame | Resultado | Unidade | Referência.
+        - Se for um treino, liste: Exercício | Séries | Repetições | Carga.
         
-        === PARTE 2: DADOS TÉCNICOS (JSON Oculto) ===
-        No FINAL, adicione o separador "---END_OF_TEXT---" e um JSON estrito.
+        === TAREFA 2: EXTRAÇÃO DE DADOS (JSON) ===
+        No FINAL da resposta, adicione ESTRITAMENTE o separador "---END_OF_TEXT---" e um objeto JSON contendo os dados numéricos encontrados.
         
-        REGRA SUPREMA DE EXTRAÇÃO (SEM EXCEÇÕES):
-        Percorra o documento inteiro. Sempre que encontrar um padrão de [NOME DO EXAME] + [VALOR NUMÉRICO] + [UNIDADE], você DEVE extrair para o JSON.
+        REGRAS DE EXTRAÇÃO:
+        1. DATA: Procure "Data de Coleta", "Data de Emissão" ou datas no cabeçalho. Se não achar, use null.
+        2. TIPO: Identifique se é "Hemograma", "Bioquímica", "Hormonal", "Treino", "Dieta", etc.
+        3. MÉTRICAS: Extraia APENAS resultados numéricos claros de exames.
+           - Padronize nomes: "Testosterona Total" -> "Testosterona", "Eritrócitos/Hemácias" -> "Eritrócitos".
+           - Ignore valores de referência no JSON (eles vão apenas no texto).
         
-        NÃO JULGUE A RELEVÂNCIA. Se está no documento e tem um número, é relevante.
-        
-        EXTRAÇÃO DE DATA (CRÍTICO):
-        - Procure a "Data da Coleta", "Data do Exame", "Data de Realização" ou "Data do Resultado".
-        - Use formato DD/MM/AAAA.
-        - Se NÃO encontrar data impressa no documento, use: ${defaultDate} (esta é a data de criação do arquivo).
-        
-        Exemplos de Captura Obrigatória:
-        - "Hematócrito: 42%" -> Salvar como Hematócrito
-        - "Leucócitos: 5.000 /mm3" -> Salvar como Leucócitos
-        - "Sódio: 135 mEq/L" -> Salvar como Sódio
-        - "Volume Ovariano: 5.2 cm3" -> Salvar como Volume Ovariano
-        - "Espessura da dobra: 10mm" -> Salvar como Dobra Cutânea
-        
-        Se o nome do exame for complexo, simplifique a chave JSON (Ex: "Hormônio Tireoestimulante" -> "TSH").
-        Remova acentos nas chaves JSON se possível para padronização (Ex: "Hematocrito").
-        
-        JSON Schema:
+        JSON Schema Obrigatório:
         { 
           "documentType": "string", 
-          "detectedDate": "DD/MM/AAAA", 
+          "detectedDate": "DD/MM/AAAA" | null, 
           "metrics": [{ "category": "Nome Padronizado", "value": 0.0, "unit": "unidade" }] 
         }
         `;
 
-        const result = await ai.models.generateContent({
-            model: VISION_MODEL_ID, 
+        // Usa a função com fallback para garantir que o OCR funcione mesmo se o 2.0 falhar
+        const result = await generateWithFallback({
             contents: { parts: [filePart, { text: extractionPrompt }] },
         });
 
@@ -277,7 +278,7 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         let visibleContent = parts[0].trim();
         let jsonContent = parts.length > 1 ? parts[1].trim() : "{}";
 
-        // Limpa formatação Markdown do JSON se houver
+        // Limpeza robusta do JSON (remove markdown block quotes ```json ...)
         jsonContent = jsonContent.replace(/```json/g, '').replace(/```/g, '').trim();
 
         let parsed: any = {};
@@ -285,15 +286,15 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             parsed = JSON.parse(jsonContent);
         } catch (e) {
             console.warn("Falha ao parsear JSON de métricas (mantendo texto OCR):", e);
+            // Tenta recuperar JSON parcial se possível, senão segue apenas com texto
             return {
-                extractedText: visibleContent, // Mantém a análise rica mesmo se o JSON falhar
+                extractedText: visibleContent,
                 metrics: [],
                 documentType: 'Documento (OCR)',
                 detectedDate: defaultDate
             };
         }
 
-        // Usa detectedDate se a IA achou, senão usa o defaultDate (que agora é a data de criação do arquivo)
         const finalDate = parsed.detectedDate || defaultDate;
         const finalMetrics = (parsed.metrics || []).map((m: any) => ({
             category: m.category,
@@ -309,11 +310,11 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             extractedText: visibleContent,
             metrics: finalMetrics,
             documentType: parsed.documentType || 'Geral',
-            detectedDate: finalDate // Retorna a data correta para uso no card
+            detectedDate: finalDate
         };
 
     } catch (error) {
-        console.error("OCR Error:", error);
-        return { extractedText: `[Erro OCR: Falha ao ler arquivo. Verifique a chave de API ou tente uma imagem mais nítida.]`, metrics: [] };
+        console.error("OCR Critical Error:", error);
+        return { extractedText: `[Erro OCR: Falha crítica na leitura. O arquivo pode estar corrompido ou o modelo indisponível.]`, metrics: [] };
     }
 };

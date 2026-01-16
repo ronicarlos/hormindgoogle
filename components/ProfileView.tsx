@@ -24,7 +24,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.14";
+const CODE_VERSION = "v1.6.16";
 
 const ProfileView: React.FC<ProfileViewProps> = ({ 
     project, 
@@ -126,7 +126,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         const birthDate = new Date(dateString);
         let age = today.getFullYear() - birthDate.getFullYear();
         const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
             age--;
         }
         return age;
