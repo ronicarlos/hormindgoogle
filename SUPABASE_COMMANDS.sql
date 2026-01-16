@@ -4,9 +4,9 @@ ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_weight numeric;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_body_fat numeric;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_measurements jsonb;
 
--- Registra a nova versão do aplicativo (v1.6.30)
+-- Registra a nova versão do aplicativo (v1.6.34)
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.30', 'UX Mobile: Cards de gráficos clicáveis e melhor tolerância para duplo toque (500ms).', NOW());
+VALUES ('1.6.34', 'UX Feature: Filtro de busca (Localizar) adicionado ao Dashboard de Métricas.', NOW());
 
 -- Garante que o cache de schema do PostgREST seja atualizado
 NOTIFY pgrst, 'reload config';
