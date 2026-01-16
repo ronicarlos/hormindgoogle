@@ -1,7 +1,7 @@
 
--- Versão 1.6.51
--- Tema Zero Flash e Refinamento de Scroll
+-- Versão 1.6.52
+-- OCR Data Review (Revisão de Dados Extraídos)
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.51', 'THEME FIX: Implementação de script bloqueante para eliminar flash branco ao carregar tema escuro. MOBILE FIX: Refinamento de propriedades touch-action no modal de métricas para scroll nativo no iOS.', NOW());
+VALUES ('1.6.52', 'UX FEATURE: Adicionada tela de revisão de dados estruturados (biomarcadores) extraídos pelo OCR antes da confirmação final do documento.', NOW());
 
 NOTIFY pgrst, 'reload config';

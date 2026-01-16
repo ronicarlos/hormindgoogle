@@ -29,7 +29,7 @@ import { generateProntuario, processDocument, OCR_MODEL } from './services/gemin
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.48'; 
+const APP_VERSION = '1.6.52'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -540,6 +540,7 @@ export default function App() {
           isOpen={!!currentConfirmDoc}
           fileName={currentConfirmDoc?.file.name || ''}
           suggestedDate={currentConfirmDoc?.detectedDate || null}
+          metrics={currentConfirmDoc?.metrics || []} // Passando métricas para revisão
           onConfirm={handleConfirmDate}
           onCancel={handleCancelDate}
       />
