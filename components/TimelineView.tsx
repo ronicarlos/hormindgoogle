@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react';
+
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Source, ChatMessage, SourceType } from '../types';
 import { dataService } from '../services/dataService';
-import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell, IconClose, IconCalendar, IconArrowLeft, IconDownload } from './Icons';
+import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell, IconClose, IconCalendar, IconArrowLeft, IconDownload, IconSearch } from './Icons';
 import ReactMarkdown from 'react-markdown';
 
 interface TimelineViewProps {
@@ -21,6 +22,29 @@ interface TimelineItem {
     isHighlight?: boolean;
     originalObject?: any;
 }
+
+// Helper para destacar texto (Replicado do ChatInterface para consistência visual)
+const HighlightText = ({ text, highlight, className = "" }: { text: string, highlight: string, className?: string }) => {
+    if (!highlight.trim()) {
+        return <span className={className}>{text}</span>;
+    }
+    
+    // Escapa caracteres especiais para regex
+    const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'));
+    
+    return (
+        <span className={className}>
+            {parts.map((part, i) => 
+                part.toLowerCase() === highlight.toLowerCase() ? (
+                    <span key={i} className="bg-yellow-300 text-black font-bold px-0.5 rounded-sm">{part}</span>
+                ) : (
+                    part
+                )
+            )}
+        </span>
+    );
+};
 
 // --- MODAL DE DETALHES (DEEP DIVE) ---
 const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onClose: () => void }) => {
@@ -143,6 +167,11 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
     const [filter, setFilter] = useState<'ALL' | 'EXAMS' | 'ANALYSIS'>('ALL');
     const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+    
+    // --- SEARCH STATES ---
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     // Carrega mensagens automaticamente se o array inicial estiver vazio mas tivermos um projectId
     useEffect(() => {
@@ -154,6 +183,13 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
             setMessages(initialMessages);
         }
     }, [projectId, initialMessages]);
+
+    // Auto-focus no input de busca ao abrir
+    useEffect(() => {
+        if (isSearchOpen && searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [isSearchOpen]);
 
     const timelineData = useMemo(() => {
         const items: TimelineItem[] = [];
@@ -209,6 +245,14 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
     }, [sources, messages]);
 
     const filteredData = timelineData.filter(item => {
+        // Search Filter
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            const matchesText = item.title.toLowerCase().includes(term) || item.content.toLowerCase().includes(term);
+            if (!matchesText) return false;
+        }
+
+        // Type Filter
         if (filter === 'ALL') return true;
         if (filter === 'EXAMS') return item.type === 'SOURCE';
         if (filter === 'ANALYSIS') return item.type === 'ANALYSIS';
@@ -224,33 +268,92 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                 <TimelineEventModal item={selectedItem} onClose={() => setSelectedItem(null)} />
             )}
 
-            <div className="shrink-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center z-10 sticky top-0 dark:bg-gray-900 dark:border-gray-800">
-                <div>
-                    <h2 className="text-xl font-black text-gray-900 flex items-center gap-2 dark:text-white">
-                        <IconClock className="w-6 h-6 text-blue-600" />
-                        TIMELINE
-                    </h2>
-                    <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400">
-                        Histórico Consolidado
-                    </p>
-                </div>
-                
-                <div className="flex bg-gray-100 rounded-lg p-1 gap-1 dark:bg-gray-800">
-                    {['ALL', 'EXAMS', 'ANALYSIS'].map(f => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f as any)}
-                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${
-                                filter === f 
-                                ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-white' 
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                            }`}
+            {/* HEADER DINÂMICO (SEARCH / TITLE) */}
+            <div className="shrink-0 bg-white border-b border-gray-200 p-4 md:p-6 flex justify-between items-center z-10 sticky top-0 dark:bg-gray-900 dark:border-gray-800 h-[72px]">
+                {isSearchOpen ? (
+                    // MODO BUSCA
+                    <div className="flex items-center w-full gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
+                        <button 
+                            onClick={() => { setIsSearchOpen(false); setSearchTerm(''); }}
+                            className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full dark:text-gray-400 dark:hover:bg-gray-800"
                         >
-                            {f === 'ALL' ? 'Tudo' : f === 'EXAMS' ? 'Exames' : 'Análises'}
+                            <IconArrowLeft className="w-5 h-5" />
                         </button>
-                    ))}
-                </div>
+                        <div className="flex-1 relative">
+                            <input 
+                                ref={searchInputRef}
+                                type="text" 
+                                placeholder="Buscar na timeline..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-gray-100 border-none rounded-xl py-2 pl-4 pr-10 text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                            />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                >
+                                    <IconClose className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    // MODO PADRÃO
+                    <>
+                        <div>
+                            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2 dark:text-white">
+                                <IconClock className="w-6 h-6 text-blue-600" />
+                                TIMELINE
+                            </h2>
+                            <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400 hidden md:block">
+                                Histórico Consolidado
+                            </p>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setIsSearchOpen(true)}
+                                className="p-2 text-gray-400 hover:bg-gray-100 rounded-full hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-white"
+                                title="Pesquisar"
+                            >
+                                <IconSearch className="w-5 h-5" />
+                            </button>
+
+                            <div className="flex bg-gray-100 rounded-lg p-1 gap-1 dark:bg-gray-800">
+                                {['ALL', 'EXAMS', 'ANALYSIS'].map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setFilter(f as any)}
+                                        className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${
+                                            filter === f 
+                                            ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-white' 
+                                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                                        }`}
+                                    >
+                                        {f === 'ALL' ? 'Tudo' : f === 'EXAMS' ? 'Exames' : 'Análises'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* Warning de Busca Ativa */}
+            {searchTerm && (
+                <div className="bg-yellow-50 text-yellow-800 text-xs px-4 py-2 flex justify-between items-center dark:bg-yellow-900/20 dark:text-yellow-200">
+                    <span className="font-medium">
+                        {filteredData.length} evento(s) encontrado(s) para "{searchTerm}"
+                    </span>
+                    <button 
+                        onClick={() => { setSearchTerm(''); setIsSearchOpen(false); }}
+                        className="text-yellow-600 hover:underline font-bold dark:text-yellow-400"
+                    >
+                        Limpar
+                    </button>
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar pb-32">
                 <div className="max-w-5xl mx-auto relative pl-4 md:pl-0">
@@ -275,13 +378,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                     </div>
                                 )}
 
-                                {/* 
-                                    LAYOUT LOGIC:
-                                    Mobile: Flex row (Dot left, content right).
-                                    Desktop: 
-                                        - Row if Right (isLeft = false)
-                                        - Row-Reverse if Left (isLeft = true)
-                                */}
                                 <div className={`relative mb-8 md:flex md:items-start md:justify-between w-full group ${
                                     isLeft ? 'md:flex-row-reverse' : ''
                                 }`}>
@@ -331,15 +427,23 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                             </div>
 
                                             <h3 className="text-base font-bold text-gray-900 mb-2 leading-tight dark:text-white">
-                                                {item.title}
+                                                <HighlightText text={item.title} highlight={searchTerm} />
                                             </h3>
 
                                             <div className="text-xs text-gray-500 leading-relaxed line-clamp-3 prose prose-sm max-w-none dark:text-gray-400 dark:prose-invert">
-                                                <ReactMarkdown>
-                                                    {item.content.length > 200 
-                                                        ? item.content.substring(0, 200) + "..." 
-                                                        : item.content}
-                                                </ReactMarkdown>
+                                                {/* Use HighlightText wrapper instead of ReactMarkdown directly when searching to ensure painting works on preview */}
+                                                {searchTerm ? (
+                                                    <HighlightText 
+                                                        text={item.content.length > 200 ? item.content.substring(0, 200) + "..." : item.content} 
+                                                        highlight={searchTerm} 
+                                                    />
+                                                ) : (
+                                                    <ReactMarkdown>
+                                                        {item.content.length > 200 
+                                                            ? item.content.substring(0, 200) + "..." 
+                                                            : item.content}
+                                                    </ReactMarkdown>
+                                                )}
                                             </div>
 
                                             {/* Hover Action */}
@@ -360,8 +464,17 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
 
                     {filteredData.length === 0 && (
                         <div className="text-center py-20 opacity-50 ml-8 md:ml-0">
-                            <IconClock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                            <p className="text-sm font-medium text-gray-400">Nenhum evento registrado nesta categoria.</p>
+                            {searchTerm ? (
+                                <>
+                                    <IconSearch className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                                    <p className="text-sm font-medium text-gray-400">Nenhum evento com "{searchTerm}".</p>
+                                </>
+                            ) : (
+                                <>
+                                    <IconClock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                                    <p className="text-sm font-medium text-gray-400">Nenhum evento registrado.</p>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>

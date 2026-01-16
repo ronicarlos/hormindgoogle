@@ -5,7 +5,7 @@ import { IconSparkles, IconAlert, IconCheck, IconEye, IconEyeOff, IconGoogle, Ic
 import { dataService } from '../services/dataService';
 
 // Fallback version
-const APP_VERSION = "v1.6.3";
+const APP_VERSION = "v1.6.4";
 
 const AuthScreen: React.FC = () => {
     const [email, setEmail] = useState('');
