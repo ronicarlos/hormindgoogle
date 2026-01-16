@@ -65,8 +65,8 @@ const ProtocolLibrary: React.FC = () => {
 
     return (
         <div className="flex-1 bg-white h-full flex flex-col overflow-hidden relative w-full dark:bg-gray-950">
-             {/* HEADER */}
-             <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm sticky top-0 w-full dark:bg-gray-900/95 dark:border-gray-800">
+             {/* HEADER - Changed from sticky to relative for PWA fix */}
+             <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm relative w-full dark:bg-gray-900/95 dark:border-gray-800">
                 <div className="max-w-7xl mx-auto w-full">
                     <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
                         <div className="flex items-center justify-between">

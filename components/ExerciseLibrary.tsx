@@ -143,8 +143,8 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project, onAddExercis
     return (
         <div className="flex-1 bg-white h-full flex flex-col overflow-hidden relative w-full dark:bg-gray-950">
             
-            {/* STICKY HEADER & FILTERS */}
-            <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm sticky top-0 w-full dark:bg-gray-900/95 dark:border-gray-800">
+            {/* STICKY HEADER & FILTERS - Changed from 'sticky top-0' to 'relative' for PWA stability */}
+            <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm relative w-full dark:bg-gray-900/95 dark:border-gray-800">
                 <div className="max-w-7xl mx-auto w-full">
                     {/* Top Bar: Title & Search */}
                     <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
