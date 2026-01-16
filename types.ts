@@ -103,6 +103,8 @@ export interface MetricPoint {
   // Dynamic References extracted from OCR
   refMin?: number;
   refMax?: number;
+  // NEW: Timestamp exato de criação para desempate
+  createdAt?: number; 
 }
 
 export interface ChatMessage {

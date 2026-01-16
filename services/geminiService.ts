@@ -67,18 +67,66 @@ const calculateAge = (birthDate?: string): string => {
 const parseDate = (dateStr: string): number => {
     try {
         if (!dateStr) return 0;
-        // Formato DD/MM/YYYY
+        // Formato DD/MM/YYYY (Padrão do App)
         if (dateStr.includes('/')) {
             const parts = dateStr.split('/');
             if (parts.length === 3) {
+                // Mês em JS é base 0 (0-11)
                 return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
             }
         }
-        // Formato ISO YYYY-MM-DD
+        // Formato ISO YYYY-MM-DD (Supabase)
         return new Date(dateStr).getTime();
     } catch (e) {
         return 0;
     }
+};
+
+// --- LOGICA DE ORDENAÇÃO DE MÉTRICAS (CRUCIAL PARA CORREÇÃO) ---
+const sortMetrics = (points: MetricPoint[], futureLimit: number): MetricPoint[] => {
+    // 1. Mapeia com índice original para usar como fallback
+    const mapped = points.map((p, i) => ({ ...p, originalIndex: i }));
+
+    // 2. Filtra datas futuras
+    const valid = mapped.filter(p => parseDate(p.date) <= futureLimit);
+
+    // 3. Ordena: 
+    //    A) Data Decrescente (Mais novo primeiro)
+    //    B) Se data igual (NORMALIZADA): Data de Criação no Banco (Timestamp exato)
+    //    C) Se data igual e sem timestamp: Índice original Maior
+    return valid.sort((a, b) => {
+        const timestampA = parseDate(a.date);
+        const timestampB = parseDate(b.date);
+
+        // NORMALIZAÇÃO CRÍTICA: Zera as horas para comparar apenas o DIA.
+        // Isso resolve o problema de fuso horário (UTC vs Local) fazendo dias iguais parecerem diferentes.
+        const dayA = new Date(timestampA).setHours(0,0,0,0);
+        const dayB = new Date(timestampB).setHours(0,0,0,0);
+
+        // Critério 1: Dia do Exame (Cronológico)
+        if (dayA !== dayB) {
+            return dayB - dayA; // Mais recente primeiro
+        }
+
+        // Critério 2: Timestamp de Criação (O registro inserido por ÚLTIMO ganha)
+        // Isso garante que se eu corrigi um valor hoje, o valor corrigido (mais novo no banco) apareça no topo.
+        const createdA = a.createdAt || 0;
+        const createdB = b.createdAt || 0;
+        
+        if (createdA !== createdB) {
+             return createdB - createdA; // Maior timestamp (mais novo) primeiro
+        }
+
+        // Critério 3: Autoridade da Fonte (Manual ganha de OCR se empatar em tudo)
+        const isManualA = a.label?.toLowerCase().includes('manual') || a.label?.toLowerCase().includes('wizard');
+        const isManualB = b.label?.toLowerCase().includes('manual') || b.label?.toLowerCase().includes('wizard');
+
+        if (isManualA && !isManualB) return -1; 
+        if (!isManualA && isManualB) return 1;  
+
+        // Critério 4: Ordem de Inserção original do array (Fallback)
+        return b.originalIndex - a.originalIndex;
+    });
 };
 
 const buildContext = (
@@ -86,104 +134,121 @@ const buildContext = (
     profile?: UserProfile, 
     metrics?: Record<string, MetricPoint[]>
 ): string => {
-  const today = new Date().toLocaleDateString('pt-BR');
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('pt-BR');
+  const todayTs = today.getTime(); 
   
-  let context = `DATA ATUAL DO SISTEMA: ${today}\n`;
-  context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n\n";
-  context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica e farmacológica (Medical Grade).\n";
-  context += "HIERARQUIA DE DADOS (REGRA SUPREMA):\n";
-  context += "1. DADOS CADASTRAIS RECENTES (USER INPUT) = VERDADE ABSOLUTA DO ESTADO ATUAL.\n";
-  context += "2. Metadados de Arquivos = Definem a data histórica do exame.\n";
-  context += "3. Histórico do Chat = Baixa confiabilidade (pode conter alucinações antigas).\n\n";
-  context += "Se houver conflito entre um exame antigo (PDF) e o perfil atual (Input Manual), O PERFIL ATUAL VENCE.\n\n";
+  // Buffer de 24h para fusos
+  const futureLimit = todayTs + 86400000; 
 
-  // Extrair hormônios mais recentes para o contexto vital
-  let latestTesto = 'N/A';
-  let latestE2 = 'N/A';
-  
-  if (metrics) {
-      if (metrics['Testosterone'] && metrics['Testosterone'].length > 0) {
-          const sorted = [...metrics['Testosterone']].sort((a,b) => parseDate(b.date) - parseDate(a.date));
-          latestTesto = `${sorted[0].value} ${sorted[0].unit} (Data: ${sorted[0].date})`;
-      }
-      if (metrics['Estradiol'] && metrics['Estradiol'].length > 0) {
-          const sorted = [...metrics['Estradiol']].sort((a,b) => parseDate(b.date) - parseDate(a.date));
-          latestE2 = `${sorted[0].value} ${sorted[0].unit} (Data: ${sorted[0].date})`;
-      }
-  }
+  let context = `DATA ATUAL DO SISTEMA: ${todayStr}\n`;
+  context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n";
+  context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica.\n\n";
+  context += "HIERARQUIA DE DADOS (REGRA SUPREMA DE CONFLITO):\n";
+  context += "1. O valor JSON 'CURRENT_BIOMETRICS' abaixo é a VERDADE ABSOLUTA.\n";
+  context += "2. Se houver conflito com o histórico textual, IGNORE o histórico.\n";
+  context += "3. Datas futuras a hoje devem ser descartadas como erro de metadados.\n\n";
+
+  // Helper para obter o valor mais recente usando a nova lógica de ordenação
+  const getLatestValue = (categoryKey: string, altKey?: string): string => {
+      if (!metrics) return 'N/A';
+      
+      const list = metrics[categoryKey] || (altKey ? metrics[altKey] : []) || [];
+      if (list.length === 0) return 'N/A';
+
+      const sorted = sortMetrics(list, futureLimit);
+
+      if (sorted.length === 0) return 'N/A';
+
+      const latest = sorted[0]; // O primeiro da lista ordenada é o vencedor
+      const dateVal = parseDate(latest.date);
+      const isToday = new Date(dateVal).setHours(0,0,0,0) === new Date().setHours(0,0,0,0);
+      
+      // Marca visual para a IA
+      const sourceLabel = isToday 
+          ? '[DADO VIGENTE - CONFIRMADO HOJE]' 
+          : `(Data: ${latest.date})`;
+          
+      return `${latest.value} ${latest.unit} ${sourceLabel}`;
+  };
+
+  const latestTesto = getLatestValue('Testosterone', 'Testosterona');
+  const latestE2 = getLatestValue('Estradiol');
+  const latestWeight = getLatestValue('Weight', 'Peso');
+  const latestBF = getLatestValue('BodyFat', 'Gordura');
 
   if (profile) {
       const age = calculateAge(profile.birthDate);
+      
+      // Monta o JSON da Verdade
       const biometricsData = {
+          status: "OFFICIAL_LATEST_DATA",
           patientName: profile.name,
           age: age,
           birthDate: profile.birthDate,
           gender: profile.gender,
-          height_cm: profile.height,
-          weight_kg: profile.weight,
-          bodyFat_percent: profile.bodyFat || 'N/A',
-          latest_hormones: {
-              testosterone: latestTesto,
-              estradiol: latestE2
+          
+          // Se tiver dado hoje no histórico, usa. Senão usa o perfil estático.
+          weight_kg: latestWeight !== 'N/A' && latestWeight.includes('HOJE') ? latestWeight : profile.weight,
+          bodyFat_percent: latestBF !== 'N/A' && latestBF.includes('HOJE') ? latestBF : (profile.bodyFat || 'N/A'),
+          
+          latest_hormones_panel: {
+              testosterone_total: latestTesto,
+              estradiol_e2: latestE2
           },
-          measurements_cm: {
-              chest: profile.measurements.chest || 'N/A',
-              arm: profile.measurements.arm || 'N/A',
-              waist: profile.measurements.waist || 'N/A',
-              hips: profile.measurements.hips || 'N/A',
-              thigh: profile.measurements.thigh || 'N/A',
-              calf: profile.measurements.calf || 'N/A'
-          },
+          
+          measurements_cm: profile.measurements,
           clinical: {
               comorbidities: profile.comorbidities || 'None',
               medications: profile.medications || 'None'
-          },
-          calculated: profile.calculatedStats
+          }
       };
 
-      context += `=== 1. PERFIL BIOMÉTRICO ATUAL (FONTE DE VERDADE) ===\n`;
+      context += `=== 1. PERFIL BIOMÉTRICO ATUAL (SOURCE OF TRUTH) ===\n`;
       context += "```json\n";
       context += JSON.stringify({ CURRENT_BIOMETRICS: biometricsData }, null, 2);
       context += "\n```\n";
-      context += "DIRETRIZ DE INTERPRETAÇÃO:\n";
-      context += "- O bloco 'latest_hormones' acima contém o valor MAIS RECENTE conhecido. Ignore valores contraditórios em PDFs antigos.\n";
+      context += "NOTA: 'latest_hormones_panel' contém o valor mais recente do banco de dados (ordenado por carimbo de hora exato).\n";
       context += `=======================================================\n\n`;
   }
 
   if (metrics && Object.keys(metrics).length > 0) {
-      context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS COMPLETO) ===\n`;
-      context += `(Ordenados do mais recente para o mais antigo. A data define a validade.)\n`;
+      context += `=== 2. HISTÓRICO DE EXAMES (ORDEM CRONOLÓGICA) ===\n`;
       for (const [category, points] of Object.entries(metrics)) {
-          const sorted = [...points].sort((a,b) => parseDate(b.date) - parseDate(a.date));
+          const sorted = sortMetrics(points, futureLimit);
           
           if (sorted.length > 0) {
               const latest = sorted[0];
-              const refs = latest.refMin !== undefined || latest.refMax !== undefined ? ` (Ref: ${latest.refMin || '?'} - ${latest.refMax || '?'})` : '';
-              context += `- ${category}: ${latest.value} ${latest.unit}${refs} [DATA: ${latest.date}]\n`;
+              const refs = latest.refMin ? ` (Ref: ${latest.refMin}-${latest.refMax})` : '';
+              
+              // Mostra apenas o mais recente em destaque no texto para evitar confusão da IA
+              context += `- ${category}: ${latest.value} ${latest.unit}${refs} [DATA: ${latest.date}] ${latest.label ? `(${latest.label})` : ''}\n`;
+              
+              // Adiciona histórico anterior resumido se houver
+              if (sorted.length > 1) {
+                  context += `  Histórico: ${sorted.slice(1, 4).map(p => `${p.value} (${p.date})`).join(', ')}\n`;
+              }
           }
       }
       context += `======================================================\n\n`;
   }
 
-  context += "=== 3. CONTEXTO DOCUMENTAL (ARQUIVOS) ===\n";
+  context += "=== 3. CONTEXTO DOCUMENTAL (ARQUIVOS OCR) ===\n";
   if (sources.length > 0) {
       sources.forEach(source => {
-        const prefix = source.type === 'USER_INPUT' ? '[REGISTRO DIÁRIO]' : `[DOC: ${source.title}]`;
-        const typeInfo = source.specificType ? ` (Tipo: ${source.specificType})` : '';
-        const dateInfo = source.date ? ` (Data do Exame: ${source.date})` : '';
+        const prefix = source.type === 'USER_INPUT' ? '[REGISTRO]' : `[DOC: ${source.title}]`;
+        const sourceDateTs = parseDate(source.date);
         
+        let dateDisplay = source.date;
+        if (sourceDateTs > futureLimit) dateDisplay = "DATA_INVALIDA (Ignorar)";
+
         let contentSnippet = source.summary || source.content;
-        if (contentSnippet.length > 8000) contentSnippet = contentSnippet.substring(0, 8000) + "...";
+        if (contentSnippet.length > 6000) contentSnippet = contentSnippet.substring(0, 6000) + "...";
         
-        context += `${prefix}${typeInfo}${dateInfo}:\n${contentSnippet}\n\n`;
+        context += `${prefix} (${dateDisplay}):\n${contentSnippet}\n\n`;
       });
   }
   
-  context += `\nDIRETRIZES DE RESPOSTA MÉDICA:
-1. Use seu conhecimento clínico avançado (Medical Model).
-2. Prioridade Absoluta: Use os dados do bloco JSON 'CURRENT_BIOMETRICS'.
-3. Ao analisar exames, considere a DATA. Exames antigos são histórico, não estado atual.
-`;
   return context;
 };
 
@@ -327,7 +392,7 @@ export const generateAIResponse = async (
             contents: [
                 { role: 'user', parts: [{ text: systemInstruction }] }, 
                 ...safeHistory,
-                { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS' e na seção 'HISTÓRICO DE EXAMES'. Use dados reais extraídos.): ${message}` }] }
+                { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS'. Dados de hoje (${new Date().toLocaleDateString()}) têm precedência total sobre o histórico.): ${message}` }] }
             ],
             config: { temperature: 0.3 } // Temperatura mais baixa para precisão médica
         });

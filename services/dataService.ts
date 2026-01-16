@@ -25,6 +25,7 @@ interface DBMetric {
     label: string;
     ref_min?: number;
     ref_max?: number;
+    created_at: string; // Adicionado explicitamente para tipagem
 }
 
 interface DBMessage {
@@ -250,7 +251,9 @@ export const dataService = {
                         unit: m.unit,
                         label: m.label,
                         refMin: m.ref_min,
-                        refMax: m.ref_max
+                        refMax: m.ref_max,
+                        // Mapeia explicitamente o timestamp de criação para ordenação precisa
+                        createdAt: m.created_at ? new Date(m.created_at).getTime() : 0 
                     });
                 });
             }

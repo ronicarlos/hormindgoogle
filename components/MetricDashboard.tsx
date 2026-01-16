@@ -71,12 +71,16 @@ const CustomizedLabel = (props: any) => {
 };
 
 interface InteractiveChartWrapperProps {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     data: MetricPoint[];
     title: string;
     onActivate: (point: MetricPoint) => void;
     isMobile: boolean;
     onClick: (state: any) => void;
+    // ResponsiveContainer passes width/height/className implicitly
+    width?: number | string;
+    height?: number | string;
+    className?: string;
 }
 
 // --- CHART WRAPPER (Handles hover logic) ---
@@ -86,7 +90,10 @@ const InteractiveChartWrapper = ({
     title,
     onActivate,
     isMobile,
-    onClick // Passado do pai
+    onClick, // Passado do pai
+    width,
+    height,
+    className
 }: InteractiveChartWrapperProps) => {
     const TriggerTooltip = ({ active, payload }: any) => {
         const lastPointRef = useRef<string | null>(null);
@@ -142,11 +149,13 @@ const InteractiveChartWrapper = ({
     };
 
     return (
-        <div className="w-full h-full relative group pointer-events-none">
+        <div className={`w-full h-full relative group pointer-events-none ${className || ''}`} style={{ width, height }}>
             {/* Pointer events none no wrapper para deixar cliques passarem para o Chart Container pai, exceto tooltips */}
             {React.Children.map(children, child => {
                 if (React.isValidElement(child)) {
                     return React.cloneElement(child as any, {
+                        width, // Pass width/height to Recharts components if provided
+                        height,
                         onClick: onClick,
                         children: [
                             ...(React.Children.toArray((child.props as any).children)),

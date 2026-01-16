@@ -149,8 +149,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             const tMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'] || [];
             const eMetrics = project.metrics['Estradiol'] || [];
             
-            const latestTesto = tMetrics.length > 0 ? tMetrics[tMetrics.length - 1].value.toString() : '';
-            const latestE2 = eMetrics.length > 0 ? eMetrics[eMetrics.length - 1].value.toString() : '';
+            // Lógica robusta de seleção do mais recente
+            const sortedT = [...tMetrics].sort((a,b) => {
+                 const da = a.date.split('/').reverse().join('-');
+                 const db = b.date.split('/').reverse().join('-');
+                 return new Date(da).getTime() - new Date(db).getTime();
+            });
+            const sortedE = [...eMetrics].sort((a,b) => {
+                 const da = a.date.split('/').reverse().join('-');
+                 const db = b.date.split('/').reverse().join('-');
+                 return new Date(da).getTime() - new Date(db).getTime();
+            });
+
+            const latestTesto = sortedT.length > 0 ? sortedT[sortedT.length - 1].value.toString() : '';
+            const latestE2 = sortedE.length > 0 ? sortedE[sortedE.length - 1].value.toString() : '';
 
             setHormones({ testo: latestTesto, e2: latestE2 });
             setInitialHormones({ testo: latestTesto, e2: latestE2 });
@@ -324,47 +336,37 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 const today = new Date().toLocaleDateString('pt-BR');
                 const updatedMetrics = { ...project.metrics };
 
+                // Helper para adicionar e atualizar localmente
+                const addMetricLocal = async (category: string, valueStr: string, unit: string) => {
+                    const val = parseFloat(valueStr);
+                    if (!isNaN(val)) {
+                        const pt = { date: today, value: val, unit: unit, label: 'Manual Profile Input' };
+                        await dataService.addMetric(project.id, category, pt);
+                        updatedMetrics[category] = [...(updatedMetrics[category] || []), pt];
+                    }
+                };
+
                 // Testosterona
                 if (hormones.testo && hormones.testo !== initialHormones.testo) {
-                    const val = parseFloat(hormones.testo);
-                    if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: 'ng/dL', label: 'Manual Profile Input' };
-                        await dataService.addMetric(project.id, 'Testosterone', pt);
-                        updatedMetrics['Testosterone'] = [...(updatedMetrics['Testosterone'] || []), pt];
-                    }
+                    await addMetricLocal('Testosterone', hormones.testo, 'ng/dL');
                 }
                 
                 // Estradiol
                 if (hormones.e2 && hormones.e2 !== initialHormones.e2) {
-                    const val = parseFloat(hormones.e2);
-                    if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: 'pg/mL', label: 'Manual Profile Input' };
-                        await dataService.addMetric(project.id, 'Estradiol', pt);
-                        updatedMetrics['Estradiol'] = [...(updatedMetrics['Estradiol'] || []), pt];
-                    }
+                    await addMetricLocal('Estradiol', hormones.e2, 'pg/mL');
                 }
 
                 // Peso
                 if (formData.weight && formData.weight !== initialFormData.weight) {
-                    const val = parseFloat(formData.weight);
-                    if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: 'kg', label: 'Manual Profile Input' };
-                        await dataService.addMetric(project.id, 'Weight', pt);
-                        updatedMetrics['Weight'] = [...(updatedMetrics['Weight'] || []), pt];
-                    }
+                    await addMetricLocal('Weight', formData.weight, 'kg');
                 }
 
                 // BF%
                 if (formData.bodyFat && formData.bodyFat !== initialFormData.bodyFat) {
-                    const val = parseFloat(formData.bodyFat);
-                    if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: '%', label: 'Manual Profile Input' };
-                        await dataService.addMetric(project.id, 'BodyFat', pt);
-                        updatedMetrics['BodyFat'] = [...(updatedMetrics['BodyFat'] || []), pt];
-                    }
+                    await addMetricLocal('BodyFat', formData.bodyFat, '%');
                 }
 
-                // 4. Update Parent State
+                // 4. Update Parent State (FORÇA O UPDATE LOCAL ANTES DE CHAMAR ANÁLISE)
                 if (onUpdateProject) {
                     onUpdateProject({
                         ...project,
@@ -382,7 +384,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 // 5. Trigger Analysis if needed
                 const changes = detectChanges();
                 if (changes.length > 0 && onRequestAnalysis) {
-                    onRequestAnalysis(`O usuário atualizou dados críticos do perfil e planejamento:\n${changes.join('\n')}\n\nAnalise o impacto dessas mudanças no plano geral e se estamos mais perto das novas metas.`);
+                    // Pequeno delay para garantir que o state do projeto propagou (Critical for AI Context)
+                    setTimeout(() => {
+                        onRequestAnalysis(`O usuário ATUALIZOU DADOS CRÍTICOS MANUALMENTE AGORA (${today}):\n${changes.join('\n')}\n\nConsidere estes novos valores como a VERDADE ABSOLUTA e reavalie o cenário.`);
+                    }, 200);
                 }
                 
                 // Update Baselines
