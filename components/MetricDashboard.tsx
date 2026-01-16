@@ -501,6 +501,8 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 cat.includes('Testo') ? '#2563eb' : 
                                 cat.includes('Estradiol') ? '#ec4899' : 
                                 cat.includes('Peso') ? '#4b5563' :
+                                // Cor Vermelha para Hemograma (Hematocrito, Hemoglobina, etc.)
+                                cat.toLowerCase().includes('hema') || cat.toLowerCase().includes('eritro') || cat.toLowerCase().includes('plaqueta') || cat.toLowerCase().includes('leuco') ? '#ef4444' :
                                 '#10b981'
                             }
                             type={cat.includes('Peso') ? 'area' : 'line'}

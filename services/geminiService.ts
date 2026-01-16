@@ -73,6 +73,7 @@ const buildContext = (
 
   if (metrics && Object.keys(metrics).length > 0) {
       context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS) ===\n`;
+      // Ordena métricas para garantir que o Hematócrito e outros apareçam
       for (const [category, points] of Object.entries(metrics)) {
           const sorted = [...points].sort((a,b) => {
               const dateA = a.date.split('/').reverse().join('-'); 
@@ -105,6 +106,7 @@ const buildContext = (
   context += `\nDIRETRIZES DE RESPOSTA:
 1. Responda em Português do Brasil (pt-BR).
 2. Prioridade Absoluta: Use os dados do bloco JSON 'CURRENT_BIOMETRICS'.
+3. Ao analisar exames, considere TODO o histórico disponível na seção 2, incluindo Hematócrito, Plaquetas e outros marcadores do hemograma.
 `;
   return context;
 };
@@ -132,7 +134,7 @@ export const generateAIResponse = async (
       contents: [
         { role: 'user', parts: [{ text: systemInstruction }] }, 
         ...safeHistory,
-        { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS'.): ${message}` }] }
+        { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS'. Se perguntado sobre Hematócrito ou outros exames, consulte a seção HISTÓRICO DE EXAMES): ${message}` }] }
       ],
       config: { temperature: 0.4 }
     });
@@ -156,7 +158,7 @@ export const generateProntuario = async (
 ): Promise<string> => {
     if (!apiKey) return "Chave de API ausente.";
     const systemInstruction = buildContext(sources, profile, metrics);
-    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nBaseie-se ESTRITAMENTE nos dados do "PERFIL BIOMÉTRICO ATUAL".`;
+    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nInclua análise detalhada do Hemograma (Série Vermelha e Branca) se disponível.`;
  
      try {
        const response = await ai.models.generateContent({ model: MODEL_ID, contents: prompt });
@@ -200,28 +202,38 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
     try {
         const filePart = await fileToGenerativePart(file);
         
-        // PROMPT "ANALISTA DE ELITE" REFINADO
+        // PROMPT "ANALISTA DE ELITE" - VERSÃO TOTAL EXTRACT
         const extractionPrompt = `
-        ATUE COMO UM ANALISTA DE LABORATÓRIO DE ELITE E OCR AVANÇADO.
+        ATUE COMO UM ANALISTA DE LABORATÓRIO E OCR MÉDICO AVANÇADO.
         
-        Sua tarefa é processar este documento (Imagem/PDF) e gerar dois outputs distintos:
-        
-        === PARTE 1: RELATÓRIO DE LEITURA E ANÁLISE (Markdown Visível) ===
-        - Identifique e escreva no topo: TIPO DE EXAME e DATA DA COLETA.
-        - Transcreva TODO o conteúdo relevante em tabelas Markdown organizadas.
-        - Destaque em **NEGRITO** valores que estejam fora dos limites de referência (Alterados).
-        - Organize por seções (ex: Hemograma, Lipidograma, Hormônios).
-        - Se houver observações ou laudos no rodapé, transcreva-os.
-        - Seja detalhista e "impecável" na organização visual.
+        Sua tarefa é processar este documento (Imagem/PDF) e gerar dois outputs:
 
-        === PARTE 2: DADOS TÉCNICOS (Oculto para o sistema) ===
-        No FINAL da resposta, adicione estritamente o separador "---END_OF_TEXT---" e, em seguida, um JSON com os dados extraídos:
+        === PARTE 1: RELATÓRIO DE LEITURA (Markdown Visível) ===
+        - Transcreva TODO o conteúdo relevante (Laudos, Tabelas, Observações).
+        - Destaque em **NEGRITO** valores fora da referência.
+        - Se for Hemograma, transcreva TODOS os itens (Série Vermelha, Série Branca, Plaquetas).
+
+        === PARTE 2: DADOS TÉCNICOS (JSON Oculto) ===
+        No FINAL, adicione o separador "---END_OF_TEXT---" e um JSON estrito.
+        
+        REGRA CRÍTICA DE EXTRAÇÃO:
+        Extraia TODO e QUALQUER valor numérico que seja um biomarcador, medida ou indicador de saúde. NÃO FILTRE.
+        
+        Priorize a extração destes grupos, mas não se limite a eles:
+        1. HEMOGRAMA COMPLETO: Hematócrito (Hct), Hemoglobina (Hb), Hemácias, VCM, HCM, CHCM, RDW, Leucócitos, Plaquetas.
+        2. PERFIL LIPÍDICO: Colesterol Total, HDL, LDL, VLDL, Triglicerídeos.
+        3. HORMONAL: Testosterona (Total/Livre), Estradiol, Prolactina, FSH, LH, TSH, T3, T4.
+        4. BIOQUÍMICA: Glicose, Insulina, HbA1c, Ureia, Creatinina, TGO, TGP, GGT, CPK, Ferritina.
+        5. VITAMINAS: Vitamina D, B12.
+        
+        Padronize os nomes das chaves (Ex: "Hematocrito", "Hemoglobina", "Testosterona Total").
+        
+        JSON Schema:
         { 
           "documentType": "string", 
           "detectedDate": "DD/MM/AAAA", 
           "metrics": [{ "category": "Nome Padronizado", "value": 0.0, "unit": "unidade" }] 
         }
-        Biomarcadores Alvo: Testosterona, Estradiol, Colesterol (LDL/HDL), Triglicerídeos, Glicose, TGO, TGP, CPK, Creatinina, Peso, BF.
         `;
 
         const result = await ai.models.generateContent({
