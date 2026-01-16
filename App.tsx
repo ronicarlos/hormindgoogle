@@ -200,7 +200,7 @@ export default function App() {
       }
   };
 
-  // --- CORE INTELLIGENCE LOGIC ---
+  // --- CORE INTELLIGENCE LOGIC (OTIMIZADO) ---
 
   const handleTriggerAnalysisConfirmation = (context: string) => {
       setPendingAnalysisContext(context);
@@ -210,60 +210,72 @@ export default function App() {
   const handleExecuteAnalysis = async () => {
       if (!project || !session?.user || !pendingAnalysisContext) return;
       
-      // FIX CRÍTICO: Fechar modal imediatamente
+      // 1. FECHAR MODAL IMEDIATAMENTE (UX Otimista)
       setIsAnalysisModalOpen(false);
-      
-      // Delay pequeno para garantir que a UI atualize (feche o modal) antes de travar a thread com carregamento
-      setTimeout(async () => {
-          setIsLoading(true);
+      setPendingAnalysisContext(''); // Limpa o contexto pendente para evitar duplicação
 
-          try {
-              // 1. Create User Context Message & Save FIRST
-              const userMsg: ChatMessage = {
-                  id: Date.now().toString(),
-                  role: 'user',
-                  text: `[SISTEMA - ATUALIZAÇÃO DE CONTEXTO]\n${pendingAnalysisContext}\n\nCom base nessas mudanças e nos novos dados, faça uma análise detalhada do meu cenário atual.`,
-                  timestamp: Date.now()
-              };
-              await dataService.addMessage(project.id, userMsg);
+      // 2. Criar mensagem do usuário
+      const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          text: `[SISTEMA - ATUALIZAÇÃO DE CONTEXTO]\n${pendingAnalysisContext}\n\nCom base nessas mudanças e nos novos dados, faça uma análise detalhada do meu cenário atual.`,
+          timestamp: Date.now()
+      };
 
-              // 2. NOW redirect to Chat (it will load the just-added message)
-              setCurrentView('chat'); 
+      // 3. Salvar no Banco (Sem await para não bloquear a UI)
+      dataService.addMessage(project.id, userMsg);
 
-              // 3. Fetch History for Context
-              const history = await dataService.getMessages(project.id);
+      // 4. MUDAR PARA O CHAT IMEDIATAMENTE E ATIVAR LOADING
+      // Isso dá feedback instantâneo ao usuário de que "algo está acontecendo"
+      setCurrentView('chat'); 
+      setIsLoading(true); // O ChatInterface usa isso para mostrar "Processando..."
 
-              // 4. Call AI
-              const responseText = await generateAIResponse(
-                  userMsg.text,
-                  project.sources,
-                  history,
-                  project.userProfile,
-                  project.metrics
-              );
-
-              // 5. Save AI Response
-              const aiMsg: ChatMessage = {
-                  id: (Date.now() + 1).toString(),
-                  role: 'model',
-                  text: responseText,
-                  timestamp: Date.now()
-              };
-              await dataService.addMessage(project.id, aiMsg);
-
-              // 6. Update Billing & Force Chat Refresh via Trigger
-              setBillingTrigger(prev => prev + 1); // This updates ChatInterface instantly
-              
-              await loadProject(session.user.id); 
-
-          } catch (err) {
-              console.error("Analysis failed", err);
-              alert("Erro ao processar análise. Tente novamente.");
-          } finally {
-              setIsLoading(false);
-              setPendingAnalysisContext('');
+      // 5. Executar Análise Pesada (Background)
+      try {
+          // Busca histórico atualizado (incluindo a mensagem nova que acabamos de adicionar)
+          // Pequeno delay para garantir consistência do banco se necessário, mas getMessages é rápido
+          const history = await dataService.getMessages(project.id);
+          // Adiciona manualmente a msg atual se o banco ainda não indexou (segurança)
+          if (!history.find(m => m.id === userMsg.id)) {
+              history.push(userMsg);
           }
-      }, 100);
+
+          const responseText = await generateAIResponse(
+              userMsg.text,
+              project.sources,
+              history,
+              project.userProfile,
+              project.metrics
+          );
+
+          // 6. Salvar Resposta
+          const aiMsg: ChatMessage = {
+              id: (Date.now() + 1).toString(),
+              role: 'model',
+              text: responseText,
+              timestamp: Date.now()
+          };
+          await dataService.addMessage(project.id, aiMsg);
+
+          // 7. Atualizar UI Global
+          setBillingTrigger(prev => prev + 1); // Atualiza contador de tokens
+          
+          // Recarrega o projeto (opcional, mas bom para sincronizar)
+          await loadProject(session.user.id); 
+
+      } catch (err) {
+          console.error("Analysis failed", err);
+          // Em caso de erro, avisa no chat (se possível) ou alert
+          const errorMsg: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'model',
+              text: "⚠️ Ocorreu um erro ao processar a análise automática. Por favor, tente perguntar novamente no chat.",
+              timestamp: Date.now()
+          };
+          await dataService.addMessage(project.id, errorMsg);
+      } finally {
+          setIsLoading(false); // Libera o Chat para interação
+      }
   };
 
   const handleUpload = async (files: File[]) => {

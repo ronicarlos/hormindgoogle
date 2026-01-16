@@ -16,7 +16,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, onConfir
 
     const handleConfirm = () => {
         setIsProcessing(true);
-        onConfirm(); // Parent will eventually close this modal
+        onConfirm(); // Parent (App.tsx) will execute navigation and async logic
     };
 
     return (
@@ -81,12 +81,12 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, onConfir
                         {isProcessing ? (
                             <>
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                Iniciando Análise...
+                                Iniciando...
                             </>
                         ) : (
                             <>
                                 <IconSparkles className="w-4 h-4" />
-                                Confirmar e Gerar Análise
+                                Confirmar e Gerar Análise (Ir para Chat)
                             </>
                         )}
                     </button>
@@ -95,7 +95,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, onConfir
                         disabled={isProcessing}
                         className="w-full py-3 text-gray-500 font-bold text-xs hover:text-gray-800 transition-colors dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
                     >
-                        Apenas Salvar (Sem Análise)
+                        Não, Apenas Salvar Dados
                     </button>
                 </div>
             </div>

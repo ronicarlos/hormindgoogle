@@ -632,7 +632,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                         disabled={isSaving || isUploading}
                         className="px-8 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all active:scale-95 shadow-lg flex items-center gap-2 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
                     >
-                        {isSaving ? 'Salvando...' : currentStep === steps.length - 1 ? 'Concluir' : 'Próximo'}
+                        {isSaving ? 'Salvando...' : currentStep === steps.length - 1 ? 'Salvar & Continuar' : 'Próximo'}
                         {currentStep < steps.length - 1 && !isSaving && <span className="text-lg leading-none">→</span>}
                     </button>
                 </div>
