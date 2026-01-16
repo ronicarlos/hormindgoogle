@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveCo
 import { Project, RiskFlag, MetricPoint } from '../types';
 import { IconActivity, IconAlert, IconSparkles, IconFlame, IconDumbbell, IconUser, IconHeart, IconScale, IconScience, IconReportPDF, IconDownload, IconCheck, IconShield, IconArrowLeft, IconFile, IconSearch } from './Icons';
 import { Tooltip } from './Tooltip';
+import RichTooltip from './RichTooltip'; // IMPORTADO
 
 interface MetricDashboardProps {
   project: Project;
@@ -22,25 +23,6 @@ const stringToColor = (str: string) => {
     }
     const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
     return '#' + '00000'.substring(0, 6 - c.length) + c;
-};
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-lg text-xs z-50 dark:bg-gray-900 dark:border-gray-700">
-        <p className="font-bold text-gray-900 mb-2 border-b border-gray-100 pb-1 dark:text-white dark:border-gray-700">{label}</p>
-        {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 mb-1 last:mb-0">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.stroke || entry.fill }} />
-                <span className="text-gray-600 font-medium dark:text-gray-300">
-                    {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value} {entry.unit}
-                </span>
-            </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
 };
 
 const CustomizedLabel = (props: any) => {
@@ -80,7 +62,8 @@ const BiomarkerChart = ({
     minRef, 
     maxRef, 
     yDomain,
-    type = 'line'
+    type = 'line',
+    gender // PASSADO GÊNERO PARA O CHART
 }: { 
     title: string; 
     data: MetricPoint[]; 
@@ -89,6 +72,7 @@ const BiomarkerChart = ({
     maxRef?: number;
     yDomain?: [number | string, number | string];
     type?: 'line' | 'area';
+    gender: 'Masculino' | 'Feminino';
 }) => {
     const cleanData = useMemo(() => {
         if (!data || data.length === 0) return [];
@@ -130,7 +114,13 @@ const BiomarkerChart = ({
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={yDomain || ['auto', 'auto']} />
-                            <RechartsTooltip content={<CustomTooltip />} />
+                            
+                            {/* RICH TOOLTIP INTEGRATION */}
+                            <RechartsTooltip 
+                                content={<RichTooltip gender={gender} history={data} />} 
+                                cursor={{ stroke: color, strokeWidth: 1, strokeDasharray: '3 3' }}
+                            />
+                            
                             <Area 
                                 type="monotone" 
                                 dataKey="value" 
@@ -150,7 +140,13 @@ const BiomarkerChart = ({
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={yDomain || ['auto', 'auto']} />
-                            <RechartsTooltip content={<CustomTooltip />} />
+                            
+                            {/* RICH TOOLTIP INTEGRATION */}
+                            <RechartsTooltip 
+                                content={<RichTooltip gender={gender} history={data} />} 
+                                cursor={{ stroke: color, strokeWidth: 1, strokeDasharray: '3 3' }}
+                            />
+
                             {minRef && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
                             {maxRef && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" className="dark:stroke-gray-700" />}
                             <Line 
@@ -172,7 +168,7 @@ const BiomarkerChart = ({
     );
 };
 
-const HormonalBalanceChart = ({ testoData, e2Data }: { testoData: MetricPoint[]; e2Data: MetricPoint[]; }) => {
+const HormonalBalanceChart = ({ testoData, e2Data, gender }: { testoData: MetricPoint[]; e2Data: MetricPoint[]; gender: 'Masculino' | 'Feminino'; }) => {
     const mergedData = useMemo(() => {
         const map = new Map();
         testoData.forEach(d => map.set(d.date, { date: d.date, testo: Number(d.value) }));
@@ -214,7 +210,10 @@ const HormonalBalanceChart = ({ testoData, e2Data }: { testoData: MetricPoint[];
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis yAxisId="left" orientation="left" hide />
                             <YAxis yAxisId="right" orientation="right" hide />
-                            <RechartsTooltip content={<CustomTooltip />} />
+                            
+                            {/* Rich Tooltip Adaptado para Composed Chart - Vai mostrar o que estiver hovered */}
+                            <RechartsTooltip content={<RichTooltip gender={gender} history={[]} />} />
+                            
                             <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: '10px' }}/>
                             <Area yAxisId="left" type="monotone" dataKey="testo" name="Testosterona" fill="#3b82f6" stroke="#2563eb" fillOpacity={0.1} label={<CustomizedLabel dataLength={mergedData.length} color="#2563eb" />} />
                             <Line yAxisId="right" type="monotone" dataKey="e2" name="Estradiol" stroke="#ec4899" strokeWidth={2} dot={{r:3}} label={<CustomizedLabel dataLength={mergedData.length} color="#ec4899" />} />
@@ -226,7 +225,7 @@ const HormonalBalanceChart = ({ testoData, e2Data }: { testoData: MetricPoint[];
     );
 };
 
-const CastelliChart = ({ ldlData, hdlData }: { ldlData: MetricPoint[]; hdlData: MetricPoint[]; }) => {
+const CastelliChart = ({ ldlData, hdlData, gender }: { ldlData: MetricPoint[]; hdlData: MetricPoint[]; gender: 'Masculino' | 'Feminino'; }) => {
     const ratioData = useMemo(() => {
         const map = new Map();
         ldlData.forEach(d => map.set(d.date, { date: d.date, ldl: Number(d.value) }));
@@ -255,6 +254,9 @@ const CastelliChart = ({ ldlData, hdlData }: { ldlData: MetricPoint[]; hdlData: 
 
     const currentRatio = ratioData[ratioData.length - 1].value;
     const isDanger = currentRatio > 3.5;
+
+    // Transformar para MetricPoint[] para passar pro tooltip
+    const historyForTooltip: MetricPoint[] = ratioData.map(d => ({ date: d.date, value: d.value, unit: 'Ratio', label: 'Castelli' }));
 
     return (
         <div className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden dark:bg-gray-900 dark:border-gray-800">
@@ -285,9 +287,11 @@ const CastelliChart = ({ ldlData, hdlData }: { ldlData: MetricPoint[]; hdlData: 
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                         <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                         <YAxis hide domain={[0, 'auto']} />
+                        
+                        <RechartsTooltip content={<RichTooltip gender={gender} history={historyForTooltip} />} />
+
                         <ReferenceLine y={3.5} stroke="red" strokeDasharray="3 3" label={{ value: 'Risco', fontSize: 9, fill: 'red' }} />
-                        <RechartsTooltip content={<CustomTooltip />} />
-                        <Area type="monotone" dataKey="value" name="LDL/HDL" stroke={isDanger ? '#ef4444' : '#10b981'} fill="url(#colorRisk)" strokeWidth={2} label={<CustomizedLabel dataLength={ratioData.length} color={isDanger ? '#ef4444' : '#10b981'} />} />
+                        <Area type="monotone" dataKey="value" name="Índice Castelli" stroke={isDanger ? '#ef4444' : '#10b981'} fill="url(#colorRisk)" strokeWidth={2} label={<CustomizedLabel dataLength={ratioData.length} color={isDanger ? '#ef4444' : '#10b981'} />} />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
@@ -295,7 +299,7 @@ const CastelliChart = ({ ldlData, hdlData }: { ldlData: MetricPoint[]; hdlData: 
     );
 };
 
-const EfficiencyChart = ({ strengthData, weightData }: { strengthData: MetricPoint[]; weightData: MetricPoint[]; }) => {
+const EfficiencyChart = ({ strengthData, weightData, gender }: { strengthData: MetricPoint[]; weightData: MetricPoint[]; gender: 'Masculino' | 'Feminino'; }) => {
     const ratioData = useMemo(() => {
         const map = new Map();
         weightData.forEach(d => map.set(d.date, { date: d.date, bw: Number(d.value) }));
@@ -319,6 +323,9 @@ const EfficiencyChart = ({ strengthData, weightData }: { strengthData: MetricPoi
     }, [strengthData, weightData]);
 
     if (!strengthData?.length) return null;
+
+    // Transformar para MetricPoint[]
+    const historyForTooltip: MetricPoint[] = ratioData.map(d => ({ date: d.date, value: d.value, unit: 'x BW', label: 'Eficiência' }));
 
     return (
         <div className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden dark:bg-gray-900 dark:border-gray-800">
@@ -344,7 +351,9 @@ const EfficiencyChart = ({ strengthData, weightData }: { strengthData: MetricPoi
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-gray-800" />
                             <XAxis dataKey="date" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
                             <YAxis hide domain={['auto', 'auto']} />
-                            <RechartsTooltip content={<CustomTooltip />} />
+                            
+                            <RechartsTooltip content={<RichTooltip gender={gender} history={historyForTooltip} />} />
+
                             <Line type="step" dataKey="value" name="Eficiência" stroke="#2563eb" strokeWidth={3} dot={{r: 4, fill: '#2563eb'}} label={<CustomizedLabel dataLength={ratioData.length} color="#2563eb" />} />
                         </LineChart>
                     </ResponsiveContainer>
@@ -428,6 +437,9 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
     const weight = metrics['Weight'] || metrics['Peso'] || [];
     const allCategories = Object.keys(metrics);
 
+    // Get Gender safely
+    const gender = project.userProfile?.gender || 'Masculino';
+
     return (
         <div className="flex-1 overflow-y-auto bg-gray-50 h-full p-4 md:p-8 pb-32 dark:bg-gray-950">
             {/* Header */}
@@ -490,9 +502,9 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
 
             {/* --- ADVANCED INTELLIGENCE SECTION --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-                <HormonalBalanceChart testoData={testo} e2Data={e2} />
-                <CastelliChart ldlData={ldl} hdlData={hdl} />
-                <EfficiencyChart strengthData={strength} weightData={weight} />
+                <HormonalBalanceChart testoData={testo} e2Data={e2} gender={gender} />
+                <CastelliChart ldlData={ldl} hdlData={hdl} gender={gender} />
+                <EfficiencyChart strengthData={strength} weightData={weight} gender={gender} />
             </div>
 
             {/* SEPARATOR */}
@@ -526,6 +538,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 data={metrics[cat]} 
                                 color={chartColor}
                                 type={cat.includes('Peso') ? 'area' : 'line'}
+                                gender={gender}
                             />
                         </div>
                     );
