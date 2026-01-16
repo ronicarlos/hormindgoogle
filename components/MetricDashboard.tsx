@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend, LabelList } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconSparkles, IconHeart, IconDumbbell, IconReportPDF, IconCheck, IconShield, IconFile, IconScience, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp } from './Icons';
+import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp } from './Icons';
 import { Tooltip } from './Tooltip';
 import MarkerInfoPanel from './MarkerInfoPanel'; 
 import { getMarkerInfo } from '../services/markerRegistry';
@@ -140,7 +140,8 @@ const InteractiveChartWrapper = ({
     };
 
     return (
-        <div className="w-full h-full relative group">
+        <div className="w-full h-full relative group pointer-events-none">
+            {/* Pointer events none no wrapper para deixar cliques passarem para o Chart Container pai, exceto tooltips */}
             {React.Children.map(children, child => {
                 if (React.isValidElement(child)) {
                     return React.cloneElement(child as any, {
@@ -152,7 +153,7 @@ const InteractiveChartWrapper = ({
                                 content={<TriggerTooltip />}
                                 cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '3 3' }}
                                 isAnimationActive={false}
-                                wrapperStyle={isMobile ? { zIndex: 100, pointerEvents: 'auto' } : undefined} 
+                                wrapperStyle={{ zIndex: 100, pointerEvents: 'auto' }} 
                             />
                         ]
                     });
@@ -186,7 +187,8 @@ const BiomarkerChart = ({
     onHover: (point: MetricPoint) => void;
     isMobile: boolean;
 }) => {
-    const lastTap = useRef<number>(0);
+    // Referência para controlar o duplo clique manualmente
+    const lastClickTime = useRef<number>(0);
 
     const { cleanData, minIndex, maxIndex } = useMemo(() => {
         if (!data || data.length === 0) return { cleanData: [], minIndex: -1, maxIndex: -1 };
@@ -217,24 +219,38 @@ const BiomarkerChart = ({
         }
     };
 
-    // 1. Double Click Handler (Desktop Native + Mobile Tap Logic fallback)
-    const handleDoubleClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const lastPoint = cleanData[cleanData.length - 1];
-        triggerActivate(lastPoint);
+    // IMPLEMENTAÇÃO DE DUPLO CLIQUE MANUAL (ROBUSTO)
+    const handleContainerClick = (e: React.MouseEvent) => {
+        e.stopPropagation(); 
+        
+        const now = Date.now();
+        const timeDiff = now - lastClickTime.current;
+        
+        // Se o segundo clique ocorrer dentro de 300ms, é um duplo clique
+        if (timeDiff < 300 && timeDiff > 0) {
+            const lastPoint = cleanData[cleanData.length - 1];
+            if (lastPoint) {
+                triggerActivate(lastPoint);
+            }
+            lastClickTime.current = 0; // Reset
+        } else {
+            lastClickTime.current = now;
+        }
     };
 
-    // 2. Recharts Click (Specific Point)
+    // Recharts Click (Specific Point)
     const handleChartClick = (state: any) => {
+        // Se clicou num ponto específico, ativa imediatamente (single click em desktop, ou via tooltip em mobile)
         if (state && state.activePayload && state.activePayload.length > 0) {
             const point = state.activePayload[0].payload;
-            // No mobile, o tooltip já lida com o clique. 
-            // Mas se o usuário clicar na linha/ponto diretamente:
             triggerActivate(point);
         }
     };
 
     if (!data || data.length === 0) return null;
+
+    // Lógica para exibir referências apenas se existirem
+    const hasRefs = minRef !== undefined && maxRef !== undefined;
 
     return (
         <div className="mb-8 w-full">
@@ -244,15 +260,15 @@ const BiomarkerChart = ({
                 </h3>
                 <div className="flex gap-2 shrink-0">
                     {data[0].unit && <span className="text-[10px] text-gray-400 font-medium">{data[0].unit}</span>}
-                    {minRef && maxRef && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 rounded dark:bg-gray-800">Ref: {minRef}-{maxRef}</span>}
+                    {hasRefs && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 rounded dark:bg-gray-800">Ref: {minRef}-{maxRef}</span>}
                 </div>
             </div>
             
-            {/* Container Principal com DoubleClick Explicito */}
+            {/* Container Principal com Click Handler Manual */}
             <div 
-                className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800 cursor-pointer active:scale-[0.99] transition-transform"
-                onDoubleClick={handleDoubleClick}
-                title="Duplo clique para detalhes"
+                className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800 cursor-pointer active:scale-[0.99] transition-transform select-none"
+                onClick={handleContainerClick}
+                title="Toque duas vezes para ver detalhes"
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <InteractiveChartWrapper 
@@ -294,8 +310,8 @@ const BiomarkerChart = ({
                                         } 
                                     />
                                 </Area>
-                                {minRef && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
-                                {maxRef && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
+                                {minRef !== undefined && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
+                                {maxRef !== undefined && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
                             </AreaChart>
                         ) : (
                             <LineChart data={cleanData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
@@ -323,8 +339,8 @@ const BiomarkerChart = ({
                                         } 
                                     />
                                 </Line>
-                                {minRef && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
-                                {maxRef && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
+                                {minRef !== undefined && <ReferenceLine y={minRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
+                                {maxRef !== undefined && <ReferenceLine y={maxRef} stroke="#e5e7eb" strokeDasharray="3 3" />}
                             </LineChart>
                         )}
                     </InteractiveChartWrapper>
@@ -348,6 +364,23 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // ESCUTA O EVENTO GLOBAL DE BUSCA (Vindo do MobileHeader)
+    useEffect(() => {
+        const handleToggleSearch = () => {
+            setIsSearchOpen(prev => {
+                const newState = !prev;
+                // Se estiver abrindo, rola pro topo para ver a barra
+                if (newState && containerRef.current) {
+                    containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                return newState;
+            });
+        };
+
+        window.addEventListener('toggle-app-search', handleToggleSearch);
+        return () => window.removeEventListener('toggle-app-search', handleToggleSearch);
+    }, []);
+
     // Auto-focus na busca
     useEffect(() => {
         if (isSearchOpen && searchInputRef.current) {
@@ -356,7 +389,6 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
     }, [isSearchOpen]);
 
     // Handler unificado para ativar o painel
-    // CRÍTICO: Removido debounce estrito que poderia impedir reabertura do modal no mobile
     const handleChartHover = (point: MetricPoint, markerId: string, history: MetricPoint[]) => {
         setActiveMarkerData({
             markerId: markerId, 
@@ -427,7 +459,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 className="flex-1 overflow-y-auto bg-gray-50 h-full p-0 pb-32 dark:bg-gray-950 relative"
             >
                 {/* Header Dinâmico (Título ou Busca) - STICKY FORÇADO */}
-                <div className="sticky top-0 z-30 bg-gray-50/95 backdrop-blur-md border-b border-gray-200 px-4 md:px-8 py-4 flex justify-between items-end min-h-[70px] dark:bg-gray-950/95 dark:border-gray-800 shadow-sm transition-all">
+                <div className={`sticky top-0 z-30 bg-gray-50/95 backdrop-blur-md border-b border-gray-200 px-4 md:px-8 py-4 flex justify-between items-end transition-all dark:bg-gray-950/95 dark:border-gray-800 shadow-sm ${isSearchOpen ? 'min-h-[70px]' : 'min-h-[50px] md:min-h-[70px]'}`}>
                     {isSearchOpen ? (
                         // MODO BUSCA
                         <div className="flex items-center w-full gap-2 animate-in fade-in slide-in-from-right-2 duration-200">

@@ -30,6 +30,7 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project, onAddExercis
     const ITEMS_PER_PAGE = 30; // Increased for higher density
 
     const listRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     // Initial Fetch
     useEffect(() => {
@@ -41,6 +42,16 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project, onAddExercis
             setIsLoading(false);
         };
         load();
+    }, []);
+
+    // Escuta evento global de busca
+    useEffect(() => {
+        const handleToggleSearch = () => {
+            if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => searchInputRef.current?.focus(), 300);
+        };
+        window.addEventListener('toggle-app-search', handleToggleSearch);
+        return () => window.removeEventListener('toggle-app-search', handleToggleSearch);
     }, []);
 
     // Robust Category Matching Logic
@@ -178,6 +189,7 @@ const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({ project, onAddExercis
                             <div className="relative w-full md:max-w-xs">
                                 <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                                 <input 
+                                    ref={searchInputRef}
                                     type="text" 
                                     placeholder="Buscar..." 
                                     value={searchTerm}

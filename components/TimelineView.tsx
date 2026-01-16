@@ -173,6 +173,16 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
     const [searchTerm, setSearchTerm] = useState('');
     const searchInputRef = useRef<HTMLInputElement>(null);
 
+    // Escuta evento global de busca
+    useEffect(() => {
+        const handleToggleSearch = () => {
+            setIsSearchOpen(true);
+            setTimeout(() => searchInputRef.current?.focus(), 300);
+        };
+        window.addEventListener('toggle-app-search', handleToggleSearch);
+        return () => window.removeEventListener('toggle-app-search', handleToggleSearch);
+    }, []);
+
     // Carrega mensagens automaticamente se o array inicial estiver vazio mas tivermos um projectId
     useEffect(() => {
         if (projectId && (!initialMessages || initialMessages.length === 0)) {

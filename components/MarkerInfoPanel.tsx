@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { MarkerInfo, getMarkerInfo } from '../services/markerRegistry';
 import { analyzePoint } from '../services/analyticsService';
 import { MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconCheck, IconClose, IconScience } from './Icons';
+import { IconActivity, IconAlert, IconCheck, IconClose, IconScience, IconInfo } from './Icons';
 
 interface MarkerInfoPanelProps {
     activeData: { markerId: string; value: number; date: string; history: MetricPoint[] } | null;
@@ -79,6 +79,9 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     } else if (analysis.status === 'BORDERLINE_LOW') {
         statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800';
         labelStatus = 'Alerta (Baixo)';
+    } else if (analysis.status === 'UNKNOWN') {
+        statusColor = 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
+        labelStatus = 'Registro';
     }
 
     const IconStatus = analysis.status === 'NORMAL' ? IconCheck : IconAlert;
@@ -89,10 +92,22 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
             
             {/* Header */}
             <div className={`pb-4 border-b border-gray-100 dark:border-gray-800 shrink-0 ${isModal ? 'p-6 pb-4' : ''}`}>
+                
+                {/* Alerta de Marcador Genérico */}
+                {info.isGeneric && (
+                    <div className="mb-4 bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded-lg border border-yellow-100 flex items-start gap-2 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
+                        <IconInfo className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <div>
+                            <strong>Marcador sem configuração específica.</strong>
+                            <p className="opacity-90">A análise abaixo é educativa e baseada em princípios gerais de fisiologia.</p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex justify-between items-start mb-2">
                     <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{activeData.date}</span>
-                        <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5 pr-4">{info.label}</h2>
+                        <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5 pr-4 break-words">{info.label}</h2>
                     </div>
                     <div className="text-right whitespace-nowrap">
                         <span className={`block text-2xl font-black ${analysis.riskColor}`}>
@@ -118,7 +133,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                         <IconScience className="w-3.5 h-3.5 text-indigo-500" />
                         O que é isso?
                     </h4>
-                    <p className="text-sm text-gray-600 leading-relaxed dark:text-gray-400">
+                    <p className="text-sm text-gray-600 leading-relaxed dark:text-gray-400 text-justify">
                         {info.definition}
                     </p>
                 </div>
@@ -139,13 +154,42 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     <div>
                         <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
                             <IconAlert className="w-3.5 h-3.5 text-orange-500" />
-                            {analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? 'Riscos se elevado' : 'Riscos se baixo'}
+                            {/* Ajuste de título para marcadores genéricos ou específicos */}
+                            {info.isGeneric 
+                                ? 'Interpretação Geral' 
+                                : (analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? 'Riscos se elevado' : 'Riscos se baixo')
+                            }
                         </h4>
                         <ul className="space-y-2">
-                            {(analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
-                                <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            {/* Se for genérico, mostra ambos para educar. Se for específico, mostra o relevante. */}
+                            {(info.isGeneric || analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
+                                <li key={`high-${i}`} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span className="mt-1.5 w-1.5 h-1.5 bg-orange-400 rounded-full shrink-0" />
-                                    {risk}
+                                    {info.isGeneric ? `Alto: ${risk}` : risk}
+                                </li>
+                            ))}
+                            {/* Para genéricos, mostra também o low */}
+                            {info.isGeneric && info.risks.low.map((risk, i) => (
+                                <li key={`low-${i}`} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                    <span className="mt-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full shrink-0" />
+                                    Baixo: {risk}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Dicas Genéricas */}
+                {info.tips.length > 0 && (
+                     <div>
+                        <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
+                            Dica FitLM
+                        </h4>
+                        <ul className="space-y-2">
+                            {info.tips.map((tip, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 italic">
+                                    <span className="mt-1.5 w-1.5 h-1.5 bg-gray-400 rounded-full shrink-0" />
+                                    {tip}
                                 </li>
                             ))}
                         </ul>

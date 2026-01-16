@@ -17,6 +17,7 @@ export interface MarkerInfo {
     };
     tips: string[];
     sources: { title: string; url: string }[];
+    isGeneric?: boolean; // Flag para identificar marcadores dinâmicos
 }
 
 // Normaliza chaves para garantir match
@@ -542,8 +543,36 @@ export const MARKER_REGISTRY: Record<string, MarkerInfo> = {
 
 export const getMarkerInfo = (name: string): MarkerInfo => {
     const key = normalizeMarkerKey(name);
-    const info = MARKER_REGISTRY[key] || MARKER_REGISTRY.generic;
-    // Override label se for genérico para mostrar o nome real do exame, mas mantém info útil se for conhecido
-    if (key === 'generic') return { ...info, label: name };
-    return info;
+    
+    // Se o marcador for conhecido, retorna do registro
+    if (MARKER_REGISTRY[key] && key !== 'generic') {
+        return MARKER_REGISTRY[key];
+    }
+
+    // Se for desconhecido (fallback genérico dinâmico)
+    return {
+        id: key,
+        label: name, // Usa o nome original (ex: "Homocisteína")
+        unit: '', // Será preenchido pelo dado do gráfico se disponível
+        definition: `Este marcador foi identificado nos seus documentos, mas não possui uma ficha técnica dedicada na base de conhecimento do FitLM. De modo geral, biomarcadores quantificam processos biológicos, estado de saúde ou resposta a terapias.`,
+        ranges: {}, // Sem range específico, o gráfico mostrará apenas a linha do tempo
+        risks: {
+            high: [
+                'Pode indicar sobrecarga do órgão responsável ou hiperatividade do sistema.',
+                'Em alguns casos, reflete inflamação aguda ou resposta a suplementação.',
+                'Verifique sempre o valor de referência do laboratório no documento original.'
+            ],
+            low: [
+                'Pode indicar deficiência nutricional ou baixa produção endógena.',
+                'Em alguns contextos, valores baixos são desejáveis (ex: inflamação).',
+                'Consulte o exame original para confirmar a faixa ideal.'
+            ]
+        },
+        tips: [
+            'Compare a evolução ao longo do tempo. Mudanças bruscas são mais relevantes que valores isolados.',
+            'Use o Chat IA para perguntar especificamente sobre este marcador.'
+        ],
+        sources: [],
+        isGeneric: true // Flag para UI mostrar aviso
+    };
 };

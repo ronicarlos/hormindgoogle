@@ -12,9 +12,20 @@ const ProtocolLibrary: React.FC = () => {
     const [showScrollTop, setShowScrollTop] = useState(false);
     
     const listRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchCompounds().then(setCompounds);
+    }, []);
+
+    // Escuta evento global de busca
+    useEffect(() => {
+        const handleToggleSearch = () => {
+            if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => searchInputRef.current?.focus(), 300);
+        };
+        window.addEventListener('toggle-app-search', handleToggleSearch);
+        return () => window.removeEventListener('toggle-app-search', handleToggleSearch);
     }, []);
 
     const categories = ['Todos', 'Protocolo Exemplo', 'Suplemento', 'Testosterona', '19-Nor', 'DHT', 'Oral', 'Peptídeo', 'Mitocondrial', 'Nootrópico', 'Termogênico', 'SERM/IA'];
@@ -100,6 +111,7 @@ const ProtocolLibrary: React.FC = () => {
                             <div className="relative w-full md:max-w-xs">
                                 <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                                 <input 
+                                    ref={searchInputRef}
                                     type="text" 
                                     placeholder="Buscar..." 
                                     value={searchTerm}
