@@ -87,11 +87,12 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     const IconStatus = analysis.status === 'NORMAL' ? IconCheck : IconAlert;
 
     // Componente de Conteúdo Reutilizável
+    // Estrutura: Header Fixo + Body Scrollable + Footer Fixo
     const Content = ({ isModal = false }) => (
-        <div className={`flex flex-col h-full ${isModal ? '' : 'overflow-y-auto custom-scrollbar'}`}>
+        <div className="flex flex-col h-full overflow-hidden bg-transparent">
             
-            {/* Header */}
-            <div className={`pb-4 border-b border-gray-100 dark:border-gray-800 shrink-0 ${isModal ? 'p-6 pb-4' : ''}`}>
+            {/* Header (Fixo) */}
+            <div className={`shrink-0 border-b border-gray-100 dark:border-gray-800 ${isModal ? 'p-6 pb-4' : 'pb-4'}`}>
                 
                 {/* Alerta de Marcador Genérico */}
                 {info.isGeneric && (
@@ -104,10 +105,10 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 )}
 
-                <div className="flex justify-between items-start mb-2">
+                <div className="flex justify-between items-start mb-2 pr-6">
                     <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{activeData.date}</span>
-                        <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5 pr-4 break-words">{info.label}</h2>
+                        <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5 break-words">{info.label}</h2>
                     </div>
                     <div className="text-right whitespace-nowrap">
                         <span className={`block text-2xl font-black ${analysis.riskColor}`}>
@@ -124,8 +125,8 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                 </div>
             </div>
 
-            {/* Body Scrolling Area */}
-            <div className={`space-y-6 flex-1 ${isModal ? 'overflow-y-auto p-6 pt-4' : 'py-6'}`}>
+            {/* Body Scrolling Area (Flex-1) */}
+            <div className={`flex-1 overflow-y-auto custom-scrollbar space-y-6 ${isModal ? 'p-6 pt-4' : 'py-6 pr-1'}`}>
                 
                 {/* Definição */}
                 <div>
@@ -218,8 +219,8 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                 <div className="h-4"></div>
             </div>
 
-            {/* Footer */}
-            <div className={`border-t border-gray-100 text-center dark:border-gray-800 shrink-0 ${isModal ? 'p-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl' : 'pt-4'}`}>
+            {/* Footer (Fixo) */}
+            <div className={`shrink-0 border-t border-gray-100 text-center dark:border-gray-800 ${isModal ? 'p-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl' : 'pt-4'}`}>
                 <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
                     Conteúdo Educativo • Não é Diagnóstico
                 </p>
@@ -231,20 +232,20 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     if (isMobile) {
         return createPortal(
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-none" onClick={onClose}>
-                {/* Container Modal Limitado */}
+                {/* Container Modal Limitado com Altura Máxima Aumentada para 85vh */}
                 <div 
-                    className="bg-white w-[92vw] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
+                    className="bg-white w-[92vw] max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
                     onClick={(e) => e.stopPropagation()} // Previne fechar ao clicar dentro
                 >
                     {/* Botão Fechar Flutuante */}
                     <button 
                         onClick={onClose}
-                        className="absolute top-3 right-3 z-10 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-400"
+                        className="absolute top-3 right-3 z-50 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700 shadow-sm"
                     >
                         <IconClose className="w-5 h-5" />
                     </button>
 
-                    {/* Conteúdo com Scroll Interno */}
+                    {/* Conteúdo com Scroll Interno Preservado */}
                     <Content isModal={true} />
                 </div>
             </div>,
@@ -255,7 +256,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     // 3. Desktop View (Sidebar Fixa)
     return (
         <div className="hidden md:block w-80 bg-white border-l border-gray-200 h-full overflow-hidden shrink-0 dark:bg-gray-900 dark:border-gray-800 relative z-20">
-            <div className="h-full p-6">
+            <div className="h-full px-6 py-6">
                 <Content />
             </div>
         </div>
