@@ -88,8 +88,9 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
 
     // Componente de Conteúdo Reutilizável
     // Estrutura: Header Fixo + Body Scrollable + Footer Fixo
+    // FIX DE SCROLL: Adicionado 'scroll-touch' e 'overscroll-contain'
     const Content = ({ isModal = false }) => (
-        <div className="flex flex-col h-full overflow-hidden bg-transparent">
+        <div className="flex flex-col h-full w-full bg-transparent overflow-hidden">
             
             {/* Header (Fixo) */}
             <div className={`shrink-0 border-b border-gray-100 dark:border-gray-800 ${isModal ? 'p-6 pb-4' : 'pb-4'}`}>
@@ -126,7 +127,13 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
             </div>
 
             {/* Body Scrolling Area (Flex-1) */}
-            <div className={`flex-1 overflow-y-auto custom-scrollbar space-y-6 ${isModal ? 'p-6 pt-4' : 'py-6 pr-1'}`}>
+            {/* min-h-0 garante que o flex item respeite o tamanho do pai e force o scroll */}
+            {/* scroll-touch força o scroll nativo do iOS */}
+            {/* overscroll-contain impede que o scroll propague para o body */}
+            <div 
+                className={`flex-1 overflow-y-auto custom-scrollbar space-y-6 min-h-0 scroll-touch overscroll-contain ${isModal ? 'p-6 pt-4' : 'py-6 pr-1'}`}
+                style={{ WebkitOverflowScrolling: 'touch' }} 
+            >
                 
                 {/* Definição */}
                 <div>
@@ -215,8 +222,8 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 )}
                 
-                {/* Spacer final para garantir scroll completo */}
-                <div className="h-4"></div>
+                {/* Spacer final para garantir scroll completo no mobile */}
+                <div className="h-8"></div>
             </div>
 
             {/* Footer (Fixo) */}
@@ -232,9 +239,9 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     if (isMobile) {
         return createPortal(
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-none" onClick={onClose}>
-                {/* Container Modal Limitado com Altura Máxima Aumentada para 85vh */}
+                {/* Container Modal Limitado com Altura Máxima Aumentada para 85vh e layout Flex */}
                 <div 
-                    className="bg-white w-[92vw] max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
+                    className="bg-white w-[92vw] max-h-[85vh] h-full rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
                     onClick={(e) => e.stopPropagation()} // Previne fechar ao clicar dentro
                 >
                     {/* Botão Fechar Flutuante */}
@@ -256,7 +263,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     // 3. Desktop View (Sidebar Fixa)
     return (
         <div className="hidden md:block w-80 bg-white border-l border-gray-200 h-full overflow-hidden shrink-0 dark:bg-gray-900 dark:border-gray-800 relative z-20">
-            <div className="h-full px-6 py-6">
+            <div className="h-full px-6 py-6 flex flex-col">
                 <Content />
             </div>
         </div>

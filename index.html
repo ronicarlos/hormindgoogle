@@ -17,6 +17,25 @@
     <meta name="apple-mobile-web-app-title" content="FitLM">
     <link rel="apple-touch-icon" href="https://placehold.co/180x180/000000/ffffff?text=FitLM">
 
+    <!-- THEME LOADER CRITICAL SCRIPT (ZERO FLASH) -->
+    <script>
+      (function() {
+        try {
+          var localTheme = localStorage.getItem('fitlm-theme');
+          var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          
+          if (localTheme === 'dark' || (!localTheme && systemDark)) {
+            document.documentElement.classList.add('dark');
+            // Atualiza meta tag para status bar mobile ficar escura imediatamente
+            document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: dark)"]').setAttribute('content', '#0f172a');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: light)"]').setAttribute('content', '#ffffff');
+          }
+        } catch (e) { console.error('Theme loader error', e); }
+      })();
+    </script>
+
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
@@ -82,6 +101,11 @@
       }
       .touch-pan-x {
           touch-action: pan-x;
+      }
+      
+      /* FORÇAR SCROLL SUAVE EM ELEMENTOS ROLÁVEIS NO IOS */
+      .scroll-touch {
+          -webkit-overflow-scrolling: touch;
       }
     </style>
   <script type="importmap">
