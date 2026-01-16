@@ -5,6 +5,7 @@ import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
 import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder, IconInfo } from './Icons';
 import { Tooltip } from './Tooltip';
+import BodyGuide from './BodyGuide'; // Usando componente centralizado
 
 interface WizardModalProps {
     isOpen: boolean;
@@ -18,8 +19,8 @@ interface WizardModalProps {
 
 const steps = [
     { id: 'bio', title: 'Identificação', icon: IconUser, description: 'Dados básicos para a IA te conhecer.' },
-    { id: 'anthro', title: 'Antropometria', icon: IconActivity, description: 'Peso e altura para cálculos metabólicos.' },
-    { id: 'measure', title: 'Medidas', icon: IconFlame, description: 'Circunferências corporais (Biometria).' },
+    { id: 'anthro', title: 'Metas & Antropometria', icon: IconActivity, description: 'Defina seu ponto de partida e onde quer chegar.' },
+    { id: 'measure', title: 'Medidas (Biometria)', icon: IconFlame, description: 'Circunferências corporais atuais e alvos.' },
     { id: 'metrics', title: 'Marcadores Chave', icon: IconScience, description: 'Valores recentes de referência (Opcional).' },
     { id: 'health', title: 'Saúde', icon: IconAlert, description: 'Histórico médico e medicamentos.' },
     { id: 'upload', title: 'Exames & Arquivos', icon: IconFolder, description: 'Importe exames de sangue ou treinos antigos.' },
@@ -28,30 +29,6 @@ const steps = [
     { id: 'protocol', title: 'Protocolo', icon: IconPill, description: 'Uso de recursos ergogênicos.' },
     { id: 'goal', title: 'Objetivo Final', icon: IconCheck, description: 'Onde vamos chegar?' }
 ];
-
-const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
-    const isMale = gender === 'Masculino';
-    
-    const silhouette = isMale 
-        ? "M35,10 C35,5 45,5 45,10 L48,15 L65,18 L62,40 L55,80 L58,140 L50,140 L48,85 L40,85 L38,140 L30,140 L33,80 L26,40 L23,18 L40,15 Z"
-        : "M38,10 C38,5 46,5 46,10 L48,15 L60,20 L58,40 L65,55 L60,85 L62,140 L52,140 L50,90 L38,90 L36,140 L26,140 L28,85 L23,55 L30,40 L28,20 L40,15 Z";
-
-    const guides: Record<string, React.ReactNode> = {
-        chest: <line x1="28" y1="32" x2="60" y2="32" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
-        arm: <line x1="18" y1="35" x2="28" y2="35" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
-        waist: <line x1="30" y1={isMale ? "60" : "50"} x2={isMale ? "58" : "58"} y2={isMale ? "60" : "50"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
-        hips: <line x1="25" y1={isMale ? "75" : "70"} x2={isMale ? "63" : "63"} y2={isMale ? "75" : "70"} stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
-        thigh: <line x1="50" y1="100" x2="62" y2="100" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />,
-        calf: <line x1="52" y1="125" x2="60" y2="125" stroke="#ef4444" strokeWidth="3" strokeDasharray="3 1" />
-    };
-
-    return (
-        <svg width="60" height="100" viewBox="0 0 90 150" className="opacity-90">
-            <path d={silhouette} fill="#374151" stroke="none" opacity="0.3" />
-            {guides[part] || null}
-        </svg>
-    );
-};
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -62,6 +39,15 @@ const MEASUREMENT_HINTS: Record<string, string> = {
     calf: 'Maior circunferência da panturrilha.'
 };
 
+const LABELS_PT: Record<string, string> = {
+    chest: 'Peitoral',
+    arm: 'Braço',
+    waist: 'Cintura',
+    hips: 'Quadril',
+    thigh: 'Coxa',
+    calf: 'Panturrilha'
+};
+
 const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onUpdateProfile, onUpdateProject, onUpload, onRequestAnalysis }) => {
     const [currentStep, setCurrentStep] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
@@ -69,11 +55,13 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Estado local com suporte a Targets
     const [profileData, setProfileData] = useState<UserProfile>(() => {
         const base = project.userProfile || {} as any;
         return {
             ...base,
-            measurements: base.measurements || {}
+            measurements: base.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
+            targetMeasurements: base.targetMeasurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' }
         };
     });
     
@@ -84,14 +72,19 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     
     const [manualTesto, setManualTesto] = useState('');
     const [manualE2, setManualE2] = useState('');
+    
+    // Estado visual para o BodyGuide
+    const [activeMeasurement, setActiveMeasurement] = useState<string>('chest');
 
     useEffect(() => {
         if (!isOpen) return;
 
         if (project.userProfile) {
+            const p = project.userProfile;
             setProfileData({
-                ...project.userProfile,
-                measurements: project.userProfile.measurements || {} as any
+                ...p,
+                measurements: p.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
+                targetMeasurements: p.targetMeasurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' }
             });
         }
 
@@ -99,7 +92,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
         if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
         
-        // CORREÇÃO CRÍTICA DE CARGA DE DADOS
+        // Carregar calorias
         if (project.dietCalories) {
             setCalories(project.dietCalories);
         } else {
@@ -124,6 +117,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
     }, [project, isOpen]);
 
+    // Lógica de "Resume" (começar de onde parou)
     useEffect(() => {
         if (isOpen && project.userProfile) {
             const p = project.userProfile;
@@ -146,11 +140,21 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         setProfileData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleMeasurementChange = (field: string, value: string) => {
-        setProfileData(prev => ({
-            ...prev,
-            measurements: { ...prev.measurements, [field]: value }
-        }));
+    const handleMeasurementChange = (type: 'current' | 'target', field: string, value: string) => {
+        setActiveMeasurement(field);
+        setProfileData(prev => {
+            if (type === 'current') {
+                return { 
+                    ...prev, 
+                    measurements: { ...prev.measurements, [field]: value } 
+                };
+            } else {
+                return { 
+                    ...prev, 
+                    targetMeasurements: { ...(prev.targetMeasurements || {}), [field]: value } as any
+                };
+            }
+        });
     };
 
     const handleProtocolChange = (index: number, field: keyof ProtocolItem, value: string) => {
@@ -190,9 +194,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
                 const updatedMetrics = { ...project.metrics };
-                // Garante que não enviamos linhas vazias no protocolo em nenhum passo
                 const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
 
+                // Salva perfil progressivamente nos primeiros passos
                 if (currentStep <= 4) {
                     await dataService.saveUserProfile(session.user.id, profileData);
                     onUpdateProfile(profileData);
@@ -213,50 +217,29 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     onUpdateProject({ ...project, metrics: updatedMetrics });
                 }
 
-                // STEP DE DIETA
-                if (currentStep === 6) {
-                    // Salva configuração fixa e limpa protocolo
+                if (currentStep >= 6) {
+                    // Update settings for Diet/Training/Protocol/Goals
                     await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
                     
-                    const calValue = parseInt(calories);
-                    if (!isNaN(calValue) && calValue > 0) {
-                        const today = new Date().toLocaleDateString('pt-BR');
-                        const point = { 
-                            date: today, 
-                            value: calValue, 
-                            unit: 'kcal', 
-                            label: 'Wizard Setup' 
-                        };
-                        
-                        await dataService.addMetric(project.id, 'Calories', point);
-                        updatedMetrics['Calories'] = [...(updatedMetrics['Calories'] || []), point];
-                        
-                        onUpdateProject({ 
-                            ...project, 
-                            trainingNotes, 
-                            objective, 
-                            currentProtocol: cleanProtocol,
-                            dietCalories: calories,
-                            metrics: updatedMetrics 
-                        });
-                    } else if (calories === '') {
-                         onUpdateProject({ 
-                            ...project, 
-                            dietCalories: '', 
-                        });
+                    // Se for o passo de dieta, adiciona métrica
+                    if (currentStep === 6) {
+                        const calValue = parseInt(calories);
+                        if (!isNaN(calValue) && calValue > 0) {
+                            const today = new Date().toLocaleDateString('pt-BR');
+                            const point = { date: today, value: calValue, unit: 'kcal', label: 'Wizard Setup' };
+                            await dataService.addMetric(project.id, 'Calories', point);
+                            updatedMetrics['Calories'] = [...(updatedMetrics['Calories'] || []), point];
+                        }
                     }
-                }
-
-                // STEP DE TREINO
-                if (currentStep === 7) {
-                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
-                    onUpdateProject({ ...project, trainingNotes, dietCalories: calories });
-                }
-
-                // STEP DE PROTOCOLO FINAL
-                if (currentStep >= 8) {
-                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
-                    onUpdateProject({ ...project, objective, currentProtocol: cleanProtocol, trainingNotes, dietCalories: calories });
+                    
+                    onUpdateProject({ 
+                        ...project, 
+                        trainingNotes, 
+                        objective, 
+                        currentProtocol: cleanProtocol, 
+                        dietCalories: calories,
+                        metrics: updatedMetrics
+                    });
                 }
             }
 
@@ -285,6 +268,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] dark:bg-gray-900 dark:border dark:border-gray-800">
                 
+                {/* Header Gradient */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative shrink-0">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
@@ -306,7 +290,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     </button>
                 </div>
 
-                <div className="p-8 flex-1 overflow-y-auto custom-scrollbar dark:bg-gray-900">
+                {/* Content */}
+                <div className="p-6 md:p-8 flex-1 overflow-y-auto custom-scrollbar dark:bg-gray-900">
                     <div className="mb-6">
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-white">
                             {React.createElement(steps[currentStep].icon, { className: "w-5 h-5 text-blue-600 dark:text-blue-400" })}
@@ -344,75 +329,137 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                             </>
                         )}
 
-                        {/* ... Steps 1 to 5 omitted for brevity, they remain identical ... */}
+                        {/* STEP 1: ANTROPOMETRIA (COM METAS) */}
                         {currentStep === 1 && (
-                            <>
-                                <div className="grid grid-cols-2 gap-4">
-                                     <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Altura</span>
+                            <div className="space-y-4">
+                                {/* Altura (Fixo) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <label className="block">
+                                        <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Altura (cm)</span>
                                         <div className="relative">
-                                            <input type="number" value={profileData.height || ''} onChange={e => handleProfileChange('height', e.target.value)} className={`${inputClass} pr-8`} placeholder="175" autoFocus />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
+                                            <input type="number" value={profileData.height || ''} onChange={e => handleProfileChange('height', e.target.value)} className={inputClass} placeholder="175" autoFocus />
+                                        </div>
+                                    </label>
+                                    <div className="hidden md:block"></div> {/* Spacer */}
+                                </div>
+
+                                <div className="h-px bg-gray-200 dark:bg-gray-800" />
+
+                                {/* Peso (Atual vs Meta) */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className="block">
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Peso Atual</span>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                value={profileData.weight || ''} 
+                                                onChange={e => handleProfileChange('weight', e.target.value)} 
+                                                className={`${inputClass} border-l-4 border-l-blue-500`} 
+                                                placeholder="80" 
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">kg</span>
                                         </div>
                                     </label>
                                     <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 block mb-1 dark:text-gray-300">Peso</span>
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Meta</span>
                                         <div className="relative">
-                                            <input type="number" value={profileData.weight || ''} onChange={e => handleProfileChange('weight', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">kg</span>
+                                            <input 
+                                                type="number" 
+                                                value={profileData.targetWeight || ''} 
+                                                onChange={e => handleProfileChange('targetWeight', e.target.value)} 
+                                                className={`${inputClass} border-l-4 border-l-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/10`} 
+                                                placeholder="75" 
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">kg</span>
                                         </div>
                                     </label>
                                 </div>
-                                <label className="block">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF (Percentual de Gordura)</span>
-                                    </div>
-                                    <div className="relative">
-                                        <input type="number" value={profileData.bodyFat || ''} onChange={e => handleProfileChange('bodyFat', e.target.value)} className={`${inputClass} pr-8`} placeholder="15" />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">%</span>
-                                    </div>
-                                </label>
-                            </>
+
+                                {/* BF (Atual vs Meta) */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className="block">
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">BF% Atual</span>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                value={profileData.bodyFat || ''} 
+                                                onChange={e => handleProfileChange('bodyFat', e.target.value)} 
+                                                className={`${inputClass} border-l-4 border-l-blue-500`} 
+                                                placeholder="20" 
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
+                                        </div>
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Meta</span>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                value={profileData.targetBodyFat || ''} 
+                                                onChange={e => handleProfileChange('targetBodyFat', e.target.value)} 
+                                                className={`${inputClass} border-l-4 border-l-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/10`} 
+                                                placeholder="12" 
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
                         )}
+
+                        {/* STEP 2: MEDIDAS (COM BODYGUIDE E METAS) */}
                         {currentStep === 2 && (
-                            <>
-                                <div className="grid grid-cols-2 gap-4">
-                                     <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Cintura</span>
-                                        <div className="relative">
-                                            <input type="number" value={profileData.measurements?.waist || ''} onChange={e => handleMeasurementChange('waist', e.target.value)} className={`${inputClass} pr-8`} placeholder="80" autoFocus />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
-                                        </div>
-                                    </label>
-                                    <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Quadril</span>
-                                        <div className="relative">
-                                            <input type="number" value={profileData.measurements?.hips || ''} onChange={e => handleMeasurementChange('hips', e.target.value)} className={`${inputClass} pr-8`} placeholder="100" />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">cm</span>
-                                        </div>
-                                    </label>
+                            <div className="space-y-4">
+                                {/* Lista de Medidas */}
+                                <div className="grid grid-cols-3 text-[10px] font-bold text-gray-400 uppercase text-center mb-1">
+                                    <span className="text-left pl-1">Local</span>
+                                    <span>Atual</span>
+                                    <span>Meta</span>
                                 </div>
-                                <div className="h-px bg-gray-200 my-2 dark:bg-gray-700" />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peitoral</span>
-                                        <input type="number" value={profileData.measurements?.chest || ''} onChange={e => handleMeasurementChange('chest', e.target.value)} className={inputClass} placeholder="0" />
-                                    </label>
-                                    <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Braço</span>
-                                        <input type="number" value={profileData.measurements?.arm || ''} onChange={e => handleMeasurementChange('arm', e.target.value)} className={inputClass} placeholder="0" />
-                                    </label>
-                                    <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Coxa</span>
-                                        <input type="number" value={profileData.measurements?.thigh || ''} onChange={e => handleMeasurementChange('thigh', e.target.value)} className={inputClass} placeholder="0" />
-                                    </label>
-                                    <label className="block">
-                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Panturrilha</span>
-                                        <input type="number" value={profileData.measurements?.calf || ''} onChange={e => handleMeasurementChange('calf', e.target.value)} className={inputClass} placeholder="0" />
-                                    </label>
-                                </div>
-                            </>
+
+                                {['waist', 'hips', 'chest', 'arm', 'thigh', 'calf'].map((part) => (
+                                    <div key={part} className="grid grid-cols-3 gap-2 items-center group" onMouseEnter={() => setActiveMeasurement(part)}>
+                                        
+                                        {/* Label + Tooltip Visual */}
+                                        <div className="flex items-center gap-1.5 pl-1">
+                                            <span className={`text-xs font-bold capitalize ${activeMeasurement === part ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                {LABELS_PT[part]}
+                                            </span>
+                                            <Tooltip content={
+                                                <div className="flex flex-col items-center gap-2 p-2">
+                                                    <span className="text-[10px] text-center text-gray-300">{MEASUREMENT_HINTS[part]}</span>
+                                                    {/* Mini BodyGuide no Tooltip */}
+                                                    <BodyGuide part={part} gender={profileData.gender} className="h-24 w-auto bg-white/5 rounded p-1" />
+                                                </div>
+                                            } position="right">
+                                                <IconInfo className="w-3 h-3 text-gray-400 cursor-help hover:text-blue-500 transition-colors" />
+                                            </Tooltip>
+                                        </div>
+
+                                        {/* Input Atual */}
+                                        <input 
+                                            type="number"
+                                            value={profileData.measurements?.[part as any] || ''}
+                                            onChange={(e) => handleMeasurementChange('current', part, e.target.value)}
+                                            className="w-full rounded-md border-gray-300 p-2 text-xs text-center bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                                            placeholder="-"
+                                            onFocus={() => setActiveMeasurement(part)}
+                                        />
+
+                                        {/* Input Meta */}
+                                        <input 
+                                            type="number"
+                                            value={profileData.targetMeasurements?.[part as any] || ''}
+                                            onChange={(e) => handleMeasurementChange('target', part, e.target.value)}
+                                            className="w-full rounded-md border-gray-300 p-2 text-xs text-center bg-emerald-50/50 focus:ring-emerald-500 border-dashed dark:bg-emerald-900/10 dark:border-gray-700 dark:text-white"
+                                            placeholder="-"
+                                            onFocus={() => setActiveMeasurement(part)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         )}
+
                         {currentStep === 3 && (
                             <div className="grid grid-cols-1 gap-4">
                                 <label className="block">
