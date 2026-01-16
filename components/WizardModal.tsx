@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Project, UserProfile, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
-import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder, IconInfo } from './Icons';
+import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder, IconInfo, IconCalendar } from './Icons';
 import { Tooltip } from './Tooltip';
 import BodyGuide from './BodyGuide'; // Usando componente centralizado
 
@@ -65,6 +65,9 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         };
     });
     
+    // Masked Date State
+    const [birthDateDisplay, setBirthDateDisplay] = useState('');
+
     const [objective, setObjective] = useState(project.objective);
     const [trainingNotes, setTrainingNotes] = useState(project.trainingNotes || '');
     const [calories, setCalories] = useState('');
@@ -86,6 +89,14 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                 measurements: p.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
                 targetMeasurements: p.targetMeasurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' }
             });
+            
+            // Sync Display Date
+            if (p.birthDate) {
+                const parts = p.birthDate.split('-');
+                if (parts.length === 3) {
+                    setBirthDateDisplay(`${parts[2]}/${parts[1]}/${parts[0]}`);
+                }
+            }
         }
 
         if (project.objective) setObjective(project.objective);
@@ -138,6 +149,35 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
     const handleProfileChange = (field: keyof UserProfile, value: string) => {
         setProfileData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (val.length > 8) val = val.substring(0, 8);
+
+        // Apply Mask
+        let formatted = val;
+        if (val.length >= 5) {
+            formatted = `${val.substring(0, 2)}/${val.substring(2, 4)}/${val.substring(4)}`;
+        } else if (val.length >= 3) {
+            formatted = `${val.substring(0, 2)}/${val.substring(2)}`;
+        }
+
+        setBirthDateDisplay(formatted);
+
+        // Validate and Sync with Profile (ISO)
+        if (val.length === 8) {
+            const day = parseInt(val.substring(0, 2));
+            const month = parseInt(val.substring(2, 4));
+            const year = parseInt(val.substring(4, 8));
+            const currentYear = new Date().getFullYear();
+
+            // Validation strict logic
+            if (day > 0 && day <= 31 && month > 0 && month <= 12 && year > 1900 && year <= currentYear) {
+                const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                handleProfileChange('birthDate', isoDate);
+            }
+        }
     };
 
     const handleMeasurementChange = (type: 'current' | 'target', field: string, value: string) => {
@@ -311,7 +351,19 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                      <label className="block">
                                         <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nascimento</span>
-                                        <input type="date" value={profileData.birthDate || ''} onChange={e => handleProfileChange('birthDate', e.target.value)} className={inputClass} />
+                                        <div className="relative mt-1">
+                                            <input 
+                                                type="tel"
+                                                value={birthDateDisplay} 
+                                                onChange={handleDateChange} 
+                                                className={`${inputClass} pl-10 tracking-widest font-mono mt-0`} 
+                                                placeholder="DD/MM/AAAA"
+                                                maxLength={10}
+                                            />
+                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                                                <IconCalendar className="w-5 h-5" />
+                                            </div>
+                                        </div>
                                     </label>
                                     <label className="block">
                                         <div className="flex items-center gap-1">

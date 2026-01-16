@@ -11,7 +11,7 @@ import {
     IconActivity, IconAlert, IconShield, IconRefresh, 
     IconWizard, IconCheck, IconInfo, IconCopy, IconClock,
     IconPill, IconDumbbell, IconList, IconClose, IconScience,
-    IconFile
+    IconFile, IconCalendar
 } from './Icons';
 
 interface ProfileViewProps {
@@ -26,7 +26,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.27";
+const CODE_VERSION = "v1.6.53";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -89,6 +89,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const [formData, setFormData] = useState<UserProfile>(effectiveProfile);
     const [initialFormData, setInitialFormData] = useState<UserProfile>(effectiveProfile);
 
+    // Date Mask State (DD/MM/YYYY)
+    const [birthDateDisplay, setBirthDateDisplay] = useState('');
+
     // Hormones State (Testo/E2)
     const [hormones, setHormones] = useState({ testo: '', e2: '' });
     const [initialHormones, setInitialHormones] = useState({ testo: '', e2: '' });
@@ -133,6 +136,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             setFormData(newProfile);
             setInitialFormData(JSON.parse(JSON.stringify(newProfile)));
 
+            // Convert ISO YYYY-MM-DD to DD/MM/YYYY for display
+            if (newProfile.birthDate) {
+                const parts = newProfile.birthDate.split('-');
+                if (parts.length === 3) {
+                    setBirthDateDisplay(`${parts[2]}/${parts[1]}/${parts[0]}`);
+                }
+            }
+
             setGoal(project.objective);
             setInitialGoal(project.objective);
 
@@ -149,7 +160,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             const tMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'] || [];
             const eMetrics = project.metrics['Estradiol'] || [];
             
-            // Lógica robusta de seleção do mais recente
             const sortedT = [...tMetrics].sort((a,b) => {
                  const da = a.date.split('/').reverse().join('-');
                  const db = b.date.split('/').reverse().join('-');
@@ -169,7 +179,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         }
     }, [project]);
 
-    // Metabolic Logic (IMC/RCQ/TMB) - Same as previous version
+    // Metabolic Logic (IMC/RCQ/TMB)
     const calculateAge = (dateString: string) => {
         if (!dateString) return null;
         const today = new Date();
@@ -257,6 +267,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         }
     };
 
+    // Date Mask Handler
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (val.length > 8) val = val.substring(0, 8);
+
+        // Apply Mask
+        let formatted = val;
+        if (val.length >= 5) {
+            formatted = `${val.substring(0, 2)}/${val.substring(2, 4)}/${val.substring(4)}`;
+        } else if (val.length >= 3) {
+            formatted = `${val.substring(0, 2)}/${val.substring(2)}`;
+        }
+
+        setBirthDateDisplay(formatted);
+
+        // Validate and Sync with Profile (ISO)
+        if (val.length === 8) {
+            const day = parseInt(val.substring(0, 2));
+            const month = parseInt(val.substring(2, 4));
+            const year = parseInt(val.substring(4, 8));
+            const currentYear = new Date().getFullYear();
+
+            // Validation strict logic
+            if (day > 0 && day <= 31 && month > 0 && month <= 12 && year > 1900 && year <= currentYear) {
+                const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                handleChange('birthDate', isoDate);
+            }
+        }
+    };
+
     const handleMeasurementChange = (type: 'current' | 'target', field: keyof UserProfile['measurements'], value: string) => {
         setActiveMeasurement(field as string); // Visual highlight
         if (type === 'current') {
@@ -295,7 +335,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         if (formData.comorbidities !== initialFormData.comorbidities) changes.push("Histórico de doenças alterado.");
         if (formData.medications !== initialFormData.medications) changes.push("Medicamentos em uso alterados.");
 
-        // Targets - Atualizado para cobrir todos os campos de meta
+        // Targets
         if (formData.targetWeight !== initialFormData.targetWeight) changes.push(`Meta de Peso: ${initialFormData.targetWeight || '?'} -> ${formData.targetWeight}`);
         if (formData.targetBodyFat !== initialFormData.targetBodyFat) changes.push(`Meta de BF%: ${initialFormData.targetBodyFat || '?'} -> ${formData.targetBodyFat}`);
         if (JSON.stringify(formData.targetMeasurements) !== JSON.stringify(initialFormData.targetMeasurements)) changes.push("Metas de medidas corporais atualizadas.");
@@ -322,7 +362,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 await dataService.saveUserProfile(session.user.id, formData);
                 onSave(formData);
 
-                // 2. Save Project Settings (Protocol, Goal, Diet, Training)
+                // 2. Save Project Settings
                 const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                 await dataService.updateProjectSettings(
                     project.id,
@@ -332,11 +372,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     calories
                 );
 
-                // 3. Save Hormones & Critical Stats as Metrics if changed (COM DATA DE HOJE)
+                // 3. Save Hormones & Critical Stats
                 const today = new Date().toLocaleDateString('pt-BR');
                 const updatedMetrics = { ...project.metrics };
 
-                // Helper para adicionar e atualizar localmente
                 const addMetricLocal = async (category: string, valueStr: string, unit: string) => {
                     const val = parseFloat(valueStr);
                     if (!isNaN(val)) {
@@ -346,27 +385,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     }
                 };
 
-                // Testosterona
                 if (hormones.testo && hormones.testo !== initialHormones.testo) {
                     await addMetricLocal('Testosterone', hormones.testo, 'ng/dL');
                 }
-                
-                // Estradiol
                 if (hormones.e2 && hormones.e2 !== initialHormones.e2) {
                     await addMetricLocal('Estradiol', hormones.e2, 'pg/mL');
                 }
-
-                // Peso
                 if (formData.weight && formData.weight !== initialFormData.weight) {
                     await addMetricLocal('Weight', formData.weight, 'kg');
                 }
-
-                // BF%
                 if (formData.bodyFat && formData.bodyFat !== initialFormData.bodyFat) {
                     await addMetricLocal('BodyFat', formData.bodyFat, '%');
                 }
 
-                // 4. Update Parent State (FORÇA O UPDATE LOCAL ANTES DE CHAMAR ANÁLISE)
                 if (onUpdateProject) {
                     onUpdateProject({
                         ...project,
@@ -381,16 +412,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
                 setSuccessMsg('Perfil e Estratégia salvos!');
                 
-                // 5. Trigger Analysis if needed
                 const changes = detectChanges();
                 if (changes.length > 0 && onRequestAnalysis) {
-                    // Pequeno delay para garantir que o state do projeto propagou (Critical for AI Context)
                     setTimeout(() => {
                         onRequestAnalysis(`O usuário ATUALIZOU DADOS CRÍTICOS MANUALMENTE AGORA (${today}):\n${changes.join('\n')}\n\nConsidere estes novos valores como a VERDADE ABSOLUTA e reavalie o cenário.`);
                     }, 200);
                 }
                 
-                // Update Baselines
                 setInitialFormData(JSON.parse(JSON.stringify(formData)));
                 setInitialGoal(goal);
                 setInitialCalories(calories);
@@ -415,17 +443,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 for (const registration of registrations) {
                     await registration.unregister();
                 }
-            } catch (err) {
-                console.warn(err);
-            }
+            } catch (err) { console.warn(err); }
         }
         if ('caches' in window) {
             try {
                 const keys = await caches.keys();
                 await Promise.all(keys.map(key => caches.delete(key)));
-            } catch (err) {
-                console.warn(err);
-            }
+            } catch (err) { console.warn(err); }
         }
         window.location.reload();
     };
@@ -539,6 +563,37 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                     <option value="Masculino">Masculino</option>
                                     <option value="Feminino">Feminino</option>
                                 </select>
+                            </label>
+                        </div>
+                        
+                        {/* INPUT DE DATA MELHORADO (MASK) */}
+                        <div className="md:col-span-2">
+                            <label className="block">
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Data de Nascimento</span>
+                                <div className="relative mt-1">
+                                    <input 
+                                        type="tel" // Melhor teclado numérico no mobile
+                                        value={birthDateDisplay} 
+                                        onChange={handleDateChange} 
+                                        className={`${inputClass} mt-0 pl-10 tracking-widest font-mono`} 
+                                        placeholder="DD/MM/AAAA"
+                                        maxLength={10}
+                                    />
+                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                                        <IconCalendar className="w-5 h-5" />
+                                    </div>
+                                    {/* Fallback de Validade Visual */}
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        {currentAge ? (
+                                            <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full dark:bg-green-900/30 dark:text-green-400">
+                                                {currentAge} anos
+                                            </span>
+                                        ) : birthDateDisplay.length === 10 ? (
+                                            <span className="text-xs font-bold text-red-500">Data Inválida</span>
+                                        ) : null}
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-1 pl-1">Digite apenas os números. O formato será automático.</p>
                             </label>
                         </div>
                     </div>
