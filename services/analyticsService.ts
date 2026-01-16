@@ -3,7 +3,7 @@ import { MetricPoint } from '../types';
 import { MarkerInfo } from './markerRegistry';
 
 export interface AnalysisResult {
-    status: 'LOW' | 'NORMAL' | 'HIGH' | 'UNKNOWN';
+    status: 'LOW' | 'BORDERLINE_LOW' | 'NORMAL' | 'BORDERLINE_HIGH' | 'HIGH' | 'UNKNOWN';
     trend: 'UP' | 'DOWN' | 'STABLE' | 'UNKNOWN';
     trendPercent: number;
     delta: number;
@@ -32,17 +32,30 @@ export const analyzePoint = (
     if (gender === 'Masculino' && marker.ranges?.male) range = marker.ranges.male;
     else if (gender === 'Feminino' && marker.ranges?.female) range = marker.ranges.female;
 
-    // 2. Status (High/Low/Normal)
+    // 2. Status (High/Low/Normal/Borderline)
     let status: AnalysisResult['status'] = 'UNKNOWN';
     let riskColor = 'text-gray-500 dark:text-gray-400';
 
     if (range) {
-        if (value < range[0]) {
+        const [min, max] = range;
+        // Margem de segurança de 15% para alertas preventivos
+        // Evita divisão por zero se o range for 0
+        const span = max - min;
+        // Se o span for muito pequeno, usa porcentagem do valor absoluto, senão usa porcentagem do range
+        const buffer = span > 0 ? span * 0.15 : max * 0.10; 
+
+        if (value < min) {
             status = 'LOW';
-            riskColor = 'text-blue-600 dark:text-blue-400'; // Low often implies deficiency
-        } else if (value > range[1]) {
+            riskColor = 'text-blue-600 dark:text-blue-400';
+        } else if (value <= min + buffer) {
+            status = 'BORDERLINE_LOW';
+            riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
+        } else if (value > max) {
             status = 'HIGH';
-            riskColor = 'text-orange-600 dark:text-orange-400'; // High alert
+            riskColor = 'text-red-600 dark:text-red-400'; // Crítico Vermelho (Atualizado de Orange para Red para diferenciar)
+        } else if (value >= max - buffer) {
+            status = 'BORDERLINE_HIGH';
+            riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
         } else {
             status = 'NORMAL';
             riskColor = 'text-emerald-600 dark:text-emerald-400';
@@ -76,16 +89,18 @@ export const analyzePoint = (
     let message = '';
     
     // Parte A: Status
-    if (status === 'NORMAL') message += `✅ Valor dentro da faixa esperada.`;
-    else if (status === 'HIGH') message += `⚠️ Acima da referência (${range?.[1]} ${marker.unit}).`;
-    else if (status === 'LOW') message += `📉 Abaixo da referência (${range?.[0]} ${marker.unit}).`;
+    if (status === 'NORMAL') message += `✅ Valor saudável e estável.`;
+    else if (status === 'HIGH') message += `🚨 CRÍTICO: Acima da referência (${range?.[1]} ${marker.unit}).`;
+    else if (status === 'LOW') message += `📉 CRÍTICO: Abaixo da referência (${range?.[0]} ${marker.unit}).`;
+    else if (status === 'BORDERLINE_HIGH') message += `⚠️ ATENÇÃO: Próximo ao limite superior (${range?.[1]} ${marker.unit}).`;
+    else if (status === 'BORDERLINE_LOW') message += `⚠️ ATENÇÃO: Próximo ao limite inferior (${range?.[0]} ${marker.unit}).`;
     else message += `Valor registrado: ${value}`;
 
     // Parte B: Tendência
     if (trend !== 'UNKNOWN') {
         const arrow = trend === 'UP' ? '⬆️' : trend === 'DOWN' ? '⬇️' : '➡️';
         const absPercent = Math.abs(trendPercent).toFixed(1);
-        message += ` ${arrow} Variação de ${trendPercent > 0 ? '+' : ''}${absPercent}% em relação ao exame anterior.`;
+        message += ` ${arrow} Variação de ${trendPercent > 0 ? '+' : ''}${absPercent}% em relação ao anterior.`;
     }
 
     return {

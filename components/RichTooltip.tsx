@@ -30,10 +30,14 @@ const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gende
     }, [value, date, history, info, gender]);
 
     // Cor do Header baseada no Status
-    const headerColor = 
-        analysis.status === 'HIGH' ? 'bg-orange-50 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800' :
-        analysis.status === 'LOW' ? 'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800' :
-        'bg-gray-50 border-gray-100 dark:bg-gray-800 dark:border-gray-700';
+    let headerColor = 'bg-gray-50 border-gray-100 dark:bg-gray-800 dark:border-gray-700';
+    if (analysis.status === 'HIGH') {
+        headerColor = 'bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800';
+    } else if (analysis.status === 'LOW') {
+        headerColor = 'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800';
+    } else if (analysis.status.includes('BORDERLINE')) {
+        headerColor = 'bg-yellow-50 border-yellow-100 dark:bg-yellow-900/20 dark:border-yellow-800';
+    }
 
     return (
         <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-72 md:w-80 overflow-hidden text-left z-[100] animate-in fade-in zoom-in-95 duration-150 dark:bg-gray-900 dark:border-gray-700 pointer-events-none">
@@ -77,10 +81,10 @@ const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gende
                     <div className="space-y-1">
                         <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase">
                             <IconAlert className="w-3 h-3" />
-                            <span>{analysis.status === 'HIGH' ? 'Se elevado pode indicar:' : 'Se baixo pode indicar:'}</span>
+                            <span>{analysis.status.includes('HIGH') ? 'Se elevado pode indicar:' : 'Se baixo pode indicar:'}</span>
                         </div>
                         <ul className="list-disc pl-4 space-y-0.5">
-                            {(analysis.status === 'HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
+                            {(analysis.status.includes('HIGH') ? info.risks.high : info.risks.low).map((risk, i) => (
                                 <li key={i} className="text-[10px] text-gray-600 dark:text-gray-400">{risk}</li>
                             ))}
                         </ul>

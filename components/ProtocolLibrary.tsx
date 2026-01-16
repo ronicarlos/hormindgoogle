@@ -1,14 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Compound } from '../types';
 import { fetchCompounds } from '../services/protocolService';
-import { IconSearch, IconPill, IconScience, IconClose, IconAlert, IconActivity } from './Icons';
+import { IconSearch, IconPill, IconScience, IconClose, IconAlert, IconActivity, IconArrowUp } from './Icons';
 
 const ProtocolLibrary: React.FC = () => {
     const [compounds, setCompounds] = useState<Compound[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Todos');
     const [selectedCompound, setSelectedCompound] = useState<Compound | null>(null);
+    const [showScrollTop, setShowScrollTop] = useState(false);
+    
+    const listRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         fetchCompounds().then(setCompounds);
@@ -22,6 +25,14 @@ const ProtocolLibrary: React.FC = () => {
         const matchesCategory = selectedCategory === 'Todos' || c.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        setShowScrollTop(e.currentTarget.scrollTop > 200);
+    };
+
+    const scrollToTop = () => {
+        listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const getRiskColor = (risk: string) => {
         switch(risk) {
@@ -65,97 +76,116 @@ const ProtocolLibrary: React.FC = () => {
 
     return (
         <div className="flex-1 bg-white h-full flex flex-col overflow-hidden relative w-full dark:bg-gray-950">
-             {/* HEADER - Changed from sticky to relative for PWA fix */}
-             <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm relative w-full dark:bg-gray-900/95 dark:border-gray-800">
-                <div className="max-w-7xl mx-auto w-full">
-                    <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
-                        <div className="flex items-center justify-between">
-                             <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tighter flex items-center gap-2 dark:text-white">
-                                <IconScience className="w-5 h-5 text-purple-600" />
-                                PHARMA
-                            </h2>
-                            <span className="md:hidden text-[9px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full dark:bg-gray-800 dark:text-gray-500">
-                                {compounds.length}
-                            </span>
+             
+            {/* GRID CONTENT CONTAINER (SCROLLABLE) */}
+            <div 
+                className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 custom-scrollbar pb-32 md:pb-40 w-full dark:bg-gray-950 relative"
+                onScroll={handleScroll}
+                ref={listRef}
+            >
+                {/* HEADER - STICKY INSIDE SCROLL CONTAINER */}
+                <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm w-full dark:bg-gray-900/95 dark:border-gray-800">
+                    <div className="max-w-7xl mx-auto w-full">
+                        <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
+                            <div className="flex items-center justify-between">
+                                 <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tighter flex items-center gap-2 dark:text-white">
+                                    <IconScience className="w-5 h-5 text-purple-600" />
+                                    PHARMA
+                                </h2>
+                                <span className="md:hidden text-[9px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full dark:bg-gray-800 dark:text-gray-500">
+                                    {compounds.length}
+                                </span>
+                            </div>
+                            
+                            <div className="relative w-full md:max-w-xs">
+                                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-2 bg-gray-100/50 border-0 md:border md:border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-medium placeholder-gray-400 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-purple-900"
+                                />
+                            </div>
                         </div>
                         
-                        <div className="relative w-full md:max-w-xs">
-                            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                            <input 
-                                type="text" 
-                                placeholder="Buscar..." 
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-8 pr-3 py-2 bg-gray-100/50 border-0 md:border md:border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-medium placeholder-gray-400 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-purple-900"
-                            />
+                        {/* Horizontal Filters - Touch Optimized */}
+                        <div className="px-3 pb-2 md:px-6 md:pb-4 flex gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x w-full">
+                            {categories.map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className={`flex-shrink-0 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold whitespace-nowrap transition-all border touch-manipulation active:scale-95 ${
+                                        selectedCategory === cat 
+                                        ? 'bg-purple-900 text-white border-purple-900 shadow-md dark:bg-purple-600 dark:border-purple-600' 
+                                        : 'bg-white text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
+                                    }`}
+                                >
+                                    {cat.toUpperCase()}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                    
-                    {/* Horizontal Filters - Touch Optimized */}
-                    <div className="px-3 pb-2 md:px-6 md:pb-4 flex gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x w-full">
-                        {categories.map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setSelectedCategory(cat)}
-                                className={`flex-shrink-0 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold whitespace-nowrap transition-all border touch-manipulation active:scale-95 ${
-                                    selectedCategory === cat 
-                                    ? 'bg-purple-900 text-white border-purple-900 shadow-md dark:bg-purple-600 dark:border-purple-600' 
-                                    : 'bg-white text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
-                                }`}
+                </div>
+
+                {/* PRODUCT CARDS */}
+                <div className="p-1.5 md:p-8">
+                    {/* GRID: 3 columns on mobile, gap 1.5. No horizontal overflow. */}
+                    <div className="max-w-7xl mx-auto grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 md:gap-4 w-full">
+                        {filteredCompounds.map(c => (
+                            <div 
+                                key={c.id} 
+                                onClick={() => setSelectedCompound(c)}
+                                className={`bg-white rounded-lg md:rounded-2xl p-0 border shadow-sm active:scale-95 transition-all cursor-pointer group flex flex-col overflow-hidden relative h-full min-h-[100px] md:min-h-[160px] touch-manipulation ${
+                                    c.category === 'Protocolo Exemplo' ? 'border-gray-900 dark:border-gray-600' : 'border-gray-200 dark:border-gray-800'
+                                } dark:bg-gray-900`}
                             >
-                                {cat.toUpperCase()}
-                            </button>
+                                {/* Color Bar Top (Mobile) or Side (Desktop) - Let's use Top for verticality on tiny cards */}
+                                <div className={`h-1 w-full ${getCategoryColorClass(c.category)}`} />
+
+                                <div className="p-2 flex flex-col h-full justify-between">
+                                    <div>
+                                        {/* Category */}
+                                        <div className="mb-1">
+                                            <span className="text-[7px] md:text-[9px] font-bold uppercase text-gray-400 tracking-wider truncate block dark:text-gray-500">
+                                                {c.category === 'Protocolo Exemplo' ? 'Protocolo' : c.category}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Name */}
+                                        <h3 className="font-bold text-gray-900 text-[10px] md:text-sm leading-tight group-hover:text-purple-700 transition-colors line-clamp-3 dark:text-white dark:group-hover:text-purple-400">
+                                            {c.name}
+                                        </h3>
+                                    </div>
+
+                                    {/* Description HIDDEN on Mobile */}
+                                    <div className="hidden md:block text-xs text-gray-500 mt-2 line-clamp-2 leading-relaxed dark:text-gray-400">
+                                        {c.description}
+                                    </div>
+
+                                    {/* Risk Badge Bottom */}
+                                    <div className="mt-2 pt-1 border-t border-gray-50 flex items-center justify-between dark:border-gray-800">
+                                        <span className={`text-[7px] md:text-[9px] px-1 py-0.5 rounded border font-bold uppercase ${getRiskColor(c.riskLevel)}`}>
+                                            {c.riskLevel}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </div>
             </div>
 
-            {/* GRID CONTENT - MOBILE FIRST PRODUCT CARDS (3 COLUMNS) */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 md:p-8 bg-gray-50/50 custom-scrollbar pb-32 md:pb-40 w-full dark:bg-gray-950">
-                {/* GRID: 3 columns on mobile, gap 1.5. No horizontal overflow. */}
-                <div className="max-w-7xl mx-auto grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 md:gap-4 w-full">
-                    {filteredCompounds.map(c => (
-                        <div 
-                            key={c.id} 
-                            onClick={() => setSelectedCompound(c)}
-                            className={`bg-white rounded-lg md:rounded-2xl p-0 border shadow-sm active:scale-95 transition-all cursor-pointer group flex flex-col overflow-hidden relative h-full min-h-[100px] md:min-h-[160px] touch-manipulation ${
-                                c.category === 'Protocolo Exemplo' ? 'border-gray-900 dark:border-gray-600' : 'border-gray-200 dark:border-gray-800'
-                            } dark:bg-gray-900`}
-                        >
-                            {/* Color Bar Top (Mobile) or Side (Desktop) - Let's use Top for verticality on tiny cards */}
-                            <div className={`h-1 w-full ${getCategoryColorClass(c.category)}`} />
-
-                            <div className="p-2 flex flex-col h-full justify-between">
-                                <div>
-                                    {/* Category */}
-                                    <div className="mb-1">
-                                        <span className="text-[7px] md:text-[9px] font-bold uppercase text-gray-400 tracking-wider truncate block dark:text-gray-500">
-                                            {c.category === 'Protocolo Exemplo' ? 'Protocolo' : c.category}
-                                        </span>
-                                    </div>
-                                    
-                                    {/* Name */}
-                                    <h3 className="font-bold text-gray-900 text-[10px] md:text-sm leading-tight group-hover:text-purple-700 transition-colors line-clamp-3 dark:text-white dark:group-hover:text-purple-400">
-                                        {c.name}
-                                    </h3>
-                                </div>
-
-                                {/* Description HIDDEN on Mobile */}
-                                <div className="hidden md:block text-xs text-gray-500 mt-2 line-clamp-2 leading-relaxed dark:text-gray-400">
-                                    {c.description}
-                                </div>
-
-                                {/* Risk Badge Bottom */}
-                                <div className="mt-2 pt-1 border-t border-gray-50 flex items-center justify-between dark:border-gray-800">
-                                    <span className={`text-[7px] md:text-[9px] px-1 py-0.5 rounded border font-bold uppercase ${getRiskColor(c.riskLevel)}`}>
-                                        {c.riskLevel}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            {/* SCROLL TO TOP BUTTON */}
+            {showScrollTop && (
+                <button
+                    onClick={scrollToTop}
+                    className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-40 bg-black/80 backdrop-blur text-white p-3 rounded-full shadow-lg border border-gray-700 animate-in fade-in slide-in-from-bottom-4 active:scale-90 transition-all dark:bg-blue-600/80 dark:border-blue-500"
+                    title="Voltar ao topo / Buscar"
+                >
+                    <IconArrowUp className="w-5 h-5" />
+                </button>
+            )}
 
             {/* MODAL */}
             {selectedCompound && (

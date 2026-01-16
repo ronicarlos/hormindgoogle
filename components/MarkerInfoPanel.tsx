@@ -64,10 +64,22 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     }
 
     // Cores baseadas no status
-    const statusColor = 
-        analysis.status === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' :
-        analysis.status === 'LOW' ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' :
-        'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800';
+    let statusColor = 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800';
+    let labelStatus = 'Normal / Ideal';
+    
+    if (analysis.status === 'HIGH') {
+        statusColor = 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800';
+        labelStatus = 'Crítico (Alto)';
+    } else if (analysis.status === 'LOW') {
+        statusColor = 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800';
+        labelStatus = 'Crítico (Baixo)';
+    } else if (analysis.status === 'BORDERLINE_HIGH') {
+        statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800';
+        labelStatus = 'Alerta (Alto)';
+    } else if (analysis.status === 'BORDERLINE_LOW') {
+        statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800';
+        labelStatus = 'Alerta (Baixo)';
+    }
 
     const IconStatus = analysis.status === 'NORMAL' ? IconCheck : IconAlert;
 
@@ -93,9 +105,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                 {/* Status Badge */}
                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold uppercase tracking-wide ${statusColor}`}>
                     <IconStatus className="w-3.5 h-3.5" />
-                    <span>
-                        {analysis.status === 'HIGH' ? 'Elevado' : analysis.status === 'LOW' ? 'Baixo' : 'Normal / Ideal'}
-                    </span>
+                    <span>{labelStatus}</span>
                 </div>
             </div>
 
@@ -129,10 +139,10 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     <div>
                         <h4 className="flex items-center gap-2 text-xs font-black text-gray-900 uppercase tracking-wider mb-2 dark:text-gray-300">
                             <IconAlert className="w-3.5 h-3.5 text-orange-500" />
-                            {analysis.status === 'HIGH' ? 'Riscos se elevado' : 'Riscos se baixo'}
+                            {analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? 'Riscos se elevado' : 'Riscos se baixo'}
                         </h4>
                         <ul className="space-y-2">
-                            {(analysis.status === 'HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
+                            {(analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
                                 <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span className="mt-1.5 w-1.5 h-1.5 bg-orange-400 rounded-full shrink-0" />
                                     {risk}
