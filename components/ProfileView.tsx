@@ -9,7 +9,8 @@ import {
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
     IconWizard, IconCheck, IconInfo, IconCopy, IconClock,
-    IconPill, IconDumbbell, IconList, IconClose, IconScience
+    IconPill, IconDumbbell, IconList, IconClose, IconScience,
+    IconFile
 } from './Icons';
 
 interface ProfileViewProps {
@@ -24,7 +25,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.16";
+const CODE_VERSION = "v1.6.17";
 
 const ProfileView: React.FC<ProfileViewProps> = ({ 
     project, 
@@ -301,9 +302,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         }
     };
     
-    // ... Password, Avatar, Refresh Logic (Same as before) ...
-    const handleUpdatePassword = async () => { /* ... existing logic ... */ };
-    const handleHardRefresh = async () => { /* ... existing logic ... */ };
+    // --- ADMIN ACTIONS ---
+    const handleHardRefresh = async () => {
+        if ('serviceWorker' in navigator) {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
+            } catch (err) {
+                console.warn(err);
+            }
+        }
+        if ('caches' in window) {
+            try {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(key => caches.delete(key)));
+            } catch (err) {
+                console.warn(err);
+            }
+        }
+        window.location.reload();
+    };
+
     const handleAvatarClick = () => { avatarInputRef.current?.click(); };
     const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -566,22 +587,56 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                 {/* 5. ADMINISTRAÇÃO */}
+                 {/* 5. ADMINISTRAÇÃO & VERSÃO */}
                  <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconShield className="w-4 h-4" />
-                        Segurança & Sistema
+                        Sistema & Controle de Versão
                     </h3>
                     <div className="flex flex-col gap-4">
                         <div className="flex gap-4">
-                            <button onClick={() => handleChange('theme', 'light')} className={`flex-1 p-3 rounded-xl border text-xs font-bold ${formData.theme !== 'dark' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'border-gray-200 text-gray-500 dark:border-gray-700'}`}><IconSun className="w-4 h-4 inline mr-2"/>Claro</button>
-                            <button onClick={() => handleChange('theme', 'dark')} className={`flex-1 p-3 rounded-xl border text-xs font-bold ${formData.theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'border-gray-200 text-gray-500 dark:border-gray-700'}`}><IconMoon className="w-4 h-4 inline mr-2"/>Escuro</button>
+                            <button onClick={() => handleChange('theme', 'light')} className={`flex-1 p-3 rounded-xl border text-xs font-bold transition-all ${formData.theme !== 'dark' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700'}`}><IconSun className="w-4 h-4 inline mr-2"/>Claro</button>
+                            <button onClick={() => handleChange('theme', 'dark')} className={`flex-1 p-3 rounded-xl border text-xs font-bold transition-all ${formData.theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700'}`}><IconMoon className="w-4 h-4 inline mr-2"/>Escuro</button>
                         </div>
-                        {onLogout && (
-                            <button onClick={onLogout} className="w-full p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30">Sair da Conta</button>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button onClick={handleHardRefresh} className="flex-1 p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-900/30 flex items-center justify-center gap-2">
+                                <IconRefresh className="w-4 h-4" /> Atualizar App / Limpar Cache
+                            </button>
+                            {onLogout && (
+                                <button onClick={onLogout} className="flex-1 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30">
+                                    Sair da Conta
+                                </button>
+                            )}
+                        </div>
+
+                        {/* CARD DE VERSÕES */}
+                        {versionHistory.length > 0 && (
+                            <div className="mt-4 bg-gray-50 rounded-xl p-4 border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">Histórico de Atualizações</h4>
+                                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold dark:bg-green-900/30 dark:text-green-400">
+                                        Atual: {CODE_VERSION}
+                                    </span>
+                                </div>
+                                <div className="space-y-3 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                                    {versionHistory.map((v) => (
+                                        <div key={v.id} className="text-xs border-l-2 border-gray-300 pl-3 dark:border-gray-600">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-bold text-gray-900 dark:text-white">v{v.version}</span>
+                                                <span className="text-[10px] text-gray-400">{new Date(v.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-gray-600 mt-0.5 dark:text-gray-400">{v.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
-                        <div className="text-center">
-                            <p className="text-[10px] text-gray-400">ID: {userId} • Versão: {versionHistory[0]?.version || CODE_VERSION}</p>
+                        
+                        <div className="text-center mt-2">
+                            <div onClick={copyUserId} className="inline-block cursor-pointer hover:bg-gray-100 px-2 py-1 rounded text-[10px] text-gray-400 dark:hover:bg-gray-800" title="Clique para copiar ID">
+                                ID: {userId}
+                            </div>
                         </div>
                     </div>
                  </div>
