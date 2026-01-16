@@ -43,15 +43,17 @@ const InteractiveChartWrapper = ({
     data, 
     title,
     onActivate,
-    isMobile
+    isMobile,
+    onClick // Adicionado para receber o handler de clique do chart
 }: { 
     children: React.ReactNode, 
     data: MetricPoint[], 
     title: string,
     onActivate: (point: MetricPoint) => void,
-    isMobile: boolean
+    isMobile: boolean,
+    onClick: (state: any) => void
 }) => {
-    // Custom Tooltip Otimizado
+    // Custom Tooltip Otimizado (Passivo no Mobile)
     const TriggerTooltip = ({ active, payload }: any) => {
         // Ref para evitar updates repetidos do mesmo ponto (Performance Critical)
         const lastPointRef = useRef<string | null>(null);
@@ -62,7 +64,7 @@ const InteractiveChartWrapper = ({
                 const uniqueKey = `${point.date}-${point.value}`;
 
                 // DESKTOP: Atualiza sidebar automaticamente no hover
-                // MOBILE: Não faz nada automático (espera clique no botão)
+                // MOBILE: NÃO FAZ NADA AUTOMÁTICO (Espera duplo clique)
                 if (!isMobile && lastPointRef.current !== uniqueKey) {
                     lastPointRef.current = uniqueKey;
                     // Injeta o título do gráfico como markerId se não tiver label específica
@@ -77,28 +79,28 @@ const InteractiveChartWrapper = ({
         
         const point = payload[0].payload;
 
-        // MOBILE UX: Tooltip com Botão de Ação
+        // MOBILE UX: Tooltip Interativo
         if (isMobile) {
             return (
-                <div className="bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-gray-200 flex flex-col items-center gap-2 z-50 dark:bg-gray-800/95 dark:border-gray-700">
+                <div 
+                    className="bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-gray-200 flex flex-col items-center gap-1 z-50 dark:bg-gray-800/95 dark:border-gray-700 pointer-events-auto cursor-pointer active:scale-95 transition-transform"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // Permite abrir clicando no card também
+                        onActivate({ ...point, label: point.label || title, unit: point.unit });
+                    }}
+                >
                     <div className="text-center">
-                        <span className="block font-black text-sm text-gray-900 dark:text-white">{point.value} <span className="text-xs font-normal text-gray-500 uppercase">{point.unit}</span></span>
-                        <span className="text-[10px] text-gray-400 font-medium">{point.date}</span>
+                        <span className="block font-black text-sm text-gray-900 dark:text-white">
+                            {point.value} <span className="text-[10px] font-normal text-gray-500 uppercase">{point.unit}</span>
+                        </span>
+                        <span className="text-[9px] text-gray-400 font-medium">{point.date}</span>
                     </div>
-                    <button
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wide active:scale-95 transition-transform shadow-md w-full"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onActivate({ ...point, label: point.label || title, unit: point.unit });
-                        }}
-                        // Importante para garantir que o clique passe
-                        onTouchEnd={(e) => {
-                            e.stopPropagation();
-                            onActivate({ ...point, label: point.label || title, unit: point.unit });
-                        }}
-                    >
-                        Ver Análise
-                    </button>
+                    {/* Instrução sutil */}
+                    <div className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md mt-1 dark:bg-blue-900/30 dark:text-blue-300">
+                        <span className="text-[8px] font-bold uppercase tracking-wide block">Toque 2x no gráfico</span>
+                        <span className="text-[7px] block leading-tight">ou clique aqui para detalhes</span>
+                    </div>
                 </div>
             );
         }
@@ -117,6 +119,8 @@ const InteractiveChartWrapper = ({
             {React.Children.map(children, child => {
                 if (React.isValidElement(child)) {
                     return React.cloneElement(child as any, {
+                        // Passa o handler de clique para o Chart
+                        onClick: onClick,
                         // Injeta o tooltip dentro do gráfico
                         children: [
                             ...(React.Children.toArray((child.props as any).children)),
@@ -125,8 +129,8 @@ const InteractiveChartWrapper = ({
                                 content={<TriggerTooltip />}
                                 cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '3 3' }}
                                 isAnimationActive={false} // Performance critical
-                                wrapperStyle={isMobile ? { zIndex: 100, pointerEvents: 'auto' } : undefined} // Permite clique no mobile
-                                allowEscapeViewBox={{ x: true, y: true }}
+                                // Permite interação com o tooltip no mobile
+                                wrapperStyle={isMobile ? { zIndex: 100, pointerEvents: 'auto' } : undefined} 
                             />
                         ]
                     });
@@ -160,6 +164,8 @@ const BiomarkerChart = ({
     onHover: (point: MetricPoint) => void;
     isMobile: boolean;
 }) => {
+    const lastTap = useRef<number>(0);
+
     const cleanData = useMemo(() => {
         if (!data || data.length === 0) return [];
         return [...data]
@@ -170,6 +176,31 @@ const BiomarkerChart = ({
                  return new Date(da).getTime() - new Date(db).getTime();
             });
     }, [data]);
+
+    // Handler de Clique Unificado (Mobile Double Tap Logic)
+    const handleChartClick = (state: any) => {
+        if (!isMobile) return; // Desktop usa hover
+        
+        if (state && state.activePayload && state.activePayload.length > 0) {
+            const now = Date.now();
+            const DOUBLE_TAP_DELAY = 500; // Aumentado para 500ms para facilitar mouse/touch
+
+            if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+                // DUPLO CLIQUE DETECTADO -> Abrir Modal
+                const point = state.activePayload[0].payload;
+                onActivatePanel({ ...point, label: point.label || title, unit: point.unit });
+                lastTap.current = 0; // Reset
+            } else {
+                // CLIQUE ÚNICO -> Recharts já mostra o tooltip
+                lastTap.current = now;
+            }
+        }
+    };
+
+    // Wrapper function to pass to InteractiveChartWrapper which calls onHover from parent
+    const onActivatePanel = (point: MetricPoint) => {
+        onHover(point);
+    };
 
     if (!data || data.length === 0) return null;
 
@@ -186,7 +217,13 @@ const BiomarkerChart = ({
             </div>
             <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800">
                 <ResponsiveContainer width="100%" height="100%">
-                    <InteractiveChartWrapper data={cleanData} title={title} onActivate={onHover} isMobile={isMobile}>
+                    <InteractiveChartWrapper 
+                        data={cleanData} 
+                        title={title} 
+                        onActivate={onActivatePanel} 
+                        isMobile={isMobile}
+                        onClick={handleChartClick}
+                    >
                         {type === 'area' ? (
                             <AreaChart data={cleanData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <defs>

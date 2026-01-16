@@ -28,7 +28,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.28'; 
+const APP_VERSION = '1.6.29'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -37,13 +37,19 @@ export default function App() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Detecção Mobile Real
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // Detecção Mobile Real (Híbrida: Largura OU Pointer Coarse)
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-      const handleResize = () => setIsMobile(window.innerWidth < 768);
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
+      const checkMobile = () => {
+          const isSmallScreen = window.innerWidth < 768;
+          const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+          setIsMobile(isSmallScreen || isTouchDevice);
+      };
+      
+      checkMobile();
+      window.addEventListener('resize', checkMobile);
+      return () => window.removeEventListener('resize', checkMobile);
   }, []);
   
   // Feedback Visual State (New)
