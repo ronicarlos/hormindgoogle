@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, AppVersion, Project, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
 import CostTracker from './CostTracker';
 import { Tooltip } from './Tooltip';
+import BodyGuide from './BodyGuide';
 import { 
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
@@ -13,10 +15,10 @@ import {
 } from './Icons';
 
 interface ProfileViewProps {
-    project?: Project; // Agora recebe o projeto completo para acessar protocolos/metas
-    profile?: UserProfile; // Mantido para compatibilidade, mas idealmente usaria project.userProfile
+    project?: Project;
+    profile?: UserProfile;
     onSave: (profile: UserProfile) => void;
-    onUpdateProject?: (project: Project) => void; // Callback para atualizar o projeto pai
+    onUpdateProject?: (project: Project) => void;
     onOpenWizard?: () => void;
     billingTrigger: number;
     onOpenSubscription: () => void;
@@ -24,7 +26,25 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.22";
+const CODE_VERSION = "v1.6.26";
+
+const MEASUREMENT_HINTS: Record<string, string> = {
+    chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
+    arm: 'Maior circunferência do bíceps contraído.',
+    waist: 'Circunferência na altura do umbigo (relaxado).',
+    hips: 'Maior circunferência na região dos glúteos.',
+    thigh: 'Meio da coxa, entre o joelho e o quadril.',
+    calf: 'Maior circunferência da panturrilha.'
+};
+
+const LABELS_PT: Record<string, string> = {
+    chest: 'Peitoral',
+    arm: 'Braço (Bíceps)',
+    waist: 'Cintura',
+    hips: 'Quadril',
+    thigh: 'Coxa',
+    calf: 'Panturrilha'
+};
 
 const ProfileView: React.FC<ProfileViewProps> = ({ 
     project, 
@@ -41,13 +61,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const [successMsg, setSuccessMsg] = useState('');
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     
-    const [newPassword, setNewPassword] = useState('');
-    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
     const [userId, setUserId] = useState<string>('');
     const [versionHistory, setVersionHistory] = useState<AppVersion[]>([]);
     
     const avatarInputRef = useRef<HTMLInputElement>(null);
-    const birthDateInputRef = useRef<HTMLInputElement>(null);
 
     // Default Profile Structure
     const defaultProfile: UserProfile = {
@@ -57,6 +74,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         height: '',
         weight: '',
         bodyFat: '',
+        targetWeight: '',
+        targetBodyFat: '',
+        targetMeasurements: { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
         comorbidities: '',
         medications: '',
         measurements: { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
@@ -69,6 +89,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const [formData, setFormData] = useState<UserProfile>(effectiveProfile);
     const [initialFormData, setInitialFormData] = useState<UserProfile>(effectiveProfile);
 
+    // Hormones State (Testo/E2)
+    const [hormones, setHormones] = useState({ testo: '', e2: '' });
+    const [initialHormones, setInitialHormones] = useState({ testo: '', e2: '' });
+
     // States for Project Data (Goal, Protocol, Training, Diet)
     const [goal, setGoal] = useState(project?.objective || 'Bulking');
     const [calories, setCalories] = useState(project?.dietCalories || '');
@@ -80,6 +104,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const [initialCalories, setInitialCalories] = useState(project?.dietCalories || '');
     const [initialTraining, setInitialTraining] = useState(project?.trainingNotes || '');
     const [initialProtocol, setInitialProtocol] = useState<ProtocolItem[]>(project?.currentProtocol || []);
+
+    // Visual Interaction State
+    const [activeMeasurement, setActiveMeasurement] = useState<string>('chest');
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -99,6 +126,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 ...defaultProfile, 
                 ...p,        
                 measurements: { ...defaultProfile.measurements, ...(p.measurements || {}) },
+                targetMeasurements: { ...defaultProfile.targetMeasurements, ...(p.targetMeasurements || {}) },
                 calculatedStats: defaultProfile.calculatedStats,
                 theme: p.theme || 'light'
             };
@@ -116,6 +144,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
             setProtocol(project.currentProtocol || []);
             setInitialProtocol(project.currentProtocol || []);
+
+            // Load Latest Hormones from Metrics
+            const tMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'] || [];
+            const eMetrics = project.metrics['Estradiol'] || [];
+            
+            const latestTesto = tMetrics.length > 0 ? tMetrics[tMetrics.length - 1].value.toString() : '';
+            const latestE2 = eMetrics.length > 0 ? eMetrics[eMetrics.length - 1].value.toString() : '';
+
+            setHormones({ testo: latestTesto, e2: latestE2 });
+            setInitialHormones({ testo: latestTesto, e2: latestE2 });
         }
     }, [project]);
 
@@ -207,11 +245,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         }
     };
 
-    const handleMeasurementChange = (field: keyof UserProfile['measurements'], value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            measurements: { ...prev.measurements, [field]: value }
-        }));
+    const handleMeasurementChange = (type: 'current' | 'target', field: keyof UserProfile['measurements'], value: string) => {
+        setActiveMeasurement(field as string); // Visual highlight
+        if (type === 'current') {
+            setFormData(prev => ({
+                ...prev,
+                measurements: { ...prev.measurements, [field]: value }
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                targetMeasurements: { ...(prev.targetMeasurements || defaultProfile.measurements), [field]: value }
+            }));
+        }
     };
 
     // Protocol Handlers
@@ -236,6 +282,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         if (JSON.stringify(formData.measurements) !== JSON.stringify(initialFormData.measurements)) changes.push("Medidas corporais atualizadas.");
         if (formData.comorbidities !== initialFormData.comorbidities) changes.push("Histórico de doenças alterado.");
         if (formData.medications !== initialFormData.medications) changes.push("Medicamentos em uso alterados.");
+
+        // Targets
+        if (formData.targetWeight !== initialFormData.targetWeight) changes.push("Meta de peso alterada.");
+
+        // Hormones
+        if (hormones.testo !== initialHormones.testo) changes.push(`Testosterona Atualizada: ${hormones.testo}`);
+        if (hormones.e2 !== initialHormones.e2) changes.push(`Estradiol Atualizado: ${hormones.e2}`);
 
         // Project Changes
         if (goal !== initialGoal) changes.push(`Novo Objetivo: ${goal}`);
@@ -265,7 +318,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     calories
                 );
 
-                // 3. Update Parent State
+                // 3. Save Hormones as Metrics if changed
+                const today = new Date().toLocaleDateString('pt-BR');
+                const updatedMetrics = { ...project.metrics };
+
+                if (hormones.testo && hormones.testo !== initialHormones.testo) {
+                    const val = parseFloat(hormones.testo);
+                    if (!isNaN(val)) {
+                        const pt = { date: today, value: val, unit: 'ng/dL', label: 'Profile Update' };
+                        await dataService.addMetric(project.id, 'Testosterone', pt);
+                        updatedMetrics['Testosterone'] = [...(updatedMetrics['Testosterone'] || []), pt];
+                    }
+                }
+                
+                if (hormones.e2 && hormones.e2 !== initialHormones.e2) {
+                    const val = parseFloat(hormones.e2);
+                    if (!isNaN(val)) {
+                        const pt = { date: today, value: val, unit: 'pg/mL', label: 'Profile Update' };
+                        await dataService.addMetric(project.id, 'Estradiol', pt);
+                        updatedMetrics['Estradiol'] = [...(updatedMetrics['Estradiol'] || []), pt];
+                    }
+                }
+
+                // 4. Update Parent State
                 if (onUpdateProject) {
                     onUpdateProject({
                         ...project,
@@ -273,16 +348,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                         objective: goal as any,
                         currentProtocol: cleanProtocol,
                         trainingNotes,
-                        dietCalories: calories
+                        dietCalories: calories,
+                        metrics: updatedMetrics
                     });
                 }
 
                 setSuccessMsg('Perfil e Estratégia salvos!');
                 
-                // 4. Trigger Analysis if needed
+                // 5. Trigger Analysis if needed
                 const changes = detectChanges();
                 if (changes.length > 0 && onRequestAnalysis) {
-                    onRequestAnalysis(`O usuário atualizou dados críticos do perfil e planejamento:\n${changes.join('\n')}\n\nAnalise o impacto dessas mudanças no plano geral.`);
+                    onRequestAnalysis(`O usuário atualizou dados críticos do perfil e planejamento:\n${changes.join('\n')}\n\nAnalise o impacto dessas mudanças no plano geral e se estamos mais perto das novas metas.`);
                 }
                 
                 // Update Baselines
@@ -291,6 +367,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 setInitialCalories(calories);
                 setInitialTraining(trainingNotes);
                 setInitialProtocol(cleanProtocol);
+                setInitialHormones(hormones);
 
                 setTimeout(() => setSuccessMsg(''), 3000);
             }
@@ -396,7 +473,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 )}
                 
-                {/* 1. PERFIL BIOMÉTRICO (AVATAR + STATS) */}
+                {/* 1. PERFIL BIOMÉTRICO (AVATAR + INFO BÁSICA) */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center dark:bg-gray-900 dark:border-gray-800">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative dark:bg-gray-800 dark:border-gray-700">
@@ -422,24 +499,210 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Nome</span>
                             <input type="text" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} className={inputClass} />
                         </label>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 gap-4">
                              <label className="block">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Altura (cm)</span>
                                 <input type="number" value={formData.height} onChange={(e) => handleChange('height', e.target.value)} className={inputClass} />
                             </label>
                              <label className="block">
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Peso (kg)</span>
-                                <input type="number" value={formData.weight} onChange={(e) => handleChange('weight', e.target.value)} className={inputClass} />
-                            </label>
-                             <label className="block">
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF %</span>
-                                <input type="number" value={formData.bodyFat} onChange={(e) => handleChange('bodyFat', e.target.value)} className={inputClass} />
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Gênero</span>
+                                <select value={formData.gender} onChange={e => handleChange('gender', e.target.value as any)} className={inputClass}>
+                                    <option value="Masculino">Masculino</option>
+                                    <option value="Feminino">Feminino</option>
+                                </select>
                             </label>
                         </div>
                     </div>
                 </div>
 
-                {/* 2. PLANEJAMENTO ESTRATÉGICO (NOVA SEÇÃO) */}
+                {/* 2. METAS E EVOLUÇÃO (PESO E BF - ATUAL VS META) */}
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
+                        <IconActivity className="w-4 h-4 text-emerald-500" />
+                        Metas & Evolução (Atual vs Pretendido)
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                        {/* Header Colunas */}
+                        <div className="col-span-2 grid grid-cols-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            <span>Atual</span>
+                            <span>Meta (Alvo)</span>
+                        </div>
+
+                        {/* Linha Peso */}
+                        <div className="contents">
+                            <div className="relative">
+                                <label className="text-[10px] font-bold text-gray-500 absolute -top-4 left-0">PESO (KG)</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.weight} 
+                                    onChange={(e) => handleChange('weight', e.target.value)} 
+                                    className={`${inputClass} border-l-4 border-l-blue-500`}
+                                    placeholder="Atual"
+                                />
+                            </div>
+                            <div className="relative">
+                                <input 
+                                    type="number" 
+                                    value={formData.targetWeight} 
+                                    onChange={(e) => handleChange('targetWeight', e.target.value)} 
+                                    className={`${inputClass} border-l-4 border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10`}
+                                    placeholder="Meta"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Linha BF */}
+                        <div className="contents">
+                            <div className="relative mt-4">
+                                <label className="text-[10px] font-bold text-gray-500 absolute -top-4 left-0">GORDURA (BF%)</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.bodyFat} 
+                                    onChange={(e) => handleChange('bodyFat', e.target.value)} 
+                                    className={`${inputClass} border-l-4 border-l-blue-500`}
+                                    placeholder="Atual"
+                                />
+                            </div>
+                            <div className="relative mt-4">
+                                <input 
+                                    type="number" 
+                                    value={formData.targetBodyFat} 
+                                    onChange={(e) => handleChange('targetBodyFat', e.target.value)} 
+                                    className={`${inputClass} border-l-4 border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10`}
+                                    placeholder="Meta"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3. PAINEL HORMONAL (FIXO) */}
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-2 dark:border-gray-800">
+                        <h3 className="text-sm font-black text-purple-600 uppercase tracking-widest flex items-center gap-2 dark:text-purple-400">
+                            <IconScience className="w-4 h-4" />
+                            Painel Hormonal Base
+                        </h3>
+                        <Tooltip content="Mantenha estes valores atualizados com seus últimos exames para que a IA monitore riscos." position="left">
+                            <IconInfo className="w-4 h-4 text-gray-400 cursor-help" />
+                        </Tooltip>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <label className="block">
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Testosterona Total</span>
+                            <div className="relative">
+                                <input 
+                                    type="number" 
+                                    value={hormones.testo} 
+                                    onChange={(e) => setHormones({...hormones, testo: e.target.value})} 
+                                    className={`${inputClass} pr-12`} 
+                                    placeholder="Ex: 600"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">ng/dL</span>
+                            </div>
+                        </label>
+                        <label className="block">
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Estradiol (E2)</span>
+                            <div className="relative">
+                                <input 
+                                    type="number" 
+                                    value={hormones.e2} 
+                                    onChange={(e) => setHormones({...hormones, e2: e.target.value})} 
+                                    className={`${inputClass} pr-12`} 
+                                    placeholder="Ex: 30"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">pg/mL</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                {/* 4. BIOMETRIA & MEDIDAS (COM BODY GUIDE) */}
+                <div className="grid md:grid-cols-3 gap-6">
+                    {/* Visual Guide Column */}
+                    <div className="md:col-span-1 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-200 p-4 dark:bg-gray-800 dark:border-gray-700">
+                        <BodyGuide part={activeMeasurement} gender={formData.gender} className="h-64 w-auto" />
+                    </div>
+
+                    {/* Inputs Column */}
+                    <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                        <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 dark:text-gray-500">Medidas (cm)</h3>
+                        
+                        <div className="space-y-4">
+                            {/* Header row */}
+                            <div className="grid grid-cols-3 text-[10px] font-bold text-gray-400 uppercase text-center">
+                                <span className="text-left">Local</span>
+                                <span>Atual</span>
+                                <span>Meta</span>
+                            </div>
+
+                            {['chest', 'arm', 'waist', 'hips', 'thigh', 'calf'].map((part) => (
+                                <div key={part} className="grid grid-cols-3 gap-3 items-center" onMouseEnter={() => setActiveMeasurement(part)}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-xs font-bold text-gray-600 capitalize dark:text-gray-300">
+                                            {LABELS_PT[part] || part}
+                                        </span>
+                                        <Tooltip content={
+                                            <div className="flex flex-col items-center gap-2">
+                                                <span className="text-[10px]">{MEASUREMENT_HINTS[part]}</span>
+                                                <BodyGuide part={part} gender={formData.gender} className="h-20 w-auto bg-white/10 rounded p-1" />
+                                            </div>
+                                        } position="top">
+                                            <IconInfo className="w-3 h-3 text-gray-300 cursor-help hover:text-blue-500 transition-colors" />
+                                        </Tooltip>
+                                    </div>
+                                    
+                                    <input 
+                                        type="number" 
+                                        value={formData.measurements[part as keyof typeof formData.measurements]} 
+                                        onChange={(e) => handleMeasurementChange('current', part as any, e.target.value)}
+                                        className="w-full rounded-md border-gray-300 p-1.5 text-xs text-center bg-gray-50 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                                        placeholder="-"
+                                        onFocus={() => setActiveMeasurement(part)}
+                                    />
+                                    
+                                    <input 
+                                        type="number" 
+                                        value={formData.targetMeasurements?.[part as keyof typeof formData.targetMeasurements] || ''} 
+                                        onChange={(e) => handleMeasurementChange('target', part as any, e.target.value)}
+                                        className="w-full rounded-md border-gray-300 p-1.5 text-xs text-center bg-emerald-50/50 focus:ring-emerald-500 border-dashed dark:bg-emerald-900/10 dark:border-gray-700 dark:text-white"
+                                        placeholder="-"
+                                        onFocus={() => setActiveMeasurement(part)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* 5. SAÚDE (LEGACY) */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 dark:border-l-red-600">
+                    <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-red-400">
+                        <IconAlert className="w-4 h-4" /> Saúde
+                    </h3>
+                    <div className="space-y-4">
+                        <label className="block">
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Comorbidades</span>
+                            <textarea 
+                                value={formData.comorbidities}
+                                onChange={(e) => handleChange('comorbidities', e.target.value)}
+                                className="mt-1 w-full rounded-md border-gray-300 p-2 text-sm h-16 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Medicamentos (Saúde)</span>
+                            <textarea 
+                                value={formData.medications}
+                                onChange={(e) => handleChange('medications', e.target.value)}
+                                className="mt-1 w-full rounded-md border-gray-300 p-2 text-sm h-16 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                            />
+                        </label>
+                    </div>
+                </div>
+
+                {/* 6. PLANEJAMENTO ESTRATÉGICO */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-blue-600 uppercase tracking-widest mb-6 border-b border-blue-100 pb-2 flex items-center gap-2 dark:text-blue-400 dark:border-blue-900/30">
                         <IconActivity className="w-4 h-4" />
@@ -483,7 +746,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </label>
                 </div>
 
-                {/* 3. PROTOCOLO FARMACOLÓGICO (NOVA SEÇÃO) */}
+                {/* 7. PROTOCOLO FARMACOLÓGICO */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-2 dark:border-gray-800">
                         <h3 className="text-sm font-black text-purple-600 uppercase tracking-widest flex items-center gap-2 dark:text-purple-400">
@@ -542,51 +805,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* 4. ANTROPOMETRIA E MEDICAMENTOS (LEGACY) */}
-                <div className="grid md:grid-cols-2 gap-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                        <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 dark:text-gray-500">Medidas (cm)</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            {['chest', 'arm', 'waist', 'hips', 'thigh', 'calf'].map((part) => (
-                                <label key={part} className="block">
-                                    <span className="text-xs font-bold text-gray-500 capitalize dark:text-gray-400">{part}</span>
-                                    <input 
-                                        type="number" 
-                                        value={formData.measurements[part as keyof typeof formData.measurements]} 
-                                        onChange={(e) => handleMeasurementChange(part as any, e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 p-2 text-sm bg-gray-50 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                                    />
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 dark:border-l-red-600">
-                        <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-red-400">
-                            <IconAlert className="w-4 h-4" /> Saúde
-                        </h3>
-                        <div className="space-y-4">
-                            <label className="block">
-                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Comorbidades</span>
-                                <textarea 
-                                    value={formData.comorbidities}
-                                    onChange={(e) => handleChange('comorbidities', e.target.value)}
-                                    className="mt-1 w-full rounded-md border-gray-300 p-2 text-sm h-16 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                                />
-                            </label>
-                            <label className="block">
-                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Medicamentos (Saúde)</span>
-                                <textarea 
-                                    value={formData.medications}
-                                    onChange={(e) => handleChange('medications', e.target.value)}
-                                    className="mt-1 w-full rounded-md border-gray-300 p-2 text-sm h-16 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                                />
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                 {/* 5. ADMINISTRAÇÃO & VERSÃO */}
+                 {/* 8. ADMINISTRAÇÃO & VERSÃO */}
                  <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconShield className="w-4 h-4" />

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { dataService } from './services/dataService';
@@ -27,7 +28,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.23'; 
+const APP_VERSION = '1.6.26'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);

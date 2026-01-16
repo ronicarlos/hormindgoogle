@@ -33,6 +33,19 @@ export interface UserProfile {
   height: string; // cm
   weight: string; // kg
   bodyFat?: string; // %
+  
+  // NEW: Target Fields (Metas)
+  targetWeight?: string;
+  targetBodyFat?: string;
+  targetMeasurements?: {
+    chest: string;
+    arm: string;
+    waist: string;
+    hips: string;
+    thigh: string;
+    calf: string;
+  };
+
   comorbidities: string; 
   medications: string;
   measurements: {

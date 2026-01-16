@@ -1,7 +1,12 @@
 
--- Registra a nova versão do aplicativo (v1.6.18)
+-- Adiciona colunas de META (Target) na tabela user_profiles
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_weight numeric;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_body_fat numeric;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_measurements jsonb;
+
+-- Registra a nova versão do aplicativo (v1.6.26)
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.18', 'Rollback parcial: Priorização do modelo Gemini 1.5 Flash para análise e OCR, visando estabilidade e correção de erros 404/400. Admin Features restauradas.', NOW());
+VALUES ('1.6.26', 'Implementação de Metas (Targets) no Perfil, Painel Hormonal fixo e Guia Visual de Medidas.', NOW());
 
 -- Garante que o cache de schema do PostgREST seja atualizado
 NOTIFY pgrst, 'reload config';

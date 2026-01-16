@@ -11,7 +11,7 @@ interface DBProject {
     objective: string;
     current_protocol: any;
     training_notes?: string;
-    diet_calories?: string; // NOVO CAMPO DB
+    diet_calories?: string; 
     created_at: string;
 }
 
@@ -258,6 +258,8 @@ export const dataService = {
             }
 
             const measurements = data.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' };
+            const targetMeasurements = data.target_measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' };
+            
             const calculatedStats = calculateMetabolicStats(
                 data.weight || 0,
                 data.height || 0,
@@ -275,6 +277,12 @@ export const dataService = {
                 height: data.height?.toString() || '',
                 weight: data.weight?.toString() || '',
                 bodyFat: data.body_fat?.toString() || '',
+                
+                // New Fields
+                targetWeight: data.target_weight?.toString() || '',
+                targetBodyFat: data.target_body_fat?.toString() || '',
+                targetMeasurements: targetMeasurements,
+
                 comorbidities: data.comorbidities || '',
                 medications: data.medications || '',
                 measurements: measurements,
@@ -300,6 +308,12 @@ export const dataService = {
             height: parseFloat(profile.height) || null,
             weight: parseFloat(profile.weight) || null,
             body_fat: parseFloat(profile.bodyFat || '') || null,
+            
+            // New Fields
+            target_weight: parseFloat(profile.targetWeight || '') || null,
+            target_body_fat: parseFloat(profile.targetBodyFat || '') || null,
+            target_measurements: profile.targetMeasurements,
+
             comorbidities: profile.comorbidities,
             medications: profile.medications,
             measurements: profile.measurements,
