@@ -28,7 +28,7 @@ import { generateProntuario, processDocument, OCR_MODEL } from './services/gemin
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.40'; 
+const APP_VERSION = '1.6.45'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -315,9 +315,11 @@ export default function App() {
               // 2. OCR AI Processing
               setProcessingState(prev => ({ ...prev!, step: 'ocr' }));
               
-              // CRÍTICO: Extrai metadados do arquivo (Data de criação/modificação)
-              // Se o OCR falhar em achar a data impressa, usaremos esta data como a "verdade histórica" do arquivo.
-              // Isso evita que exames antigos sejam datados como "hoje".
+              // CRÍTICO: EXTRAÇÃO DE METADADOS DO ARQUIVO (DATA OFICIAL DE BACKUP)
+              // Captura a data de "Última Modificação" do arquivo (geralmente data de criação/scan).
+              // Esta data é passada como `defaultDate` para a função de OCR.
+              // Se o OCR NÃO encontrar uma data escrita no papel (ex: "Data de Coleta"),
+              // ele retornará esta `fileDate` como a data oficial do documento.
               const fileDate = new Date(file.lastModified).toLocaleDateString('pt-BR');
               
               const { extractedText, metrics, documentType, detectedDate } = await processDocument(file, fileDate);

@@ -5,6 +5,36 @@ import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 import { dataService } from './dataService';
 import { supabase } from '../lib/supabase';
 
+/**
+ * ==============================================================================
+ * 🧠 FITLM CORE ARCHITECTURE: ANTI-HALLUCINATION & DATA SOURCE OF TRUTH
+ * ==============================================================================
+ * 
+ * Este serviço implementa regras rígidas para impedir que a IA "invente" dados 
+ * ou confunda registros antigos com novos.
+ * 
+ * 1. HIERARQUIA DE DADOS (THE WATERFALL RULE):
+ *    A IA é instruída a seguir esta ordem de precedência absoluta:
+ *    - Nível 1 (Supremo): Objeto JSON 'CURRENT_BIOMETRICS' injetado no prompt.
+ *    - Nível 2 (Histórico Estruturado): Lista de métricas ordenadas cronologicamente.
+ *    - Nível 3 (Contexto Documental): Texto extraído via OCR.
+ *    - Nível 4 (Conversa): Histórico do chat (pode conter alucinações passadas).
+ * 
+ * 2. DESEMPATE TEMPORAL (SAME-DAY SORTING LOGIC):
+ *    Problema: O usuário tem dois exames com a mesma data clínica (ex: Hoje),
+ *    um errado (4500) e um corrigido (2900).
+ *    Solução: A função `sortMetrics` normaliza as datas para remover fusos horários
+ *    e usa o campo `createdAt` (Timestamp exato do banco) como critério de desempate.
+ *    O registro inserido por ÚLTIMO é considerado a verdade vigente.
+ * 
+ * 3. FALLBACK DE DATA (METADATA INJECTION):
+ *    Se o OCR não encontrar uma data impressa no documento (ex: "Data da Coleta"),
+ *    o sistema usa a data de criação do arquivo (File Metadata) como a data oficial.
+ *    Isso impede que exames antigos upados hoje recebam a data atual incorretamente,
+ *    desde que o arquivo original tenha os metadados preservados.
+ * ==============================================================================
+ */
+
 // --- INICIALIZAÇÃO ROBUSTA DA API KEY ---
 const getApiKey = () => {
     if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
@@ -144,10 +174,11 @@ const buildContext = (
   let context = `DATA ATUAL DO SISTEMA: ${todayStr}\n`;
   context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n";
   context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica.\n\n";
-  context += "HIERARQUIA DE DADOS (REGRA SUPREMA DE CONFLITO):\n";
-  context += "1. O valor JSON 'CURRENT_BIOMETRICS' abaixo é a VERDADE ABSOLUTA.\n";
-  context += "2. Se houver conflito com o histórico textual, IGNORE o histórico.\n";
-  context += "3. Datas futuras a hoje devem ser descartadas como erro de metadados.\n\n";
+  context += "HIERARQUIA DE DADOS E REGRAS DE LISTAGEM:\n";
+  context += "1. O valor JSON 'CURRENT_BIOMETRICS' é a Verdade Absoluta ATUAL (Snapshot).\n";
+  context += "2. A seção 'HISTÓRICO COMPLETO DE EXAMES' contém TODOS os registros brutos do banco de dados.\n";
+  context += "3. IMPORTANTE: Se o usuário pedir 'histórico completo' ou 'todos os valores', você DEVE listar todos os itens da seção 2, incluindo fontes OCR e Manuais, mesmo que haja redundância de datas.\n";
+  context += "4. Para análise clínica (diagnóstico), priorize o mais recente. Para relatório histórico, liste tudo.\n\n";
 
   // Helper para obter o valor mais recente usando a nova lógica de ordenação
   const getLatestValue = (categoryKey: string, altKey?: string): string => {
@@ -166,7 +197,7 @@ const buildContext = (
       
       // Marca visual para a IA
       const sourceLabel = isToday 
-          ? '[DADO VIGENTE - CONFIRMADO HOJE]' 
+          ? `[DADO VIGENTE - CONFIRMADO HOJE via ${latest.label || 'Sistema'}]` 
           : `(Data: ${latest.date})`;
           
       return `${latest.value} ${latest.unit} ${sourceLabel}`;
@@ -182,7 +213,7 @@ const buildContext = (
       
       // Monta o JSON da Verdade
       const biometricsData = {
-          status: "OFFICIAL_LATEST_DATA",
+          status: "OFFICIAL_SNAPSHOT",
           patientName: profile.name,
           age: age,
           birthDate: profile.birthDate,
@@ -208,25 +239,31 @@ const buildContext = (
       context += "```json\n";
       context += JSON.stringify({ CURRENT_BIOMETRICS: biometricsData }, null, 2);
       context += "\n```\n";
-      context += "NOTA: 'latest_hormones_panel' contém o valor mais recente do banco de dados (ordenado por carimbo de hora exato).\n";
       context += `=======================================================\n\n`;
   }
 
   if (metrics && Object.keys(metrics).length > 0) {
-      context += `=== 2. HISTÓRICO DE EXAMES (ORDEM CRONOLÓGICA) ===\n`;
+      context += `=== 2. HISTÓRICO COMPLETO DE EXAMES (ORDEM CRONOLÓGICA) ===\n`;
+      context += `NOTA: Esta lista contém TODOS os pontos de dados disponíveis, sem filtros. Use-a para construir linhas do tempo.\n`;
+      
       for (const [category, points] of Object.entries(metrics)) {
           const sorted = sortMetrics(points, futureLimit);
           
           if (sorted.length > 0) {
               const latest = sorted[0];
-              const refs = latest.refMin ? ` (Ref: ${latest.refMin}-${latest.refMax})` : '';
+              const refs = latest.refMin ? ` (Ref Lab: ${latest.refMin}-${latest.refMax})` : '';
               
-              // Mostra apenas o mais recente em destaque no texto para evitar confusão da IA
-              context += `- ${category}: ${latest.value} ${latest.unit}${refs} [DATA: ${latest.date}] ${latest.label ? `(${latest.label})` : ''}\n`;
+              context += `\nCATEGORIA: ${category}\n`;
+              context += `  -> MAIS RECENTE: ${latest.value} ${latest.unit}${refs} [DATA: ${latest.date}] [FONTE: ${latest.label || 'N/A'}]\n`;
               
-              // Adiciona histórico anterior resumido se houver
+              // LISTAGEM COMPLETA DO HISTÓRICO (SEM LIMITES DE SLICE)
               if (sorted.length > 1) {
-                  context += `  Histórico: ${sorted.slice(1, 4).map(p => `${p.value} (${p.date})`).join(', ')}\n`;
+                  const historyItems = sorted.slice(1).map(p => 
+                      `Val: ${p.value} ${p.unit} (Data: ${p.date}) [Fonte: ${p.label || 'N/A'}]`
+                  );
+                  context += `  -> HISTÓRICO ANTERIOR: ${historyItems.join(' | ')}\n`;
+              } else {
+                  context += `  -> HISTÓRICO ANTERIOR: Nenhum registro adicional.\n`;
               }
           }
       }
@@ -236,7 +273,7 @@ const buildContext = (
   context += "=== 3. CONTEXTO DOCUMENTAL (ARQUIVOS OCR) ===\n";
   if (sources.length > 0) {
       sources.forEach(source => {
-        const prefix = source.type === 'USER_INPUT' ? '[REGISTRO]' : `[DOC: ${source.title}]`;
+        const prefix = source.type === 'USER_INPUT' ? '[REGISTRO MANUAL]' : `[DOC OCR: ${source.title}]`;
         const sourceDateTs = parseDate(source.date);
         
         let dateDisplay = source.date;

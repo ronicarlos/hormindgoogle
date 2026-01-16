@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Project, Source, SourceType } from '../types';
-import { IconFile, IconTrash, IconEye, IconDownload, IconSearch, IconFolder, IconPlus, IconAlert, IconSparkles } from './Icons';
+import { IconFile, IconTrash, IconEye, IconDownload, IconSearch, IconFolder, IconPlus, IconAlert, IconSparkles, IconCalendar } from './Icons';
 import { dataService } from '../services/dataService';
 
 interface SourceListViewProps {
@@ -257,7 +257,9 @@ const SourceListView: React.FC<SourceListViewProps> = ({ project, onViewSource, 
                                     <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-2 py-0.5 rounded dark:bg-gray-800 dark:text-gray-400">
                                         {source.specificType || source.type}
                                     </span>
-                                    <span className="text-[10px] text-gray-400">
+                                    {/* META TAG VISUAL DE DATA */}
+                                    <span className="text-[10px] font-medium text-gray-500 flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400" title="Data Oficial do Documento">
+                                        <IconCalendar className="w-3 h-3" />
                                         {source.date}
                                     </span>
                                 </div>
