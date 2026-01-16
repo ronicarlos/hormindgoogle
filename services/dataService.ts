@@ -465,6 +465,14 @@ export const dataService = {
         return error;
     },
 
+    async updateSourceDetails(sourceId: string, updates: { date?: string, title?: string, content?: string }) {
+        const { error } = await supabase
+            .from('sources')
+            .update(updates)
+            .eq('id', sourceId);
+        return error;
+    },
+
     async deleteSource(sourceId: string, filePath?: string) {
         if (filePath) {
             try {

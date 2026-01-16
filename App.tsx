@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { dataService } from './services/dataService';
 import { generateAIResponse } from './services/geminiService'; // Import necessary for direct analysis
-import { Project, UserProfile, AppView, Source, Exercise, DailyLogData, SourceType, ChatMessage } from './types';
+import { Project, UserProfile, AppView, Source, Exercise, DailyLogData, SourceType, ChatMessage, MetricPoint } from './types';
 import AuthScreen from './components/AuthScreen';
 import SourceSidebar from './components/SourceSidebar';
 import MobileNav from './components/MobileNav'; 
@@ -24,11 +24,12 @@ import { IOSInstallPrompt } from './components/IOSInstallPrompt';
 import SubscriptionModal from './components/SubscriptionModal';
 import AnalysisModal from './components/AnalysisModal';
 import ProcessingOverlay, { ProcessingState } from './components/ProcessingOverlay'; // NEW COMPONENT
+import DateConfirmationModal from './components/DateConfirmationModal'; // NEW COMPONENT
 import { generateProntuario, processDocument, OCR_MODEL } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.45'; 
+const APP_VERSION = '1.6.47'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -54,6 +55,10 @@ export default function App() {
   
   // Feedback Visual State (New)
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
+
+  // --- FILA DE PROCESSAMENTO DE UPLOAD (PENDING DOCS) ---
+  const [pendingDocs, setPendingDocs] = useState<any[]>([]);
+  const [currentConfirmDoc, setCurrentConfirmDoc] = useState<any | null>(null);
 
   // Modals State
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -132,9 +137,84 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // --- LOGICA DE PROCESSAMENTO DA FILA DE UPLOAD (HUMAN IN THE LOOP) ---
+  useEffect(() => {
+      // Se não tem modal aberto e tem itens na fila, abre o próximo
+      if (!currentConfirmDoc && pendingDocs.length > 0) {
+          const nextDoc = pendingDocs[0];
+          setCurrentConfirmDoc(nextDoc);
+      }
+  }, [pendingDocs, currentConfirmDoc]);
+
+  const handleConfirmDate = async (confirmedDate: string) => {
+      if (!currentConfirmDoc || !project || !session?.user) return;
+
+      const doc = currentConfirmDoc;
+      
+      try {
+          // 1. Salvar Métricas com a DATA CONFIRMADA
+          // Atualiza a data em todos os pontos extraídos
+          for (const m of doc.metrics) {
+              const adjustedMetric = {
+                  ...m.data,
+                  date: confirmedDate // Override com a data do usuário
+              };
+              await dataService.addMetric(project.id, m.category, adjustedMetric);
+          }
+
+          // 2. Salvar Source com a DATA CONFIRMADA
+          const source: Source = {
+              id: '',
+              title: doc.file.name,
+              type: (doc.file.type === 'application/pdf' ? SourceType.PDF : SourceType.IMAGE) as SourceType,
+              date: confirmedDate, // Override
+              content: doc.extractedText,
+              summary: 'Processado automaticamente via OCR IA.',
+              selected: true,
+              filePath: doc.filePath,
+              specificType: doc.documentType
+          };
+          
+          await dataService.addSource(project.id, source);
+
+          // 3. Log de Custo
+          await dataService.logUsage(
+              session.user.id, 
+              project.id, 
+              'OCR', 
+              500, 
+              500, 
+              OCR_MODEL 
+          );
+
+          // 4. Trigger Updates
+          setBillingTrigger(prev => prev + 1);
+          
+      } catch (e) {
+          console.error("Erro ao salvar documento confirmado:", e);
+          alert("Erro ao salvar documento. Tente novamente.");
+      }
+
+      // Remove da fila e limpa modal atual
+      setPendingDocs(prev => prev.slice(1));
+      setCurrentConfirmDoc(null);
+
+      // Se foi o último, recarrega o projeto
+      if (pendingDocs.length <= 1) {
+          await loadProject(session.user.id);
+          handleTriggerAnalysisConfirmation(`Novos documentos processados. O usuário confirmou datas e dados de ${doc.file.name}.`);
+      }
+  };
+
+  const handleCancelDate = () => {
+      // Remove da fila sem salvar
+      setPendingDocs(prev => prev.slice(1));
+      setCurrentConfirmDoc(null);
+  };
+
   const loadProject = async (userId: string) => {
     // Apenas define isLoading se não estivermos processando arquivos (para evitar piscar o overlay)
-    if (!processingState) setIsLoading(true);
+    if (!processingState && pendingDocs.length === 0) setIsLoading(true);
     
     const proj = await dataService.getOrCreateProject(userId);
     setProject(proj);
@@ -289,13 +369,10 @@ export default function App() {
           step: 'uploading'
       });
 
-      let newFilesCount = 0;
-
-      // Loop Sequencial para garantir ordem e feedback
+      // Loop Sequencial para processamento
       for (let i = 0; i < files.length; i++) {
           const file = files[i];
           
-          // Atualiza estado para UI
           setProcessingState(prev => ({
               current: i + 1,
               total: files.length,
@@ -304,7 +381,7 @@ export default function App() {
           }));
 
           try {
-              // 1. Upload Storage
+              // 1. Upload Storage (Necessário para ter o link)
               const filePath = await dataService.uploadFileToStorage(file, session.user.id, project.id);
               
               if (!filePath) {
@@ -315,67 +392,29 @@ export default function App() {
               // 2. OCR AI Processing
               setProcessingState(prev => ({ ...prev!, step: 'ocr' }));
               
-              // CRÍTICO: EXTRAÇÃO DE METADADOS DO ARQUIVO (DATA OFICIAL DE BACKUP)
-              // Captura a data de "Última Modificação" do arquivo (geralmente data de criação/scan).
-              // Esta data é passada como `defaultDate` para a função de OCR.
-              // Se o OCR NÃO encontrar uma data escrita no papel (ex: "Data de Coleta"),
-              // ele retornará esta `fileDate` como a data oficial do documento.
+              // Data padrão técnica (fallback extremo, mas o modal forçará a escolha)
               const fileDate = new Date(file.lastModified).toLocaleDateString('pt-BR');
               
               const { extractedText, metrics, documentType, detectedDate } = await processDocument(file, fileDate);
               
-              // 3. Salvando dados
-              setProcessingState(prev => ({ ...prev!, step: 'saving' }));
-
-              for (const m of metrics) {
-                  await dataService.addMetric(project.id, m.category, m.data);
-              }
-              
-              const source: Source = {
-                  id: '',
-                  title: file.name,
-                  type: (file.type === 'application/pdf' ? SourceType.PDF : SourceType.IMAGE) as SourceType,
-                  // detectedDate vem do OCR (prioridade). fileDate vem do metadado do arquivo (fallback).
-                  date: detectedDate || fileDate, 
-                  content: extractedText,
-                  summary: 'Processado automaticamente via OCR IA.',
-                  selected: true,
-                  filePath: filePath,
-                  specificType: documentType
-              };
-              
-              await dataService.addSource(project.id, source);
-              
-              // LOG DE CUSTO PRECISO: Passa OCR_MODEL explicitamente
-              await dataService.logUsage(
-                  session.user.id, 
-                  project.id, 
-                  'OCR', 
-                  500, 
-                  500, 
-                  OCR_MODEL // Modelo Flash
-              );
-              
-              newFilesCount++;
+              // 3. NÃO SALVA AINDA! Coloca na fila para confirmação humana.
+              // O estado `pendingDocs` acionará o modal `DateConfirmationModal`
+              setPendingDocs(prev => [...prev, {
+                  file,
+                  filePath,
+                  extractedText,
+                  metrics,
+                  documentType,
+                  detectedDate // Data sugerida pela IA
+              }]);
 
           } catch (err) {
               console.error(`Erro crítico processando ${file.name}:`, err);
-              // Não alerta bloqueante no loop, apenas loga. O usuário verá o que faltou.
           }
       }
       
-      setBillingTrigger(prev => prev + 1);
-      
-      // Finalizando e Recarregando
-      setProcessingState(prev => ({ ...prev!, step: 'analyzing' }));
-      await loadProject(session.user.id);
-      
-      // Limpa overlay
+      // Limpa overlay (O processo agora continua via Modais de Confirmação)
       setProcessingState(null);
-
-      if (newFilesCount > 0) {
-          handleTriggerAnalysisConfirmation(`Novos documentos processados (${newFilesCount} arquivos). O usuário fez upload de exames ou planilhas recentes.`);
-      }
   };
 
   const handleSaveDailyLog = async (data: DailyLogData) => {
@@ -422,10 +461,7 @@ export default function App() {
     return <AuthScreen />;
   }
 
-  // Se estiver carregando, mas não for por causa do Overlay de Processamento (que tem seu próprio UI)
-  // E o projeto não estiver carregado. Se o projeto ESTIVER carregado e isLoading for true,
-  // significa que estamos processando uma análise em background (ChatInterface lidará com isso).
-  if (isLoading && !project && !processingState) {
+  if (isLoading && !project && !processingState && pendingDocs.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="flex flex-col items-center gap-4">
@@ -441,8 +477,17 @@ export default function App() {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
       
-      {/* Componente Visual de Processamento Global */}
+      {/* Componente Visual de Processamento Global (Upload/OCR) */}
       <ProcessingOverlay state={processingState} />
+
+      {/* Modal de Confirmação de Data (Human-in-the-loop) */}
+      <DateConfirmationModal 
+          isOpen={!!currentConfirmDoc}
+          fileName={currentConfirmDoc?.file.name || ''}
+          suggestedDate={currentConfirmDoc?.detectedDate || null}
+          onConfirm={handleConfirmDate}
+          onCancel={handleCancelDate}
+      />
 
       {/* Desktop Sidebar */}
       <div className="hidden md:flex w-64 shrink-0 h-full border-r border-gray-200 dark:border-gray-800">
@@ -466,7 +511,7 @@ export default function App() {
           />
 
           <div className="flex-1 overflow-hidden relative pb-[60px] md:pb-0"> 
-              {!project && !isLoading && !processingState && (
+              {!project && !isLoading && !processingState && pendingDocs.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in">
                       <div className="bg-red-50 p-4 rounded-full mb-4 dark:bg-red-900/20">
                           <IconAlert className="w-8 h-8 text-red-500" />
@@ -577,7 +622,7 @@ export default function App() {
               project={project}
               onUpdateProfile={handleUpdateProfile}
               onUpdateProject={handleUpdateProject}
-              onUpload={handleUpload}
+              onUpload={handleUpload} // Now handles uploading via Wizard too
               onRequestAnalysis={(ctx) => handleTriggerAnalysisConfirmation(ctx)}
           />
       )}
