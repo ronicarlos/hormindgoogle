@@ -7,6 +7,23 @@ import { supabase } from '../lib/supabase';
 
 // Initialize Gemini Client
 const apiKey = process.env.API_KEY || '';
+
+// --- VERIFICAÇÃO DE CHAVE (DEBUG) ---
+// Isso ajuda o usuário a saber qual chave está sendo carregada sem expor a chave inteira.
+if (!apiKey) {
+    console.error("❌ ERRO CRÍTICO: GEMINI API_KEY NÃO ENCONTRADA. Verifique suas variáveis de ambiente.");
+} else {
+    const keyPrefix = apiKey.substring(0, 10);
+    console.log(`✅ Gemini Service Active. Model: gemini-1.5-flash. Key Prefix: ${keyPrefix}...`);
+    
+    // Verificação específica solicitada pelo usuário
+    if (keyPrefix === 'AIzaSyA46H') {
+        console.log("✅ A chave carregada CORRESPONDE à chave 'AIzaSyA46...' solicitada.");
+    } else {
+        console.warn(`⚠️ ALERTA: A chave carregada (${keyPrefix}...) PARECE DIFERENTE da chave AIzaSyA46... Verifique seu .env.`);
+    }
+}
+
 const ai = new GoogleGenAI({ apiKey });
 
 // Modelo Flash 1.5 Stable para garantir leitura de PDF sem erros 400
@@ -70,6 +87,10 @@ const buildContext = (
       context += "```json\n";
       context += JSON.stringify({ CURRENT_BIOMETRICS: biometricsData }, null, 2);
       context += "\n```\n";
+      context += "DIRETRIZ DE INTERPRETAÇÃO CORPORAL:\n";
+      context += "- Se algum dado estiver como 'N/A' ou vazio, ASSUMA QUE NÃO FOI MEDIDO. Não invente valores.\n";
+      context += "- Ao analisar o IMC: CRUZE OBRIGATORIAMENTE com o Percentual de Gordura (BF). Se o usuário tem IMC > 25 mas BF baixo (homem < 16%, mulher < 24%) ou usa esteroides, classifique como 'Sobrecarga Muscular/Atlético', JAMAIS como Obesidade.\n";
+      context += "- Priorize os valores de bioimpedância (BF%) sobre o IMC isolado sempre.\n";
       context += `=======================================================\n\n`;
   }
 

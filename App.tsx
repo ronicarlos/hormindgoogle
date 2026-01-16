@@ -28,7 +28,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.9'; 
+const APP_VERSION = '1.6.11'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -502,11 +502,13 @@ export default function App() {
               onChangeView={setCurrentView}
           />
 
-          {currentView === 'dashboard' && project && (
+          {/* Floating Action Button (Moved from Dashboard to Profile) */}
+          {currentView === 'profile' && project && (
               <div className="absolute bottom-20 right-6 z-30 flex flex-col gap-3 md:bottom-6">
                   <button
                       onClick={() => setIsInputModalOpen(true)}
                       className="p-4 bg-black text-white rounded-full shadow-xl hover:bg-gray-800 transition-transform active:scale-95 dark:bg-blue-600"
+                      title="Editar Parâmetros"
                   >
                       <IconSparkles className="w-6 h-6" />
                   </button>

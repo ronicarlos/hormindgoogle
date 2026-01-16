@@ -23,7 +23,7 @@ interface ProfileViewProps {
 }
 
 // VERSÃO DO CÓDIGO LOCAL (Fallback)
-const CODE_VERSION = "v1.6.9";
+const CODE_VERSION = "v1.6.12";
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
@@ -50,15 +50,6 @@ const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {
             {guides[part]}
         </svg>
     );
-};
-
-const MEASUREMENT_HINTS: Record<string, string> = {
-    chest: 'Linha dos mamilos',
-    arm: 'Bíceps contraído',
-    waist: 'Altura do umbigo',
-    hips: 'Maior circunferência',
-    thigh: 'Meio da coxa',
-    calf: 'Maior circunferência'
 };
 
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard, billingTrigger, onOpenSubscription, onLogout, onRequestAnalysis }) => {
@@ -130,13 +121,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
 
     const currentAge = calculateAge(formData.birthDate);
 
-    // Metabolic Engine Calculations
+    // Metabolic Engine Calculations (UPDATED LOGIC v1.6.12)
     useEffect(() => {
         const heightM = parseFloat(formData.height) / 100;
         const weightKg = parseFloat(formData.weight);
+        const bfPercent = parseFloat(formData.bodyFat);
         const waistCm = parseFloat(formData.measurements.waist);
         const hipCm = parseFloat(formData.measurements.hips);
         const age = currentAge || 30;
+        const isMale = formData.gender === 'Masculino';
         
         let newStats = {
             bmi: '',
@@ -146,37 +139,74 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
             whrRisk: ''
         };
 
+        // 1. Cálculo de IMC Inteligente (Considerando BF)
         if (heightM > 0 && weightKg > 0) {
             const bmi = weightKg / (heightM * heightM);
             newStats.bmi = bmi.toFixed(1);
-            if (bmi < 18.5) newStats.bmiClassification = 'Abaixo do Peso';
-            else if (bmi < 24.9) newStats.bmiClassification = 'Eutrófico (Normal)';
-            else if (bmi < 29.9) newStats.bmiClassification = 'Sobrepeso';
-            else newStats.bmiClassification = 'Obesidade';
+            
+            // Classificação Padrão
+            let classification = '';
+            if (bmi < 18.5) classification = 'Abaixo do Peso';
+            else if (bmi < 24.9) classification = 'Eutrófico (Normal)';
+            else if (bmi < 29.9) classification = 'Sobrepeso';
+            else classification = 'Obesidade';
+
+            // OVERRIDE: Se BF estiver preenchido e for baixo, invalida o IMC alto
+            if (!isNaN(bfPercent)) {
+                // Limites atléticos conservadores (ex: 16% Homem, 24% Mulher)
+                const athleticLimit = isMale ? 16 : 24;
+                
+                if (bmi >= 25 && bfPercent <= athleticLimit) {
+                    classification = 'Sobrecarga Muscular (Atlético)';
+                } else if (bmi < 25 && bfPercent > (isMale ? 25 : 32)) {
+                    // Falso Magro
+                    classification = 'Peso Normal (Alta Adiposidade)';
+                }
+            }
+
+            newStats.bmiClassification = classification;
+        } else {
+            newStats.bmi = '--';
+            newStats.bmiClassification = 'Aguardando dados (Peso/Altura)';
         }
 
+        // 2. Cálculo de TMB (Mifflin-St Jeor)
         if (weightKg > 0 && heightM > 0) {
             let bmr = (10 * weightKg) + (6.25 * (heightM * 100)) - (5 * age);
-            if (formData.gender === 'Masculino') bmr += 5;
+            if (isMale) bmr += 5;
             else bmr -= 161;
+            
+            // Ajuste fino se BF for conhecido (Katch-McArdle é melhor, mas vamos ajustar o Mifflin)
+            // Se muito musculoso, TMB é maior
+            if (!isNaN(bfPercent) && bfPercent < (isMale ? 12 : 20)) {
+                bmr = bmr * 1.05; // +5% por alta massa magra estimada
+            }
+
             newStats.bmr = Math.round(bmr).toString();
+        } else {
+            newStats.bmr = '--';
         }
 
+        // 3. RCQ
         if (waistCm > 0 && hipCm > 0) {
             const whr = waistCm / hipCm;
             newStats.whr = whr.toFixed(2);
-            if (formData.gender === 'Masculino') {
+            if (isMale) {
                 newStats.whrRisk = whr > 0.90 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
             } else {
                 newStats.whrRisk = whr > 0.85 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
             }
+        } else {
+            newStats.whr = '--';
+            newStats.whrRisk = 'Aguardando medidas';
         }
 
+        // Evita loop infinito
         if (JSON.stringify(newStats) !== JSON.stringify(formData.calculatedStats)) {
             setFormData(prev => ({ ...prev, calculatedStats: newStats }));
         }
 
-    }, [formData.height, formData.weight, formData.measurements.waist, formData.measurements.hips, formData.gender, currentAge]);
+    }, [formData.height, formData.weight, formData.bodyFat, formData.measurements.waist, formData.measurements.hips, formData.gender, currentAge]);
 
     useEffect(() => {
         if (profile) {
@@ -198,7 +228,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
     const handleChange = (field: keyof UserProfile, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         
-        // FIX CRÍTICO: Aplica o tema imediatamente no DOM
         if (field === 'theme') {
             if (value === 'dark') {
                 document.documentElement.classList.add('dark');
@@ -221,6 +250,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         const changes: string[] = [];
         
         if (formData.weight !== initialFormData.weight) changes.push(`Peso: ${initialFormData.weight || '0'} -> ${formData.weight}`);
+        if (formData.bodyFat !== initialFormData.bodyFat) changes.push(`BF%: ${initialFormData.bodyFat || '0'} -> ${formData.bodyFat}`);
         if (JSON.stringify(formData.measurements) !== JSON.stringify(initialFormData.measurements)) changes.push("Medidas corporais atualizadas.");
         if (formData.comorbidities !== initialFormData.comorbidities) changes.push("Histórico de doenças alterado.");
         if (formData.medications !== initialFormData.medications) changes.push("Medicamentos em uso alterados.");
@@ -273,30 +303,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         }
     };
 
-    // --- HARD REFRESH LOGIC (PWA FIX) ---
     const handleHardRefresh = async () => {
         if (!confirm("Isso irá limpar o cache local e forçar o download da versão mais recente do app. Continuar?")) return;
-
         try {
             if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
-                for(const registration of registrations) {
-                    await registration.unregister();
-                }
+                for(const registration of registrations) await registration.unregister();
             }
-        } catch (e) {
-            console.warn("SW Cleanup error", e);
-        }
-
-        try {
             if ('caches' in window) {
                 const names = await caches.keys();
                 await Promise.all(names.map(name => caches.delete(name)));
             }
         } catch (e) {
-            console.warn("Cache Cleanup error", e);
+            console.warn("Cleanup error", e);
         }
-
         window.location.reload();
     };
     
@@ -326,16 +346,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
         } finally {
             setIsUploadingAvatar(false);
             if (e.target) e.target.value = ''; 
-        }
-    };
-
-    const handleOpenDatePicker = () => {
-        if (birthDateInputRef.current) {
-            if (typeof birthDateInputRef.current.showPicker === 'function') {
-                birthDateInputRef.current.showPicker();
-            } else {
-                birthDateInputRef.current.focus();
-            }
         }
     };
 
@@ -454,27 +464,42 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                     </div>
                 </div>
 
-                {/* 5. METABOLIC STATS */}
+                {/* 5. METABOLIC STATS (REVISADO) */}
                 <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-6 md:p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden dark:from-gray-900 dark:to-gray-900 dark:border-indigo-900/30">
                     <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10 dark:text-indigo-300">
-                        <IconFlame className="w-4 h-4 text-orange-500" /> Índices Metabólicos
+                        <IconFlame className="w-4 h-4 text-orange-500" /> Índices Metabólicos (Estimados)
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
-                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">TMB (Basal)</p>
-                            <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmr || '--'} kcal</span>
+                    
+                    {formData.calculatedStats?.bmi === '--' ? (
+                        <div className="p-4 bg-white/60 rounded-xl border border-dashed border-indigo-200 text-center relative z-10 dark:bg-gray-800/60 dark:border-gray-700">
+                            <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                                Preencha Altura, Peso e BF% abaixo para liberar os cálculos.
+                            </p>
                         </div>
-                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
-                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">IMC</p>
-                            <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmi || '--'}</span>
-                            <p className="text-[10px] font-bold mt-1 text-gray-500">{formData.calculatedStats?.bmiClassification}</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
+                                <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">TMB (Basal)</p>
+                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmr || '--'} <span className="text-sm font-medium">kcal</span></span>
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
+                                <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">IMC / Composição</p>
+                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.bmi || '--'}</span>
+                                <p className={`text-[10px] font-bold mt-1 ${
+                                    formData.calculatedStats?.bmiClassification?.includes('Muscular') 
+                                    ? 'text-emerald-600 dark:text-emerald-400' 
+                                    : 'text-gray-500 dark:text-gray-400'
+                                }`}>
+                                    {formData.calculatedStats?.bmiClassification}
+                                </p>
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
+                                <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">RCQ (Cintura/Quadril)</p>
+                                <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.whr || '--'}</span>
+                                <p className="text-[10px] font-bold mt-1 text-gray-500 dark:text-gray-400">{formData.calculatedStats?.whrRisk}</p>
+                            </div>
                         </div>
-                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-indigo-100 shadow-sm dark:bg-gray-800/80 dark:border-gray-700">
-                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">RCQ (Cintura/Quadril)</p>
-                            <span className="text-2xl font-black text-gray-900 dark:text-white">{formData.calculatedStats?.whr || '--'}</span>
-                            <p className="text-[10px] font-bold mt-1 text-gray-500">{formData.calculatedStats?.whrRisk}</p>
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* 6. DADOS VITAIS */}
@@ -509,8 +534,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave, onOpenWizard
                                 <input type="number" value={formData.weight} onChange={(e) => handleChange('weight', e.target.value)} className={inputClass} />
                             </label>
                              <label className="block">
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF %</span>
-                                <input type="number" value={formData.bodyFat} onChange={(e) => handleChange('bodyFat', e.target.value)} className={inputClass} />
+                                <div className="flex items-center gap-1">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">BF %</span>
+                                    <Tooltip content="Se tiver o valor da Bioimpedância, use-o. Senão, deixe em branco ou use estimativa." position="top">
+                                        <IconInfo className="w-3 h-3 text-gray-400 cursor-help" />
+                                    </Tooltip>
+                                </div>
+                                <input 
+                                    type="number" 
+                                    value={formData.bodyFat} 
+                                    onChange={(e) => handleChange('bodyFat', e.target.value)} 
+                                    className={inputClass} 
+                                    placeholder="Ex: 15"
+                                />
                             </label>
                         </div>
                     </div>
