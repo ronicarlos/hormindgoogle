@@ -1,9 +1,10 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MarkerInfo, getMarkerInfo } from '../services/markerRegistry';
 import { analyzePoint } from '../services/analyticsService';
 import { MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconCheck, IconInfo, IconClose, IconScience, IconArrowLeft } from './Icons';
+import { IconActivity, IconAlert, IconCheck, IconClose, IconScience } from './Icons';
 
 interface MarkerInfoPanelProps {
     activeData: { markerId: string; value: number; date: string; history: MetricPoint[] } | null;
@@ -12,9 +13,24 @@ interface MarkerInfoPanelProps {
 }
 
 const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, gender }) => {
-    // Se não houver dados ativos, não renderiza nada (ou renderiza placeholder no desktop)
-    // Mas para manter o layout, vamos renderizar o container sempre no Desktop
-    
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Trava o scroll do fundo no mobile quando o modal abre
+    useEffect(() => {
+        if (isMobile && activeData) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [isMobile, activeData]);
+
     const info = useMemo(() => {
         if (!activeData) return null;
         return getMarkerInfo(activeData.markerId);
@@ -25,8 +41,11 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
         return analyzePoint(activeData.value, activeData.date, activeData.history, info, gender);
     }, [activeData, info, gender]);
 
+    // --- RENDERERS ---
+
+    // 1. Empty State (Desktop Only)
     if (!activeData || !info || !analysis) {
-        // EMPTY STATE (Desktop Only - Sidebar visível mas vazia)
+        if (isMobile) return null; // No mobile não mostra nada se não tiver dados
         return (
             <div className="hidden md:flex flex-col h-full bg-white border-l border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800 w-80 shrink-0">
                 <div className="flex flex-col items-center justify-center h-full text-center opacity-50 space-y-4">
@@ -36,7 +55,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     <div>
                         <h3 className="text-sm font-bold text-gray-900 dark:text-white">Explorador de Métricas</h3>
                         <p className="text-xs text-gray-500 mt-1 max-w-[200px] mx-auto dark:text-gray-400">
-                            Passe o mouse ou toque em qualquer ponto do gráfico para ver a análise clínica detalhada aqui.
+                            Passe o mouse sobre os gráficos para ver a análise detalhada.
                         </p>
                     </div>
                 </div>
@@ -52,18 +71,18 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
 
     const IconStatus = analysis.status === 'NORMAL' ? IconCheck : IconAlert;
 
-    // CONTENT RENDERER
-    const Content = () => (
-        <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
+    // Componente de Conteúdo Reutilizável
+    const Content = ({ isModal = false }) => (
+        <div className={`flex flex-col h-full ${isModal ? '' : 'overflow-y-auto custom-scrollbar'}`}>
             
             {/* Header */}
-            <div className="pb-4 border-b border-gray-100 dark:border-gray-800 shrink-0">
+            <div className={`pb-4 border-b border-gray-100 dark:border-gray-800 shrink-0 ${isModal ? 'p-6 pb-4' : ''}`}>
                 <div className="flex justify-between items-start mb-2">
                     <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{activeData.date}</span>
-                        <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5">{info.label}</h2>
+                        <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5 pr-4">{info.label}</h2>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right whitespace-nowrap">
                         <span className={`block text-2xl font-black ${analysis.riskColor}`}>
                             {activeData.value}
                         </span>
@@ -80,8 +99,8 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                 </div>
             </div>
 
-            {/* Body */}
-            <div className="py-6 space-y-6 flex-1">
+            {/* Body Scrolling Area */}
+            <div className={`space-y-6 flex-1 ${isModal ? 'overflow-y-auto p-6 pt-4' : 'py-6'}`}>
                 
                 {/* Definição */}
                 <div>
@@ -140,10 +159,13 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                         ))}
                     </div>
                 )}
+                
+                {/* Spacer final para garantir scroll completo */}
+                <div className="h-4"></div>
             </div>
 
             {/* Footer */}
-            <div className="pt-4 border-t border-gray-100 text-center dark:border-gray-800 shrink-0">
+            <div className={`border-t border-gray-100 text-center dark:border-gray-800 shrink-0 ${isModal ? 'p-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl' : 'pt-4'}`}>
                 <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
                     Conteúdo Educativo • Não é Diagnóstico
                 </p>
@@ -151,42 +173,38 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
         </div>
     );
 
-    return (
-        <>
-            {/* DESKTOP SIDEBAR (Static) */}
-            <div className="hidden md:block w-80 bg-white border-l border-gray-200 h-full overflow-hidden shrink-0 dark:bg-gray-900 dark:border-gray-800 relative z-20">
-                <div className="h-full p-6">
-                    <Content />
-                </div>
-            </div>
-
-            {/* MOBILE BOTTOM SHEET (Fixed Overlay) */}
-            <div className="md:hidden fixed inset-0 z-[100] flex items-end sm:items-center justify-center pointer-events-none">
-                {/* Backdrop (clickable to close) */}
+    // 2. Mobile View (Modal via Portal)
+    if (isMobile) {
+        return createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-none" onClick={onClose}>
+                {/* Container Modal Limitado */}
                 <div 
-                    className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto animate-in fade-in duration-300" 
-                    onClick={onClose}
-                />
-                
-                {/* Card */}
-                <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl pointer-events-auto animate-in slide-in-from-bottom duration-300 max-h-[85vh] flex flex-col overflow-hidden dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-                    {/* Handle Bar for mobile feel */}
-                    <div className="w-full flex justify-center pt-3 pb-1" onClick={onClose}>
-                        <div className="w-12 h-1.5 bg-gray-300 rounded-full dark:bg-gray-700" />
-                    </div>
-                    
-                    <div className="p-6 overflow-y-auto">
-                        <Content />
-                        <button 
-                            onClick={onClose}
-                            className="mt-6 w-full py-3 bg-gray-100 text-gray-700 font-bold rounded-xl dark:bg-gray-800 dark:text-white"
-                        >
-                            Fechar
-                        </button>
-                    </div>
+                    className="bg-white w-[92vw] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 dark:bg-gray-900 dark:border dark:border-gray-800"
+                    onClick={(e) => e.stopPropagation()} // Previne fechar ao clicar dentro
+                >
+                    {/* Botão Fechar Flutuante */}
+                    <button 
+                        onClick={onClose}
+                        className="absolute top-3 right-3 z-10 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-400"
+                    >
+                        <IconClose className="w-5 h-5" />
+                    </button>
+
+                    {/* Conteúdo com Scroll Interno */}
+                    <Content isModal={true} />
                 </div>
+            </div>,
+            document.body
+        );
+    }
+
+    // 3. Desktop View (Sidebar Fixa)
+    return (
+        <div className="hidden md:block w-80 bg-white border-l border-gray-200 h-full overflow-hidden shrink-0 dark:bg-gray-900 dark:border-gray-800 relative z-20">
+            <div className="h-full p-6">
+                <Content />
             </div>
-        </>
+        </div>
     );
 };
 
