@@ -16,6 +16,7 @@ interface ChatInterfaceProps {
     project: Project;
     onUpdateProject: (p: Project) => void;
     refreshTrigger?: number; // Prop para forçar recarregamento externo
+    isProcessing?: boolean; // NEW: Indica se há processamento externo (App level) ocorrendo
 }
 
 // Helper para destacar texto
@@ -38,7 +39,7 @@ const HighlightText = ({ text, highlight }: { text: string, highlight: string })
     );
 };
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject, refreshTrigger = 0 }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject, refreshTrigger = 0, isProcessing = false }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isThinking, setIsThinking] = useState(false);
@@ -68,12 +69,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
         loadMessages();
     }, [project.id, refreshTrigger]);
 
-    // Scroll para baixo apenas se NÃO estiver buscando (para não pular enquanto lê histórico)
+    // Scroll para baixo quando mensagens mudam, ou quando entra em estado de processamento
     useEffect(() => {
-        if (!searchTerm && !showBookmarksOnly) {
+        if ((!searchTerm && !showBookmarksOnly) || isThinking || isProcessing) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [messages, searchTerm, showBookmarksOnly]);
+    }, [messages, searchTerm, showBookmarksOnly, isThinking, isProcessing]);
 
     // Auto-focus no input de busca ao abrir
     useEffect(() => {
@@ -239,6 +240,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
             : true;
         return matchesSearch && matchesBookmark;
     });
+
+    const isSystemBusy = isThinking || isProcessing;
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-950 relative">
@@ -411,7 +414,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
             {/* Input Area (Visible UNLESS SEARCHING TEXT) */}
             {!isSearchOpen && (
                 <div className="p-4 bg-white border-t border-gray-100 dark:bg-gray-900 dark:border-gray-800 sticky bottom-0 z-20">
-                    {isThinking ? (
+                    {isSystemBusy ? (
                         /* STATUS DE PROCESSAMENTO - Bloqueia Input */
                         <div className="max-w-4xl mx-auto flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm animate-pulse dark:bg-blue-900/20 dark:border-blue-800/50">
                             <div className="flex space-x-1 shrink-0">
@@ -420,7 +423,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
                                 <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
                             </div>
                             <span className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">
-                                A IA está avaliando seu protocolo completo...
+                                {isProcessing ? 'Sincronizando Análise Externa...' : 'A IA está avaliando seu protocolo...'}
                             </span>
                         </div>
                     ) : (

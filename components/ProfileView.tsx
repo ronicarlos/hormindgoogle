@@ -26,7 +26,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.26";
+const CODE_VERSION = "v1.6.27";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -283,8 +283,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         if (formData.comorbidities !== initialFormData.comorbidities) changes.push("Histórico de doenças alterado.");
         if (formData.medications !== initialFormData.medications) changes.push("Medicamentos em uso alterados.");
 
-        // Targets
-        if (formData.targetWeight !== initialFormData.targetWeight) changes.push("Meta de peso alterada.");
+        // Targets - Atualizado para cobrir todos os campos de meta
+        if (formData.targetWeight !== initialFormData.targetWeight) changes.push(`Meta de Peso: ${initialFormData.targetWeight || '?'} -> ${formData.targetWeight}`);
+        if (formData.targetBodyFat !== initialFormData.targetBodyFat) changes.push(`Meta de BF%: ${initialFormData.targetBodyFat || '?'} -> ${formData.targetBodyFat}`);
+        if (JSON.stringify(formData.targetMeasurements) !== JSON.stringify(initialFormData.targetMeasurements)) changes.push("Metas de medidas corporais atualizadas.");
 
         // Hormones
         if (hormones.testo !== initialHormones.testo) changes.push(`Testosterona Atualizada: ${hormones.testo}`);

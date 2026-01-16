@@ -28,7 +28,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.26'; 
+const APP_VERSION = '1.6.27'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -380,6 +380,8 @@ export default function App() {
   }
 
   // Se estiver carregando, mas não for por causa do Overlay de Processamento (que tem seu próprio UI)
+  // E o projeto não estiver carregado. Se o projeto ESTIVER carregado e isLoading for true,
+  // significa que estamos processando uma análise em background (ChatInterface lidará com isso).
   if (isLoading && !project && !processingState) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
@@ -444,6 +446,7 @@ export default function App() {
                               project={project} 
                               onUpdateProject={handleUpdateProject} 
                               refreshTrigger={billingTrigger} // Pass trigger to force update
+                              isProcessing={isLoading} // Feedback visual de processamento vindo do App
                           />
                       )}
 
