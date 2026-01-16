@@ -320,25 +320,47 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     calories
                 );
 
-                // 3. Save Hormones as Metrics if changed
+                // 3. Save Hormones & Critical Stats as Metrics if changed (COM DATA DE HOJE)
                 const today = new Date().toLocaleDateString('pt-BR');
                 const updatedMetrics = { ...project.metrics };
 
+                // Testosterona
                 if (hormones.testo && hormones.testo !== initialHormones.testo) {
                     const val = parseFloat(hormones.testo);
                     if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: 'ng/dL', label: 'Profile Update' };
+                        const pt = { date: today, value: val, unit: 'ng/dL', label: 'Manual Profile Input' };
                         await dataService.addMetric(project.id, 'Testosterone', pt);
                         updatedMetrics['Testosterone'] = [...(updatedMetrics['Testosterone'] || []), pt];
                     }
                 }
                 
+                // Estradiol
                 if (hormones.e2 && hormones.e2 !== initialHormones.e2) {
                     const val = parseFloat(hormones.e2);
                     if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: 'pg/mL', label: 'Profile Update' };
+                        const pt = { date: today, value: val, unit: 'pg/mL', label: 'Manual Profile Input' };
                         await dataService.addMetric(project.id, 'Estradiol', pt);
                         updatedMetrics['Estradiol'] = [...(updatedMetrics['Estradiol'] || []), pt];
+                    }
+                }
+
+                // Peso
+                if (formData.weight && formData.weight !== initialFormData.weight) {
+                    const val = parseFloat(formData.weight);
+                    if (!isNaN(val)) {
+                        const pt = { date: today, value: val, unit: 'kg', label: 'Manual Profile Input' };
+                        await dataService.addMetric(project.id, 'Weight', pt);
+                        updatedMetrics['Weight'] = [...(updatedMetrics['Weight'] || []), pt];
+                    }
+                }
+
+                // BF%
+                if (formData.bodyFat && formData.bodyFat !== initialFormData.bodyFat) {
+                    const val = parseFloat(formData.bodyFat);
+                    if (!isNaN(val)) {
+                        const pt = { date: today, value: val, unit: '%', label: 'Manual Profile Input' };
+                        await dataService.addMetric(project.id, 'BodyFat', pt);
+                        updatedMetrics['BodyFat'] = [...(updatedMetrics['BodyFat'] || []), pt];
                     }
                 }
 

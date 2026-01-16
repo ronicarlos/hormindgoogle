@@ -315,8 +315,11 @@ export default function App() {
               // 2. OCR AI Processing
               setProcessingState(prev => ({ ...prev!, step: 'ocr' }));
               
-              // CRÍTICO: Usa a data de modificação do arquivo como fallback se a IA não achar data impressa
+              // CRÍTICO: Extrai metadados do arquivo (Data de criação/modificação)
+              // Se o OCR falhar em achar a data impressa, usaremos esta data como a "verdade histórica" do arquivo.
+              // Isso evita que exames antigos sejam datados como "hoje".
               const fileDate = new Date(file.lastModified).toLocaleDateString('pt-BR');
+              
               const { extractedText, metrics, documentType, detectedDate } = await processDocument(file, fileDate);
               
               // 3. Salvando dados
@@ -330,7 +333,8 @@ export default function App() {
                   id: '',
                   title: file.name,
                   type: (file.type === 'application/pdf' ? SourceType.PDF : SourceType.IMAGE) as SourceType,
-                  date: detectedDate || fileDate, // Usa detectedDate se existir, senão usa data do arquivo
+                  // detectedDate vem do OCR (prioridade). fileDate vem do metadado do arquivo (fallback).
+                  date: detectedDate || fileDate, 
                   content: extractedText,
                   summary: 'Processado automaticamente via OCR IA.',
                   selected: true,

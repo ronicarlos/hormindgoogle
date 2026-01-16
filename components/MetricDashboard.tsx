@@ -70,6 +70,15 @@ const CustomizedLabel = (props: any) => {
     );
 };
 
+interface InteractiveChartWrapperProps {
+    children: React.ReactNode;
+    data: MetricPoint[];
+    title: string;
+    onActivate: (point: MetricPoint) => void;
+    isMobile: boolean;
+    onClick: (state: any) => void;
+}
+
 // --- CHART WRAPPER (Handles hover logic) ---
 const InteractiveChartWrapper = ({ 
     children, 
@@ -78,14 +87,7 @@ const InteractiveChartWrapper = ({
     onActivate,
     isMobile,
     onClick // Passado do pai
-}: { 
-    children: React.ReactNode, 
-    data: MetricPoint[], 
-    title: string,
-    onActivate: (point: MetricPoint) => void,
-    isMobile: boolean,
-    onClick: (state: any) => void
-}) => {
+}: InteractiveChartWrapperProps) => {
     const TriggerTooltip = ({ active, payload }: any) => {
         const lastPointRef = useRef<string | null>(null);
 
@@ -190,7 +192,7 @@ const BiomarkerChart = ({
     // Referência para controlar o duplo clique manualmente
     const lastClickTime = useRef<number>(0);
 
-    const { cleanData, minIndex, maxIndex } = useMemo(() => {
+    const { cleanData, minIndex, maxIndex } = useMemo<{ cleanData: MetricPoint[], minIndex: number, maxIndex: number }>(() => {
         if (!data || data.length === 0) return { cleanData: [], minIndex: -1, maxIndex: -1 };
         
         const sorted = [...data]

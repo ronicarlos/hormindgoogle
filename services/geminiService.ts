@@ -64,6 +64,23 @@ const calculateAge = (birthDate?: string): string => {
     return age.toString();
 };
 
+const parseDate = (dateStr: string): number => {
+    try {
+        if (!dateStr) return 0;
+        // Formato DD/MM/YYYY
+        if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
+            }
+        }
+        // Formato ISO YYYY-MM-DD
+        return new Date(dateStr).getTime();
+    } catch (e) {
+        return 0;
+    }
+};
+
 const buildContext = (
     sources: Source[], 
     profile?: UserProfile, 
@@ -71,11 +88,29 @@ const buildContext = (
 ): string => {
   const today = new Date().toLocaleDateString('pt-BR');
   
-  let context = `DATA DO SISTEMA: ${today}\n`;
+  let context = `DATA ATUAL DO SISTEMA: ${today}\n`;
   context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n\n";
   context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica e farmacológica (Medical Grade).\n";
-  context += "REGRA DE OURO (ANTI-ALUCINAÇÃO): O histórico de chat pode conter dados antigos ou incorretos. IGNORE COMPLETAMENTE quaisquer medidas, idades ou datas citadas em mensagens anteriores se diferirem dos DADOS VITAIS abaixo.\n";
-  context += "A ÚNICA FONTE DE VERDADE para a condição física atual é o bloco JSON 'CURRENT_BIOMETRICS' e o 'HISTÓRICO DE EXAMES'.\n\n";
+  context += "HIERARQUIA DE DADOS (REGRA SUPREMA):\n";
+  context += "1. DADOS CADASTRAIS RECENTES (USER INPUT) = VERDADE ABSOLUTA DO ESTADO ATUAL.\n";
+  context += "2. Metadados de Arquivos = Definem a data histórica do exame.\n";
+  context += "3. Histórico do Chat = Baixa confiabilidade (pode conter alucinações antigas).\n\n";
+  context += "Se houver conflito entre um exame antigo (PDF) e o perfil atual (Input Manual), O PERFIL ATUAL VENCE.\n\n";
+
+  // Extrair hormônios mais recentes para o contexto vital
+  let latestTesto = 'N/A';
+  let latestE2 = 'N/A';
+  
+  if (metrics) {
+      if (metrics['Testosterone'] && metrics['Testosterone'].length > 0) {
+          const sorted = [...metrics['Testosterone']].sort((a,b) => parseDate(b.date) - parseDate(a.date));
+          latestTesto = `${sorted[0].value} ${sorted[0].unit} (Data: ${sorted[0].date})`;
+      }
+      if (metrics['Estradiol'] && metrics['Estradiol'].length > 0) {
+          const sorted = [...metrics['Estradiol']].sort((a,b) => parseDate(b.date) - parseDate(a.date));
+          latestE2 = `${sorted[0].value} ${sorted[0].unit} (Data: ${sorted[0].date})`;
+      }
+  }
 
   if (profile) {
       const age = calculateAge(profile.birthDate);
@@ -87,6 +122,10 @@ const buildContext = (
           height_cm: profile.height,
           weight_kg: profile.weight,
           bodyFat_percent: profile.bodyFat || 'N/A',
+          latest_hormones: {
+              testosterone: latestTesto,
+              estradiol: latestE2
+          },
           measurements_cm: {
               chest: profile.measurements.chest || 'N/A',
               arm: profile.measurements.arm || 'N/A',
@@ -106,31 +145,27 @@ const buildContext = (
       context += "```json\n";
       context += JSON.stringify({ CURRENT_BIOMETRICS: biometricsData }, null, 2);
       context += "\n```\n";
-      context += "DIRETRIZ DE INTERPRETAÇÃO CORPORAL:\n";
-      context += "- Se algum dado estiver como 'N/A' ou vazio, ASSUMA QUE NÃO FOI MEDIDO. Não invente valores.\n";
-      context += "- Priorize os valores de bioimpedância (BF%) sobre o IMC isolado sempre.\n";
+      context += "DIRETRIZ DE INTERPRETAÇÃO:\n";
+      context += "- O bloco 'latest_hormones' acima contém o valor MAIS RECENTE conhecido. Ignore valores contraditórios em PDFs antigos.\n";
       context += `=======================================================\n\n`;
   }
 
   if (metrics && Object.keys(metrics).length > 0) {
       context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS COMPLETO) ===\n`;
+      context += `(Ordenados do mais recente para o mais antigo. A data define a validade.)\n`;
       for (const [category, points] of Object.entries(metrics)) {
-          const sorted = [...points].sort((a,b) => {
-              const dateA = a.date.split('/').reverse().join('-'); 
-              const dateB = b.date.split('/').reverse().join('-');
-              return new Date(dateB).getTime() - new Date(dateA).getTime();
-          });
+          const sorted = [...points].sort((a,b) => parseDate(b.date) - parseDate(a.date));
           
           if (sorted.length > 0) {
               const latest = sorted[0];
               const refs = latest.refMin !== undefined || latest.refMax !== undefined ? ` (Ref: ${latest.refMin || '?'} - ${latest.refMax || '?'})` : '';
-              context += `- ${category}: ${latest.value} ${latest.unit}${refs} (Data: ${latest.date})\n`;
+              context += `- ${category}: ${latest.value} ${latest.unit}${refs} [DATA: ${latest.date}]\n`;
           }
       }
       context += `======================================================\n\n`;
   }
 
-  context += "=== 3. CONTEXTO DOCUMENTAL (INPUTS/DIÁRIOS) ===\n";
+  context += "=== 3. CONTEXTO DOCUMENTAL (ARQUIVOS) ===\n";
   if (sources.length > 0) {
       sources.forEach(source => {
         const prefix = source.type === 'USER_INPUT' ? '[REGISTRO DIÁRIO]' : `[DOC: ${source.title}]`;
@@ -147,7 +182,7 @@ const buildContext = (
   context += `\nDIRETRIZES DE RESPOSTA MÉDICA:
 1. Use seu conhecimento clínico avançado (Medical Model).
 2. Prioridade Absoluta: Use os dados do bloco JSON 'CURRENT_BIOMETRICS'.
-3. Ao analisar exames, considere TODO o histórico disponível na seção 2.
+3. Ao analisar exames, considere a DATA. Exames antigos são histórico, não estado atual.
 `;
   return context;
 };
@@ -186,23 +221,17 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         === TAREFA 1: TRANSCRIÇÃO VISUAL (MARKDOWN) ===
         - Leia o documento de cima a baixo.
         - Transcreva TODO o texto visível, mantendo a formatação de tabelas (se houver).
-        - Se for um exame de sangue, liste: Exame | Resultado | Unidade | Referência.
-        - Se for um treino, liste: Exercício | Séries | Repetições | Carga.
         
         === TAREFA 2: EXTRAÇÃO DE DADOS (JSON) ===
-        No FINAL da resposta, adicione ESTRITAMENTE o separador "---END_OF_TEXT---" e um objeto JSON contendo os dados numéricos encontrados.
+        No FINAL da resposta, adicione ESTRITAMENTE o separador "---END_OF_TEXT---" e um objeto JSON.
         
         REGRAS DE EXTRAÇÃO:
-        1. DATA: Procure "Data de Coleta", "Data de Emissão" ou datas no cabeçalho. Se não achar, use null.
+        1. DATA (CRÍTICO): Procure EXPLICITAMENTE por "Data de Coleta", "Data de Emissão", "Realizado em". Se encontrar, use o formato DD/MM/AAAA. Se não encontrar data IMPRESSA no documento, retorne null no JSON (o sistema usará metadados do arquivo).
         2. TIPO: Identifique se é "Hemograma", "Bioquímica", "Hormonal", "Treino", "Dieta", etc.
         3. MÉTRICAS E REFERÊNCIAS: 
            - Extraia resultados numéricos claros.
-           - Tente extrair a FAIXA DE REFERÊNCIA (Min e Max) que aparece ao lado do resultado.
+           - Extraia a FAIXA DE REFERÊNCIA (Min e Max).
            - Padronize nomes: "Testosterona Total" -> "Testosterona".
-           - Se a referência for "Inferior a 10", refMin = null, refMax = 10.
-           - Se a referência for "Superior a 50", refMin = 50, refMax = null.
-           - Se a referência for "10 a 20", refMin = 10, refMax = 20.
-           - Se o resultado for QUALITATIVO (Ex: "Não Reagente"), NÃO inclua no JSON de métricas numéricas, deixe apenas na transcrição.
         
         JSON Schema Obrigatório:
         { 
@@ -234,7 +263,6 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             parsed = JSON.parse(jsonContent);
         } catch (e) {
             console.warn("Falha ao parsear JSON de métricas (mantendo texto OCR):", e);
-            // Tenta limpar caracteres invisíveis ou erros comuns
             try {
                 const cleanJson = jsonContent.replace(/[\u0000-\u0019]+/g,""); 
                 parsed = JSON.parse(cleanJson);
@@ -248,7 +276,10 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             }
         }
 
+        // LÓGICA DE DATA: Se o OCR achou data, usa ela. Se não, usa a data do metadado do arquivo (defaultDate)
+        // Isso impede que exames antigos upados hoje fiquem com data de hoje se tiverem data impressa.
         const finalDate = parsed.detectedDate || defaultDate;
+        
         const finalMetrics = (parsed.metrics || []).map((m: any) => ({
             category: m.category,
             data: {
@@ -318,8 +349,6 @@ export const generateAIResponse = async (
 
     } catch (primaryError: any) {
         console.warn(`FitLM: Modelo Médico (${MEDICAL_MODEL}) falhou. Tentando fallback para Flash...`);
-        // Fallback apenas se o modelo médico falhar (ex: quota, indisponibilidade)
-        // Usa o modelo de OCR como estepe pois é mais leve
         const responseFallback = await ai.models.generateContent({
             model: OCR_MODEL, 
             contents: [
