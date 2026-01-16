@@ -28,7 +28,7 @@ import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.27'; 
+const APP_VERSION = '1.6.28'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -36,6 +36,15 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Detecção Mobile Real
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+      const handleResize = () => setIsMobile(window.innerWidth < 768);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Feedback Visual State (New)
   const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
@@ -457,7 +466,7 @@ export default function App() {
                               onGenerateProntuario={handleGenerateProntuario}
                               isProcessing={isLoading}
                               onViewSource={(id) => { setSelectedSourceId(id); }}
-                              isMobileView={true} 
+                              isMobileView={isMobile} 
                           />
                       )}
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
 import { IconActivity, IconAlert, IconSparkles, IconHeart, IconDumbbell, IconReportPDF, IconCheck, IconShield, IconFile, IconScience } from './Icons';
@@ -42,31 +42,71 @@ const InteractiveChartWrapper = ({
     children, 
     data, 
     title,
-    onActivate 
+    onActivate,
+    isMobile
 }: { 
     children: React.ReactNode, 
     data: MetricPoint[], 
     title: string,
-    onActivate: (point: MetricPoint) => void 
+    onActivate: (point: MetricPoint) => void,
+    isMobile: boolean
 }) => {
-    // Custom Tooltip apenas para trigger (invisível ou mínimo)
+    // Custom Tooltip Otimizado
     const TriggerTooltip = ({ active, payload }: any) => {
-        React.useEffect(() => {
+        // Ref para evitar updates repetidos do mesmo ponto (Performance Critical)
+        const lastPointRef = useRef<string | null>(null);
+
+        useEffect(() => {
             if (active && payload && payload.length) {
-                // Notifica o pai sobre o ponto ativo
                 const point = payload[0].payload;
-                // Injeta o título do gráfico como markerId se não tiver label específica
-                onActivate({ ...point, label: point.label || title, unit: point.unit }); 
+                const uniqueKey = `${point.date}-${point.value}`;
+
+                // DESKTOP: Atualiza sidebar automaticamente no hover
+                // MOBILE: Não faz nada automático (espera clique no botão)
+                if (!isMobile && lastPointRef.current !== uniqueKey) {
+                    lastPointRef.current = uniqueKey;
+                    // Injeta o título do gráfico como markerId se não tiver label específica
+                    onActivate({ ...point, label: point.label || title, unit: point.unit }); 
+                }
+            } else if (!active) {
+                lastPointRef.current = null;
             }
         }, [active, payload]);
         
-        if (!active) return null;
+        if (!active || !payload || !payload.length) return null;
         
-        // Renderiza apenas um indicador visual mínimo (cursor line já é feito pelo Chart)
-        // Isso evita "sujeira" visual sobre o gráfico, pois o detalhe está no Painel
+        const point = payload[0].payload;
+
+        // MOBILE UX: Tooltip com Botão de Ação
+        if (isMobile) {
+            return (
+                <div className="bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-gray-200 flex flex-col items-center gap-2 z-50 dark:bg-gray-800/95 dark:border-gray-700">
+                    <div className="text-center">
+                        <span className="block font-black text-sm text-gray-900 dark:text-white">{point.value} <span className="text-xs font-normal text-gray-500 uppercase">{point.unit}</span></span>
+                        <span className="text-[10px] text-gray-400 font-medium">{point.date}</span>
+                    </div>
+                    <button
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wide active:scale-95 transition-transform shadow-md w-full"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onActivate({ ...point, label: point.label || title, unit: point.unit });
+                        }}
+                        // Importante para garantir que o clique passe
+                        onTouchEnd={(e) => {
+                            e.stopPropagation();
+                            onActivate({ ...point, label: point.label || title, unit: point.unit });
+                        }}
+                    >
+                        Ver Análise
+                    </button>
+                </div>
+            );
+        }
+        
+        // DESKTOP UX: Minimalista (Valor segue o cursor)
         return (
             <div className="bg-white/90 backdrop-blur px-2 py-1 rounded shadow-sm border border-gray-200 text-[10px] font-bold text-gray-600 dark:bg-gray-800/90 dark:border-gray-700 dark:text-gray-300">
-                {payload?.[0]?.value}
+                {point.value}
             </div>
         );
     };
@@ -84,7 +124,9 @@ const InteractiveChartWrapper = ({
                                 key="trigger-tooltip"
                                 content={<TriggerTooltip />}
                                 cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '3 3' }}
-                                isAnimationActive={false} // Performance
+                                isAnimationActive={false} // Performance critical
+                                wrapperStyle={isMobile ? { zIndex: 100, pointerEvents: 'auto' } : undefined} // Permite clique no mobile
+                                allowEscapeViewBox={{ x: true, y: true }}
                             />
                         ]
                     });
@@ -95,7 +137,7 @@ const InteractiveChartWrapper = ({
     );
 };
 
-// --- COMPONENTES DE GRÁFICO (Simplificados para usar o Wrapper) ---
+// --- COMPONENTES DE GRÁFICO ---
 
 const BiomarkerChart = ({ 
     title, 
@@ -105,7 +147,8 @@ const BiomarkerChart = ({
     maxRef, 
     yDomain,
     type = 'line',
-    onHover // Callback para o painel
+    onHover,
+    isMobile
 }: { 
     title: string; 
     data: MetricPoint[]; 
@@ -115,6 +158,7 @@ const BiomarkerChart = ({
     yDomain?: [number | string, number | string];
     type?: 'line' | 'area';
     onHover: (point: MetricPoint) => void;
+    isMobile: boolean;
 }) => {
     const cleanData = useMemo(() => {
         if (!data || data.length === 0) return [];
@@ -142,7 +186,7 @@ const BiomarkerChart = ({
             </div>
             <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800">
                 <ResponsiveContainer width="100%" height="100%">
-                    <InteractiveChartWrapper data={cleanData} title={title} onActivate={onHover}>
+                    <InteractiveChartWrapper data={cleanData} title={title} onActivate={onHover} isMobile={isMobile}>
                         {type === 'area' ? (
                             <AreaChart data={cleanData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <defs>
@@ -193,7 +237,7 @@ const BiomarkerChart = ({
 
 // --- DASHBOARD PRINCIPAL ---
 
-const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView, isProcessing, onViewSource }) => {
+const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView = false, isProcessing, onViewSource }) => {
     // STATE GLOBAL DO PAINEL
     const [activeMarkerData, setActiveMarkerData] = useState<{ markerId: string; value: number; date: string; history: MetricPoint[] } | null>(null);
 
@@ -205,7 +249,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
         }
         
         setActiveMarkerData({
-            markerId: markerId, // Nome normalizado será tratado no Registry
+            markerId: markerId, 
             value: Number(point.value),
             date: point.date,
             history: history
@@ -315,6 +359,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                     color={chartColor}
                                     type={cat.includes('Peso') ? 'area' : 'line'}
                                     onHover={(point) => handleChartHover(point, cat, metrics[cat])}
+                                    isMobile={isMobileView}
                                 />
                             </div>
                         );
