@@ -23,6 +23,8 @@ interface DBMetric {
     value: number;
     unit: string;
     label: string;
+    ref_min?: number;
+    ref_max?: number;
 }
 
 interface DBMessage {
@@ -219,7 +221,9 @@ export const dataService = {
                         date: m.date,
                         value: m.value,
                         unit: m.unit,
-                        label: m.label
+                        label: m.label,
+                        refMin: m.ref_min,
+                        refMax: m.ref_max
                     });
                 });
             }
@@ -487,7 +491,9 @@ export const dataService = {
                 date: safeDate,
                 value: point.value,
                 unit: point.unit,
-                label: point.label
+                label: point.label,
+                ref_min: point.refMin,
+                ref_max: point.refMax
             });
         
         if (error) console.error('Error adding metric:', error.message);

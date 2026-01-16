@@ -430,7 +430,13 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
 
             if (lastPoint) {
                 const info = getMarkerInfo(cat);
-                const analysis = analyzePoint(Number(lastPoint.value), lastPoint.date, history, info, gender);
+                
+                // Preparar referências dinâmicas se houver
+                const dynamicRef = (lastPoint.refMin !== undefined || lastPoint.refMax !== undefined) 
+                    ? { min: lastPoint.refMin, max: lastPoint.refMax } 
+                    : undefined;
+
+                const analysis = analyzePoint(Number(lastPoint.value), lastPoint.date, history, info, gender, dynamicRef);
                 
                 if (analysis.status === 'BORDERLINE_HIGH' || analysis.status === 'BORDERLINE_LOW') {
                     alerts.push({
@@ -439,6 +445,19 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         unit: lastPoint.unit,
                         status: analysis.status,
                         message: analysis.status === 'BORDERLINE_HIGH' ? 'Próximo ao limite superior' : 'Próximo ao limite inferior',
+                        date: lastPoint.date,
+                        point: lastPoint,
+                        history: history
+                    });
+                }
+                // Adicionando também alertas críticos dinâmicos (para marcadores desconhecidos)
+                if (info.isGeneric && (analysis.status === 'HIGH' || analysis.status === 'LOW')) {
+                     alerts.push({
+                        category: cat,
+                        value: lastPoint.value,
+                        unit: lastPoint.unit,
+                        status: analysis.status,
+                        message: analysis.status === 'HIGH' ? 'Valor crítico acima da referência' : 'Valor crítico abaixo da referência',
                         date: lastPoint.date,
                         point: lastPoint,
                         history: history
@@ -595,17 +614,29 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                             <div 
                                                 key={idx}
                                                 onClick={() => handleChartHover(alert.point, alert.category, alert.history)}
-                                                className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 cursor-pointer hover:bg-yellow-100 transition-colors dark:bg-yellow-900/10 dark:border-yellow-900/40 dark:hover:bg-yellow-900/20"
+                                                className={`rounded-xl p-4 cursor-pointer transition-colors border ${
+                                                    alert.status === 'HIGH' || alert.status === 'LOW' 
+                                                    ? 'bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/40'
+                                                    : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40'
+                                                }`}
                                             >
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <h4 className="font-bold text-yellow-900 text-xs uppercase tracking-wider dark:text-yellow-200">{alert.category}</h4>
-                                                    <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-400">{alert.date}</span>
+                                                    <h4 className={`font-bold text-xs uppercase tracking-wider ${
+                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-900 dark:text-red-200' : 'text-yellow-900 dark:text-yellow-200'
+                                                    }`}>{alert.category}</h4>
+                                                    <span className={`text-[10px] font-bold ${
+                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'
+                                                    }`}>{alert.date}</span>
                                                 </div>
                                                 <div className="flex justify-between items-end">
-                                                    <p className="text-[10px] text-yellow-800 font-medium leading-snug dark:text-yellow-300/80 max-w-[70%]">
+                                                    <p className={`text-[10px] font-medium leading-snug max-w-[70%] ${
+                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-800 dark:text-red-300/80' : 'text-yellow-800 dark:text-yellow-300/80'
+                                                    }`}>
                                                         {alert.message}
                                                     </p>
-                                                    <span className="text-sm font-black text-yellow-900 dark:text-yellow-100">
+                                                    <span className={`text-sm font-black ${
+                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-900 dark:text-red-100' : 'text-yellow-900 dark:text-yellow-100'
+                                                    }`}>
                                                         {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
                                                     </span>
                                                 </div>
@@ -628,6 +659,20 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                             else if (cat.includes('Peso')) chartColor = '#4b5563';
                             else if (cleanCat.includes('hemo') || cleanCat.includes('eritro')) chartColor = '#ef4444'; // Sangue = Vermelho
 
+                            // Tenta obter referências dinâmicas do último ponto se o registro não tiver
+                            const history = metrics[cat];
+                            const lastPoint = history[history.length - 1];
+                            const info = getMarkerInfo(cat);
+                            
+                            // Preferência: Registro Estático > Dinâmico do último ponto
+                            let minRef = info.ranges?.general?.[0];
+                            let maxRef = info.ranges?.general?.[1];
+                            
+                            if (info.isGeneric && lastPoint) {
+                                if (lastPoint.refMin !== undefined) minRef = lastPoint.refMin;
+                                if (lastPoint.refMax !== undefined) maxRef = lastPoint.refMax;
+                            }
+
                             return (
                                 <div key={cat} className="animate-in fade-in duration-500">
                                     <BiomarkerChart 
@@ -635,6 +680,8 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                         data={metrics[cat]} 
                                         color={chartColor}
                                         type={cat.includes('Peso') ? 'area' : 'line'}
+                                        minRef={minRef}
+                                        maxRef={maxRef}
                                         onHover={(point) => handleChartHover(point, cat, metrics[cat])}
                                         isMobile={isMobileView}
                                     />

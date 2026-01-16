@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Source, ChatMessage, UserProfile, MetricPoint } from '../types';
 import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
@@ -122,7 +123,8 @@ const buildContext = (
           
           if (sorted.length > 0) {
               const latest = sorted[0];
-              context += `- ${category}: ${latest.value} ${latest.unit} (Data: ${latest.date})\n`;
+              const refs = latest.refMin !== undefined || latest.refMax !== undefined ? ` (Ref: ${latest.refMin || '?'} - ${latest.refMax || '?'})` : '';
+              context += `- ${category}: ${latest.value} ${latest.unit}${refs} (Data: ${latest.date})\n`;
           }
       }
       context += `======================================================\n\n`;
@@ -193,15 +195,22 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
         REGRAS DE EXTRAÇÃO:
         1. DATA: Procure "Data de Coleta", "Data de Emissão" ou datas no cabeçalho. Se não achar, use null.
         2. TIPO: Identifique se é "Hemograma", "Bioquímica", "Hormonal", "Treino", "Dieta", etc.
-        3. MÉTRICAS: Extraia APENAS resultados numéricos claros de exames.
-           - Padronize nomes: "Testosterona Total" -> "Testosterona", "Eritrócitos/Hemácias" -> "Eritrócitos".
-           - Ignore valores de referência no JSON (eles vão apenas no texto).
+        3. MÉTRICAS E REFERÊNCIAS: 
+           - Extraia resultados numéricos claros.
+           - Tente extrair a FAIXA DE REFERÊNCIA (Min e Max) que aparece ao lado do resultado.
+           - Padronize nomes: "Testosterona Total" -> "Testosterona".
+           - Se a referência for "Inferior a 10", refMin = null, refMax = 10.
+           - Se a referência for "Superior a 50", refMin = 50, refMax = null.
+           - Se a referência for "10 a 20", refMin = 10, refMax = 20.
+           - Se o resultado for QUALITATIVO (Ex: "Não Reagente"), NÃO inclua no JSON de métricas numéricas, deixe apenas na transcrição.
         
         JSON Schema Obrigatório:
         { 
           "documentType": "string", 
           "detectedDate": "DD/MM/AAAA" | null, 
-          "metrics": [{ "category": "Nome Padronizado", "value": 0.0, "unit": "unidade" }] 
+          "metrics": [
+             { "category": "Nome Padronizado", "value": 0.0, "unit": "unidade", "refMin": 0.0 | null, "refMax": 0.0 | null }
+          ] 
         }
         `;
 
@@ -246,7 +255,9 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
                 date: finalDate,
                 value: typeof m.value === 'number' ? m.value : parseFloat(m.value),
                 unit: m.unit || '',
-                label: 'OCR'
+                label: 'OCR',
+                refMin: typeof m.refMin === 'number' ? m.refMin : undefined,
+                refMax: typeof m.refMax === 'number' ? m.refMax : undefined
             }
         }));
 

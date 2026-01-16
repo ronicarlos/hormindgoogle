@@ -100,6 +100,9 @@ export interface MetricPoint {
   value: number;
   unit: string;
   label: string;
+  // Dynamic References extracted from OCR
+  refMin?: number;
+  refMax?: number;
 }
 
 export interface ChatMessage {

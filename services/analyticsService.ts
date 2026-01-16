@@ -24,7 +24,8 @@ export const analyzePoint = (
     date: string, 
     history: MetricPoint[], 
     marker: MarkerInfo, 
-    gender: 'Masculino' | 'Feminino'
+    gender: 'Masculino' | 'Feminino',
+    dynamicRef?: { min?: number, max?: number } // Nova prop para referências dinâmicas
 ): AnalysisResult => {
     
     // 1. Determinar Faixa de Referência
@@ -32,28 +33,40 @@ export const analyzePoint = (
     if (gender === 'Masculino' && marker.ranges?.male) range = marker.ranges.male;
     else if (gender === 'Feminino' && marker.ranges?.female) range = marker.ranges.female;
 
+    // Se o marcador for genérico e tivermos referências dinâmicas, usá-las
+    if (marker.isGeneric && dynamicRef && (dynamicRef.min !== undefined || dynamicRef.max !== undefined)) {
+        // Fallback: Se faltar um lado, assume infinito (lógica simplificada para alertas)
+        const min = dynamicRef.min !== undefined ? dynamicRef.min : -Infinity;
+        const max = dynamicRef.max !== undefined ? dynamicRef.max : Infinity;
+        range = [min, max];
+    }
+
     // 2. Status (High/Low/Normal/Borderline)
     let status: AnalysisResult['status'] = 'UNKNOWN';
     let riskColor = 'text-gray-500 dark:text-gray-400';
 
     if (range) {
         const [min, max] = range;
+        
+        // Ajuste para Infinito (ex: apenas "Inferior a 10")
+        const effectiveMin = min === -Infinity ? -999999 : min;
+        const effectiveMax = max === Infinity ? 999999 : max;
+
         // Margem de segurança de 15% para alertas preventivos
         // Evita divisão por zero se o range for 0
-        const span = max - min;
-        // Se o span for muito pequeno, usa porcentagem do valor absoluto, senão usa porcentagem do range
-        const buffer = span > 0 ? span * 0.15 : max * 0.10; 
+        const span = effectiveMax - effectiveMin;
+        const buffer = span > 0 && span < 999999 ? span * 0.15 : effectiveMax * 0.10; 
 
-        if (value < min) {
+        if (value < effectiveMin) {
             status = 'LOW';
             riskColor = 'text-blue-600 dark:text-blue-400';
-        } else if (value <= min + buffer) {
+        } else if (value <= effectiveMin + buffer && min !== -Infinity) {
             status = 'BORDERLINE_LOW';
             riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
-        } else if (value > max) {
+        } else if (value > effectiveMax) {
             status = 'HIGH';
-            riskColor = 'text-red-600 dark:text-red-400'; // Crítico Vermelho (Atualizado de Orange para Red para diferenciar)
-        } else if (value >= max - buffer) {
+            riskColor = 'text-red-600 dark:text-red-400'; // Crítico Vermelho
+        } else if (value >= effectiveMax - buffer && max !== Infinity) {
             status = 'BORDERLINE_HIGH';
             riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
         } else {
@@ -87,13 +100,14 @@ export const analyzePoint = (
 
     // 4. Montar Mensagem Narrativa
     let message = '';
+    const refText = range ? `(${range[0] !== -Infinity ? range[0] : '<'} - ${range[1] !== Infinity ? range[1] : '>'} ${marker.unit})` : '';
     
     // Parte A: Status
     if (status === 'NORMAL') message += `✅ Valor saudável e estável.`;
-    else if (status === 'HIGH') message += `🚨 CRÍTICO: Acima da referência (${range?.[1]} ${marker.unit}).`;
-    else if (status === 'LOW') message += `📉 CRÍTICO: Abaixo da referência (${range?.[0]} ${marker.unit}).`;
-    else if (status === 'BORDERLINE_HIGH') message += `⚠️ ATENÇÃO: Próximo ao limite superior (${range?.[1]} ${marker.unit}).`;
-    else if (status === 'BORDERLINE_LOW') message += `⚠️ ATENÇÃO: Próximo ao limite inferior (${range?.[0]} ${marker.unit}).`;
+    else if (status === 'HIGH') message += `🚨 CRÍTICO: Acima da referência ${refText}.`;
+    else if (status === 'LOW') message += `📉 CRÍTICO: Abaixo da referência ${refText}.`;
+    else if (status === 'BORDERLINE_HIGH') message += `⚠️ ATENÇÃO: Próximo ao limite superior ${refText}.`;
+    else if (status === 'BORDERLINE_LOW') message += `⚠️ ATENÇÃO: Próximo ao limite inferior ${refText}.`;
     else message += `Valor registrado: ${value}`;
 
     // Parte B: Tendência
