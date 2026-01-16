@@ -42,8 +42,8 @@ const getMedicalModel = () => {
     return null;
 }
 
-const OCR_MODEL = getOcrModel() || 'gemini-2.0-flash-lite-preview-02-05';
-const MEDICAL_MODEL = getMedicalModel() || 'gemini-3-pro-preview';
+export const OCR_MODEL = getOcrModel() || 'gemini-2.0-flash-lite-preview-02-05';
+export const MEDICAL_MODEL = getMedicalModel() || 'gemini-3-pro-preview';
 
 console.log(`🤖 Arquitetura Ativa:\n - OCR: ${OCR_MODEL}\n - Cérebro Clínico: ${MEDICAL_MODEL}`);
 
@@ -303,7 +303,15 @@ export const generateAIResponse = async (
 
         const userId = await getCurrentUserId();
         if (userId && response.usageMetadata) {
-            await dataService.logUsage(userId, undefined, 'CHAT', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
+            // LOG DE CUSTO PRECISO: Passa o MEDICAL_MODEL
+            await dataService.logUsage(
+                userId, 
+                undefined, 
+                'CHAT', 
+                response.usageMetadata.promptTokenCount || 0, 
+                response.usageMetadata.candidatesTokenCount || 0,
+                MEDICAL_MODEL // Modelo Pro (Custo alto)
+            );
         }
 
         return response.text || "Sem resposta.";
@@ -319,6 +327,20 @@ export const generateAIResponse = async (
                 { role: 'user', parts: [{ text: message }] }
             ]
         });
+        
+        // Log do fallback (custo baixo)
+        const userId = await getCurrentUserId();
+        if (userId && responseFallback.usageMetadata) {
+             await dataService.logUsage(
+                userId, 
+                undefined, 
+                'CHAT_FALLBACK', 
+                responseFallback.usageMetadata.promptTokenCount || 0, 
+                responseFallback.usageMetadata.candidatesTokenCount || 0,
+                OCR_MODEL // Modelo Flash (Custo baixo)
+            );
+        }
+
         return responseFallback.text || "Sem resposta (Fallback).";
     }
 
@@ -348,7 +370,15 @@ export const generateProntuario = async (
        
        const userId = await getCurrentUserId();
        if (userId && response.usageMetadata) {
-           await dataService.logUsage(userId, undefined, 'PRONTUARIO', response.usageMetadata.promptTokenCount || 0, response.usageMetadata.candidatesTokenCount || 0);
+           // LOG DE CUSTO PRECISO: Passa o MEDICAL_MODEL
+           await dataService.logUsage(
+               userId, 
+               undefined, 
+               'PRONTUARIO', 
+               response.usageMetadata.promptTokenCount || 0, 
+               response.usageMetadata.candidatesTokenCount || 0,
+               MEDICAL_MODEL // Modelo Pro (Custo alto)
+            );
        }
        return response.text || "Erro.";
      } catch (err) {

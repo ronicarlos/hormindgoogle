@@ -50,6 +50,33 @@ interface DBSource {
     created_at?: string;
 }
 
+// === TABELA DE PREÇOS DINÂMICA (BRL por 1 Milhão de Tokens) ===
+// Baseada no Google Pricing + IOF + Taxas (Estimativa de Segurança)
+// Flash: ~$0.075 in / $0.30 out
+// Pro:   ~$3.50 in  / $10.50 out (MUITO MAIS CARO)
+const PRICING_TIERS = {
+    FLASH: {
+        input: 0.60,  // R$ 0,60 por 1M tokens
+        output: 2.40  // R$ 2,40 por 1M tokens
+    },
+    PRO: {
+        input: 25.00, // R$ 25,00 por 1M tokens
+        output: 75.00 // R$ 75,00 por 1M tokens
+    },
+    EMBEDDING: {
+        input: 0.60,
+        output: 0.00
+    }
+};
+
+const getModelTier = (modelName: string = '') => {
+    const lower = modelName.toLowerCase();
+    if (lower.includes('pro')) return PRICING_TIERS.PRO;
+    if (lower.includes('flash') || lower.includes('lite')) return PRICING_TIERS.FLASH;
+    // Fallback seguro (Flash) se não identificar, para não cobrar excessivamente por erro
+    return PRICING_TIERS.FLASH; 
+};
+
 const calculateAge = (dateString: string) => {
     if (!dateString) return 30;
     const today = new Date();
@@ -598,12 +625,12 @@ export const dataService = {
         }));
     },
 
-    async logUsage(userId: string, projectId: string | undefined, actionType: string, inputTokens: number, outputTokens: number): Promise<number> {
-        const PRICE_PER_1M_INPUT = 0.60;
-        const PRICE_PER_1M_OUTPUT = 2.40;
-
-        const costInput = (inputTokens / 1000000) * PRICE_PER_1M_INPUT;
-        const costOutput = (outputTokens / 1000000) * PRICE_PER_1M_OUTPUT;
+    async logUsage(userId: string, projectId: string | undefined, actionType: string, inputTokens: number, outputTokens: number, modelName?: string): Promise<number> {
+        // Seleciona a tarifa correta baseada no modelo utilizado
+        const pricing = getModelTier(modelName);
+        
+        const costInput = (inputTokens / 1000000) * pricing.input;
+        const costOutput = (outputTokens / 1000000) * pricing.output;
         const totalCost = costInput + costOutput;
 
         const { error } = await supabase
@@ -635,11 +662,18 @@ export const dataService = {
             }
 
             const total = data.reduce((acc, curr: any) => {
-                if (curr.cost_brl) return acc + curr.cost_brl;
+                // Se já temos o custo calculado e persistido no banco, usamos ele (PREFERENCIAL)
+                if (curr.cost_brl !== undefined && curr.cost_brl !== null) {
+                    return acc + curr.cost_brl;
+                }
+                
+                // Fallback legado (apenas se cost_brl for nulo, assume tarifa básica Flash)
                 if (curr.cost) return acc + curr.cost;
+                
                 const input = curr.input_tokens || 0;
                 const output = curr.output_tokens || 0;
-                const recalcCost = ((input / 1000000) * 0.60) + ((output / 1000000) * 2.40);
+                // Tarifa legacy (Flash)
+                const recalcCost = ((input / 1000000) * PRICING_TIERS.FLASH.input) + ((output / 1000000) * PRICING_TIERS.FLASH.output);
                 return acc + recalcCost;
             }, 0);
             
@@ -663,11 +697,13 @@ export const dataService = {
 
             return data.map((log: any) => {
                 let cost = log.cost_brl;
-                if (!cost && log.cost) cost = log.cost;
-                if (!cost) {
-                    const input = log.input_tokens || 0;
-                    const output = log.output_tokens || 0;
-                    cost = ((input / 1000000) * 0.60) + ((output / 1000000) * 2.40);
+                if (cost === undefined || cost === null) {
+                    if (log.cost) cost = log.cost;
+                    else {
+                        const input = log.input_tokens || 0;
+                        const output = log.output_tokens || 0;
+                        cost = ((input / 1000000) * PRICING_TIERS.FLASH.input) + ((output / 1000000) * PRICING_TIERS.FLASH.output);
+                    }
                 }
 
                 return {

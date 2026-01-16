@@ -24,11 +24,11 @@ import { IOSInstallPrompt } from './components/IOSInstallPrompt';
 import SubscriptionModal from './components/SubscriptionModal';
 import AnalysisModal from './components/AnalysisModal';
 import ProcessingOverlay, { ProcessingState } from './components/ProcessingOverlay'; // NEW COMPONENT
-import { generateProntuario, processDocument } from './services/geminiService';
+import { generateProntuario, processDocument, OCR_MODEL } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.29'; 
+const APP_VERSION = '1.6.40'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -327,7 +327,17 @@ export default function App() {
               };
               
               await dataService.addSource(project.id, source);
-              await dataService.logUsage(session.user.id, project.id, 'OCR', 500, 500); 
+              
+              // LOG DE CUSTO PRECISO: Passa OCR_MODEL explicitamente
+              await dataService.logUsage(
+                  session.user.id, 
+                  project.id, 
+                  'OCR', 
+                  500, 
+                  500, 
+                  OCR_MODEL // Modelo Flash
+              );
+              
               newFilesCount++;
 
           } catch (err) {
