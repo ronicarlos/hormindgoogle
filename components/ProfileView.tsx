@@ -23,7 +23,7 @@ interface ProfileViewProps {
 }
 
 // VERSÃO DO CÓDIGO LOCAL (Fallback)
-const CODE_VERSION = "v1.6.5";
+const CODE_VERSION = "v1.6.9";
 
 // --- COMPONENTE VISUAL DE CORPO (SVG) ---
 const BodyGuide = ({ part, gender }: { part: string; gender: string }) => {

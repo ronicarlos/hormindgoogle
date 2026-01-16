@@ -23,11 +23,12 @@ import LegalContractModal from './components/LegalContractModal';
 import { IOSInstallPrompt } from './components/IOSInstallPrompt';
 import SubscriptionModal from './components/SubscriptionModal';
 import AnalysisModal from './components/AnalysisModal';
+import ProcessingOverlay, { ProcessingState } from './components/ProcessingOverlay'; // NEW COMPONENT
 import { generateProntuario, processDocument } from './services/geminiService';
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.5'; 
+const APP_VERSION = '1.6.9'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -36,6 +37,9 @@ export default function App() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Feedback Visual State (New)
+  const [processingState, setProcessingState] = useState<ProcessingState | null>(null);
+
   // Modals State
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
@@ -114,7 +118,9 @@ export default function App() {
   }, []);
 
   const loadProject = async (userId: string) => {
-    setIsLoading(true);
+    // Apenas define isLoading se não estivermos processando arquivos (para evitar piscar o overlay)
+    if (!processingState) setIsLoading(true);
+    
     const proj = await dataService.getOrCreateProject(userId);
     setProject(proj);
     
@@ -243,11 +249,30 @@ export default function App() {
   const handleUpload = async (files: File[]) => {
       if (!session?.user || !project) return;
       
-      setIsLoading(true);
+      // Inicializa o Overlay
+      setProcessingState({
+          current: 0,
+          total: files.length,
+          filename: '',
+          step: 'uploading'
+      });
+
       let newFilesCount = 0;
 
-      for (const file of files) {
+      // Loop Sequencial para garantir ordem e feedback
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          
+          // Atualiza estado para UI
+          setProcessingState(prev => ({
+              current: i + 1,
+              total: files.length,
+              filename: file.name,
+              step: 'uploading'
+          }));
+
           try {
+              // 1. Upload Storage
               const filePath = await dataService.uploadFileToStorage(file, session.user.id, project.id);
               
               if (!filePath) {
@@ -255,8 +280,16 @@ export default function App() {
                   continue;
               }
 
-              const { extractedText, metrics, documentType, detectedDate } = await processDocument(file, new Date().toLocaleDateString('pt-BR'));
+              // 2. OCR AI Processing
+              setProcessingState(prev => ({ ...prev!, step: 'ocr' }));
               
+              // CRÍTICO: Usa a data de modificação do arquivo como fallback se a IA não achar data impressa
+              const fileDate = new Date(file.lastModified).toLocaleDateString('pt-BR');
+              const { extractedText, metrics, documentType, detectedDate } = await processDocument(file, fileDate);
+              
+              // 3. Salvando dados
+              setProcessingState(prev => ({ ...prev!, step: 'saving' }));
+
               for (const m of metrics) {
                   await dataService.addMetric(project.id, m.category, m.data);
               }
@@ -265,7 +298,7 @@ export default function App() {
                   id: '',
                   title: file.name,
                   type: (file.type === 'application/pdf' ? SourceType.PDF : SourceType.IMAGE) as SourceType,
-                  date: detectedDate || new Date().toLocaleDateString('pt-BR'),
+                  date: detectedDate || fileDate, // Usa detectedDate se existir, senão usa data do arquivo
                   content: extractedText,
                   summary: 'Processado automaticamente via OCR IA.',
                   selected: true,
@@ -279,13 +312,18 @@ export default function App() {
 
           } catch (err) {
               console.error(`Erro crítico processando ${file.name}:`, err);
-              alert(`Erro ao processar ${file.name}.`);
+              // Não alerta bloqueante no loop, apenas loga. O usuário verá o que faltou.
           }
       }
       
       setBillingTrigger(prev => prev + 1);
+      
+      // Finalizando e Recarregando
+      setProcessingState(prev => ({ ...prev!, step: 'analyzing' }));
       await loadProject(session.user.id);
-      setIsLoading(false);
+      
+      // Limpa overlay
+      setProcessingState(null);
 
       if (newFilesCount > 0) {
           handleTriggerAnalysisConfirmation(`Novos documentos processados (${newFilesCount} arquivos). O usuário fez upload de exames ou planilhas recentes.`);
@@ -295,13 +333,12 @@ export default function App() {
   const handleSaveDailyLog = async (data: DailyLogData) => {
       if (!project || !session?.user) return;
       
-      // FIX: Agora passa 'data.calories' para o updateProjectSettings para salvar na nova coluna
       await dataService.updateProjectSettings(
           project.id, 
           data.goal, 
           data.protocol, 
           data.trainingNotes, 
-          data.calories // <-- Nova coluna diet_calories
+          data.calories 
       );
       
       if (data.calories) {
@@ -315,7 +352,6 @@ export default function App() {
 
       await loadProject(session.user.id);
       
-      // Trigger Analysis Prompt
       const context = `O usuário atualizou seus parâmetros manualmente:\n- Objetivo: ${data.goal}\n- Dieta: ${data.calories} kcal\n- Protocolo: ${data.protocol.map(p => `${p.compound} (${p.dosage})`).join(', ')}\n- Notas de Treino: ${data.trainingNotes}`;
       handleTriggerAnalysisConfirmation(context);
   };
@@ -338,7 +374,8 @@ export default function App() {
     return <AuthScreen />;
   }
 
-  if (isLoading && !project) {
+  // Se estiver carregando, mas não for por causa do Overlay de Processamento (que tem seu próprio UI)
+  if (isLoading && !project && !processingState) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="flex flex-col items-center gap-4">
@@ -354,6 +391,9 @@ export default function App() {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
       
+      {/* Componente Visual de Processamento Global */}
+      <ProcessingOverlay state={processingState} />
+
       {/* Desktop Sidebar */}
       <div className="hidden md:flex w-64 shrink-0 h-full border-r border-gray-200 dark:border-gray-800">
           <SourceSidebar 
@@ -376,7 +416,7 @@ export default function App() {
           />
 
           <div className="flex-1 overflow-hidden relative pb-[60px] md:pb-0"> 
-              {!project && !isLoading && (
+              {!project && !isLoading && !processingState && (
                   <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in">
                       <div className="bg-red-50 p-4 rounded-full mb-4 dark:bg-red-900/20">
                           <IconAlert className="w-8 h-8 text-red-500" />

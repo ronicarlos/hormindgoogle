@@ -14,6 +14,16 @@ interface MetricDashboardProps {
   onViewSource?: (sourceId: string) => void;
 }
 
+// Helper para gerar cor consistente baseada no nome da string (Hash to Color)
+const stringToColor = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+};
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -61,7 +71,7 @@ const EmptyChartState = ({ message }: { message: string }) => (
     </div>
 );
 
-// --- COMPONENTES DE GRÁFICO (Mantidos iguais, apenas RiskCard mudou) ---
+// --- COMPONENTES DE GRÁFICO ---
 
 const BiomarkerChart = ({ 
     title, 
@@ -99,8 +109,10 @@ const BiomarkerChart = ({
     return (
         <div className="mb-8 w-full">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight dark:text-gray-300">{title}</h3>
-                <div className="flex gap-2">
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight dark:text-gray-300 truncate pr-2" title={title}>
+                    {title}
+                </h3>
+                <div className="flex gap-2 shrink-0">
                     {data[0].unit && <span className="text-[10px] text-gray-400 font-medium">{data[0].unit}</span>}
                     {minRef && maxRef && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 rounded dark:bg-gray-800">Ref: {minRef}-{maxRef}</span>}
                 </div>
@@ -492,23 +504,32 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
 
             {/* INDIVIDUAL CHARTS GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {allCategories.map(cat => (
-                    <div key={cat} className="animate-in fade-in duration-500">
-                        <BiomarkerChart 
-                            title={cat} 
-                            data={metrics[cat]} 
-                            color={
-                                cat.includes('Testo') ? '#2563eb' : 
-                                cat.includes('Estradiol') ? '#ec4899' : 
-                                cat.includes('Peso') ? '#4b5563' :
-                                // Cor Vermelha para Hemograma (Hematocrito, Hemoglobina, etc.)
-                                cat.toLowerCase().includes('hema') || cat.toLowerCase().includes('eritro') || cat.toLowerCase().includes('plaqueta') || cat.toLowerCase().includes('leuco') ? '#ef4444' :
-                                '#10b981'
-                            }
-                            type={cat.includes('Peso') ? 'area' : 'line'}
-                        />
-                    </div>
-                ))}
+                {allCategories.map(cat => {
+                    const cleanCat = cat.toLowerCase();
+                    const isBloodRed = cleanCat.includes('hema') || cleanCat.includes('eritro') || cleanCat.includes('plaqueta') || cleanCat.includes('leuco') || cleanCat.includes('hemo') || cleanCat.includes('vcm');
+                    
+                    // Definição de cor:
+                    // 1. Prioridade Hardcoded (Testo, E2, Peso)
+                    // 2. Sangue (Vermelho)
+                    // 3. Fallback: Hash dinâmico para garantir cores consistentes para métricas novas (ex: Ureia sempre será a mesma cor)
+                    let chartColor = stringToColor(cat); 
+                    
+                    if (cat.includes('Testo')) chartColor = '#2563eb';
+                    else if (cat.includes('Estradiol')) chartColor = '#ec4899';
+                    else if (cat.includes('Peso')) chartColor = '#4b5563';
+                    else if (isBloodRed) chartColor = '#ef4444';
+
+                    return (
+                        <div key={cat} className="animate-in fade-in duration-500">
+                            <BiomarkerChart 
+                                title={cat} 
+                                data={metrics[cat]} 
+                                color={chartColor}
+                                type={cat.includes('Peso') ? 'area' : 'line'}
+                            />
+                        </div>
+                    );
+                })}
             </div>
 
             {allCategories.length === 0 && (

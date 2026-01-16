@@ -9,8 +9,10 @@ import { supabase } from '../lib/supabase';
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
-const MODEL_ID = 'gemini-3-flash-preview'; 
-const VISION_MODEL_ID = 'gemini-3-flash-preview'; 
+// Modelo Flash 1.5 Stable para garantir leitura de PDF sem erros 400
+// O modelo 2.0-exp estava causando instabilidade com chaves de API comuns
+const MODEL_ID = 'gemini-1.5-flash'; 
+const VISION_MODEL_ID = 'gemini-1.5-flash'; 
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
 
 const calculateAge = (birthDate?: string): string => {
@@ -37,7 +39,7 @@ const buildContext = (
   context += "INSTRUÇÃO DE SISTEMA CRÍTICA (FITLM KERNEL):\n\n";
   context += "Você é o FitLM, uma IA de alta precisão para análise fisiológica e farmacológica.\n";
   context += "REGRA DE OURO (ANTI-ALUCINAÇÃO): O histórico de chat pode conter dados antigos ou incorretos. IGNORE COMPLETAMENTE quaisquer medidas, idades ou datas citadas em mensagens anteriores se diferirem dos DADOS VITAIS abaixo.\n";
-  context += "A ÚNICA FONTE DE VERDADE para a condição física atual é o bloco JSON 'CURRENT_BIOMETRICS'.\n\n";
+  context += "A ÚNICA FONTE DE VERDADE para a condição física atual é o bloco JSON 'CURRENT_BIOMETRICS' e o 'HISTÓRICO DE EXAMES'.\n\n";
 
   if (profile) {
       const age = calculateAge(profile.birthDate);
@@ -72,7 +74,7 @@ const buildContext = (
   }
 
   if (metrics && Object.keys(metrics).length > 0) {
-      context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS) ===\n`;
+      context += `=== 2. HISTÓRICO DE EXAMES (DADOS LABORATORIAIS COMPLETO) ===\n`;
       // Ordena métricas para garantir que o Hematócrito e outros apareçam
       for (const [category, points] of Object.entries(metrics)) {
           const sorted = [...points].sort((a,b) => {
@@ -106,7 +108,7 @@ const buildContext = (
   context += `\nDIRETRIZES DE RESPOSTA:
 1. Responda em Português do Brasil (pt-BR).
 2. Prioridade Absoluta: Use os dados do bloco JSON 'CURRENT_BIOMETRICS'.
-3. Ao analisar exames, considere TODO o histórico disponível na seção 2, incluindo Hematócrito, Plaquetas e outros marcadores do hemograma.
+3. Ao analisar exames, considere TODO o histórico disponível na seção 2. NÃO IGNORE NENHUM MARCADOR (Hematócrito, Plaquetas, TGO, TGP, etc). Se está na lista, é relevante.
 `;
   return context;
 };
@@ -134,7 +136,7 @@ export const generateAIResponse = async (
       contents: [
         { role: 'user', parts: [{ text: systemInstruction }] }, 
         ...safeHistory,
-        { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS'. Se perguntado sobre Hematócrito ou outros exames, consulte a seção HISTÓRICO DE EXAMES): ${message}` }] }
+        { role: 'user', parts: [{ text: `(Responda com base ESTRITAMENTE no JSON 'CURRENT_BIOMETRICS' e na seção 'HISTÓRICO DE EXAMES'. Use dados reais extraídos.): ${message}` }] }
       ],
       config: { temperature: 0.4 }
     });
@@ -147,7 +149,7 @@ export const generateAIResponse = async (
     return response.text || "Sem resposta.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Erro ao analisar dados.";
+    return "Erro ao analisar dados. Verifique sua conexão e chave de API.";
   }
 };
 
@@ -158,7 +160,7 @@ export const generateProntuario = async (
 ): Promise<string> => {
     if (!apiKey) return "Chave de API ausente.";
     const systemInstruction = buildContext(sources, profile, metrics);
-    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nInclua análise detalhada do Hemograma (Série Vermelha e Branca) se disponível.`;
+    const prompt = `${systemInstruction}\nTarefa: Emitir PRONTUÁRIO MÉDICO-ESPORTIVO COMPLETO.\nInclua análise detalhada de TODOS os exames disponíveis no histórico (Série Vermelha, Branca, Bioquímica, Hormonal).`;
  
      try {
        const response = await ai.models.generateContent({ model: MODEL_ID, contents: prompt });
@@ -202,31 +204,38 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
     try {
         const filePart = await fileToGenerativePart(file);
         
-        // PROMPT "ANALISTA DE ELITE" - VERSÃO TOTAL EXTRACT
+        // PROMPT "ANALISTA DE ELITE" - VARREDURA UNIVERSAL v1.6.8
         const extractionPrompt = `
-        ATUE COMO UM ANALISTA DE LABORATÓRIO E OCR MÉDICO AVANÇADO.
+        ATUE COMO UM SISTEMA UNIVERSAL DE EXTRAÇÃO DE DADOS LABORATORIAIS.
         
-        Sua tarefa é processar este documento (Imagem/PDF) e gerar dois outputs:
-
+        Sua tarefa é processar este documento e extrair TUDO o que for um resultado quantitativo.
+        
         === PARTE 1: RELATÓRIO DE LEITURA (Markdown Visível) ===
-        - Transcreva TODO o conteúdo relevante (Laudos, Tabelas, Observações).
-        - Destaque em **NEGRITO** valores fora da referência.
-        - Se for Hemograma, transcreva TODOS os itens (Série Vermelha, Série Branca, Plaquetas).
-
+        - Transcreva o conteúdo relevante.
+        - Mantenha tabelas e observações.
+        
         === PARTE 2: DADOS TÉCNICOS (JSON Oculto) ===
         No FINAL, adicione o separador "---END_OF_TEXT---" e um JSON estrito.
         
-        REGRA CRÍTICA DE EXTRAÇÃO:
-        Extraia TODO e QUALQUER valor numérico que seja um biomarcador, medida ou indicador de saúde. NÃO FILTRE.
+        REGRA SUPREMA DE EXTRAÇÃO (SEM EXCEÇÕES):
+        Percorra o documento inteiro. Sempre que encontrar um padrão de [NOME DO EXAME] + [VALOR NUMÉRICO] + [UNIDADE], você DEVE extrair para o JSON.
         
-        Priorize a extração destes grupos, mas não se limite a eles:
-        1. HEMOGRAMA COMPLETO: Hematócrito (Hct), Hemoglobina (Hb), Hemácias, VCM, HCM, CHCM, RDW, Leucócitos, Plaquetas.
-        2. PERFIL LIPÍDICO: Colesterol Total, HDL, LDL, VLDL, Triglicerídeos.
-        3. HORMONAL: Testosterona (Total/Livre), Estradiol, Prolactina, FSH, LH, TSH, T3, T4.
-        4. BIOQUÍMICA: Glicose, Insulina, HbA1c, Ureia, Creatinina, TGO, TGP, GGT, CPK, Ferritina.
-        5. VITAMINAS: Vitamina D, B12.
+        NÃO JULGUE A RELEVÂNCIA. Se está no documento e tem um número, é relevante.
         
-        Padronize os nomes das chaves (Ex: "Hematocrito", "Hemoglobina", "Testosterona Total").
+        EXTRAÇÃO DE DATA (CRÍTICO):
+        - Procure a "Data da Coleta", "Data do Exame", "Data de Realização" ou "Data do Resultado".
+        - Use formato DD/MM/AAAA.
+        - Se NÃO encontrar data impressa no documento, use: ${defaultDate} (esta é a data de criação do arquivo).
+        
+        Exemplos de Captura Obrigatória:
+        - "Hematócrito: 42%" -> Salvar como Hematócrito
+        - "Leucócitos: 5.000 /mm3" -> Salvar como Leucócitos
+        - "Sódio: 135 mEq/L" -> Salvar como Sódio
+        - "Volume Ovariano: 5.2 cm3" -> Salvar como Volume Ovariano
+        - "Espessura da dobra: 10mm" -> Salvar como Dobra Cutânea
+        
+        Se o nome do exame for complexo, simplifique a chave JSON (Ex: "Hormônio Tireoestimulante" -> "TSH").
+        Remova acentos nas chaves JSON se possível para padronização (Ex: "Hematocrito").
         
         JSON Schema:
         { 
@@ -263,6 +272,7 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             };
         }
 
+        // Usa detectedDate se a IA achou, senão usa o defaultDate (que agora é a data de criação do arquivo)
         const finalDate = parsed.detectedDate || defaultDate;
         const finalMetrics = (parsed.metrics || []).map((m: any) => ({
             category: m.category,
@@ -278,11 +288,11 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
             extractedText: visibleContent,
             metrics: finalMetrics,
             documentType: parsed.documentType || 'Geral',
-            detectedDate: parsed.detectedDate
+            detectedDate: finalDate // Retorna a data correta para uso no card
         };
 
     } catch (error) {
         console.error("OCR Error:", error);
-        return { extractedText: `[Erro OCR: Falha ao ler arquivo. Tente uma imagem mais nítida.]`, metrics: [] };
+        return { extractedText: `[Erro OCR: Falha ao ler arquivo. Verifique a chave de API ou tente uma imagem mais nítida.]`, metrics: [] };
     }
 };
