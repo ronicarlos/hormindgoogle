@@ -6,12 +6,13 @@ import { supabase } from '../lib/supabase';
 import CostTracker from './CostTracker';
 import { Tooltip } from './Tooltip';
 import BodyGuide from './BodyGuide';
+import AuditLogModal from './AuditLogModal';
 import { 
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
     IconWizard, IconCheck, IconInfo, IconCopy, IconClock,
     IconPill, IconDumbbell, IconList, IconClose, IconScience,
-    IconFile, IconCalendar
+    IconFile, IconCalendar, IconHistory
 } from './Icons';
 
 interface ProfileViewProps {
@@ -26,7 +27,12 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.53";
+const CODE_VERSION = "v1.6.59"; // Bump version
+/*
+  SQL PARA ATUALIZAÇÃO (RODAR NO SUPABASE):
+  INSERT INTO public.app_versions (version, description, created_at) 
+  VALUES ('1.6.59', 'Correção de bug crítico na lógica de cálculo de idade em ProfileView.', NOW());
+*/
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -63,6 +69,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     
     const [userId, setUserId] = useState<string>('');
     const [versionHistory, setVersionHistory] = useState<AppVersion[]>([]);
+    
+    // Audit Modal State
+    const [isAuditOpen, setIsAuditOpen] = useState(false);
     
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -358,21 +367,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user && project) {
-                // 1. Save Profile
-                await dataService.saveUserProfile(session.user.id, formData);
+                // 1. Save Profile (COM SOURCE='PROFILE_VIEW')
+                await dataService.saveUserProfile(session.user.id, formData, 'PROFILE_VIEW');
                 onSave(formData);
 
-                // 2. Save Project Settings
+                // 2. Save Project Settings (COM SOURCE='PROFILE_VIEW')
                 const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                 await dataService.updateProjectSettings(
                     project.id,
                     goal,
                     cleanProtocol,
                     trainingNotes,
-                    calories
+                    calories,
+                    'PROFILE_VIEW'
                 );
 
-                // 3. Save Hormones & Critical Stats
+                // 3. Save Hormones & Critical Stats (COM SOURCE='PROFILE_VIEW')
                 const today = new Date().toLocaleDateString('pt-BR');
                 const updatedMetrics = { ...project.metrics };
 
@@ -380,7 +390,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     const val = parseFloat(valueStr);
                     if (!isNaN(val)) {
                         const pt = { date: today, value: val, unit: unit, label: 'Manual Profile Input' };
-                        await dataService.addMetric(project.id, category, pt);
+                        await dataService.addMetric(project.id, category, pt, 'PROFILE_VIEW');
                         updatedMetrics[category] = [...(updatedMetrics[category] || []), pt];
                     }
                 };
@@ -478,6 +488,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
+             
+             {/* Audit Modal */}
+             <AuditLogModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
+
              {/* Header */}
              <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-white">
@@ -911,6 +925,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                 </button>
                             )}
                         </div>
+
+                        {/* BOTÃO DE AUDITORIA */}
+                        <button 
+                            onClick={() => setIsAuditOpen(true)}
+                            className="w-full p-3 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors border border-gray-200 flex items-center justify-center gap-2 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                            <IconHistory className="w-4 h-4" /> Auditoria de Dados (Logs)
+                        </button>
 
                         {/* CARD DE VERSÕES */}
                         {versionHistory.length > 0 && (

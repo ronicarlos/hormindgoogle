@@ -24,6 +24,16 @@ export interface AppVersion {
     created_at: string;
 }
 
+export interface AuditLog {
+    id: string;
+    user_id: string;
+    action_type: 'CREATE' | 'UPDATE' | 'DELETE';
+    entity: string; // 'PROFILE', 'METRIC', 'PROJECT', etc.
+    details: any; // JSON com diff ou dados
+    source: string; // 'WIZARD', 'PROFILE_VIEW', 'UPLOAD', etc.
+    created_at: string;
+}
+
 export interface UserProfile {
   id?: string;
   name: string;

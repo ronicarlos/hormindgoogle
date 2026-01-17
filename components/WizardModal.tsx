@@ -248,7 +248,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
                 // Salva perfil progressivamente nos primeiros passos
                 if (currentStep <= 4) {
-                    const saveError = await dataService.saveUserProfile(session.user.id, profileData);
+                    const saveError = await dataService.saveUserProfile(session.user.id, profileData, 'WIZARD');
                     if (saveError) {
                         console.error("Erro ao salvar perfil:", saveError);
                         alert("Houve um erro ao salvar seus dados. Tente novamente.");
@@ -262,12 +262,12 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                     const today = new Date().toLocaleDateString('pt-BR');
                     if (manualTesto) {
                         const point = { date: today, value: parseFloat(manualTesto), unit: 'ng/dL', label: 'Wizard Input' };
-                        await dataService.addMetric(project.id, 'Testosterone', point);
+                        await dataService.addMetric(project.id, 'Testosterone', point, 'WIZARD');
                         updatedMetrics['Testosterone'] = [...(updatedMetrics['Testosterone'] || []), point];
                     }
                     if (manualE2) {
                         const point = { date: today, value: parseFloat(manualE2), unit: 'pg/mL', label: 'Wizard Input' };
-                        await dataService.addMetric(project.id, 'Estradiol', point);
+                        await dataService.addMetric(project.id, 'Estradiol', point, 'WIZARD');
                         updatedMetrics['Estradiol'] = [...(updatedMetrics['Estradiol'] || []), point];
                     }
                     onUpdateProject({ ...project, metrics: updatedMetrics });
@@ -275,7 +275,14 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
 
                 if (currentStep >= 6) {
                     // Update settings for Diet/Training/Protocol/Goals
-                    await dataService.updateProjectSettings(project.id, objective, cleanProtocol, trainingNotes, calories);
+                    await dataService.updateProjectSettings(
+                        project.id, 
+                        objective, 
+                        cleanProtocol, 
+                        trainingNotes, 
+                        calories, 
+                        'WIZARD'
+                    );
                     
                     // Se for o passo de dieta, adiciona métrica
                     if (currentStep === 6) {
@@ -283,7 +290,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                         if (!isNaN(calValue) && calValue > 0) {
                             const today = new Date().toLocaleDateString('pt-BR');
                             const point = { date: today, value: calValue, unit: 'kcal', label: 'Wizard Setup' };
-                            await dataService.addMetric(project.id, 'Calories', point);
+                            await dataService.addMetric(project.id, 'Calories', point, 'WIZARD');
                             updatedMetrics['Calories'] = [...(updatedMetrics['Calories'] || []), point];
                         }
                     }

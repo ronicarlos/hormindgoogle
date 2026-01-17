@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog, AppVersion } from '../types';
+import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog, AppVersion, AuditLog } from '../types';
 import { embedText } from './geminiService';
 
 // Tipos auxiliares para Banco de Dados
@@ -140,6 +140,37 @@ const calculateMetabolicStats = (
 };
 
 export const dataService = {
+    // --- AUDIT LOGGING SYSTEM ---
+    async logAudit(userId: string, actionType: 'CREATE' | 'UPDATE' | 'DELETE', entity: string, details: any, source: string = 'UNKNOWN') {
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: userId,
+                action_type: actionType,
+                entity: entity,
+                details: details,
+                source: source
+            });
+        } catch (error) {
+            console.warn("Falha silenciosa ao gravar log de auditoria:", error);
+            // Não relançamos o erro para não impedir a operação principal do usuário
+        }
+    },
+
+    async getAuditLogs(userId: string): Promise<AuditLog[]> {
+        const { data, error } = await supabase
+            .from('audit_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) {
+            console.error("Erro ao buscar logs:", error);
+            return [];
+        }
+        return data as AuditLog[];
+    },
+
     async getOrCreateProject(userId: string): Promise<Project | null> {
         try {
             const { data: projects, error } = await supabase
@@ -174,6 +205,8 @@ export const dataService = {
                     return null;
                 }
                 currentProject = newProject;
+                // Log Project Creation
+                await this.logAudit(userId, 'CREATE', 'PROJECT', { id: newProject.id }, 'SYSTEM_INIT');
             }
 
             const project = await this.hydrateProject(currentProject);
@@ -333,7 +366,13 @@ export const dataService = {
         }
     },
 
-    async saveUserProfile(userId: string, profile: UserProfile) {
+    async saveUserProfile(userId: string, profile: UserProfile, source: string = 'UNKNOWN') {
+        // Fetch current profile for audit diff (Non-blocking ideally, but needed for accuracy)
+        let oldProfile: any = null;
+        try {
+            oldProfile = await this.getUserProfile(userId);
+        } catch (e) { /* ignore */ }
+
         const dbProfile = {
             user_id: userId,
             name: profile.name,
@@ -361,6 +400,23 @@ export const dataService = {
             .upsert(dbProfile, { onConflict: 'user_id' });
 
         if (error) console.error("Error saving profile:", error.message);
+        else {
+            // AUDIT LOG
+            await this.logAudit(userId, 'UPDATE', 'PROFILE', {
+                before: oldProfile ? {
+                    weight: oldProfile.weight,
+                    height: oldProfile.height,
+                    measurements: oldProfile.measurements,
+                    target: oldProfile.targetMeasurements
+                } : 'NEW_PROFILE',
+                after: {
+                    weight: profile.weight,
+                    height: profile.height,
+                    measurements: profile.measurements,
+                    target: profile.targetMeasurements
+                }
+            }, source);
+        }
         return error;
     },
 
@@ -380,6 +436,8 @@ export const dataService = {
                 terms_version: '1.0'
             })
             .eq('user_id', userId);
+        
+        await this.logAudit(userId, 'UPDATE', 'LEGAL', { accepted: true }, 'MODAL');
         return error;
     },
 
@@ -413,6 +471,7 @@ export const dataService = {
             .from('project_files')
             .createSignedUrl(filePath, 3600);
 
+        await this.logAudit(userId, 'UPDATE', 'PROFILE', { avatar: filePath }, 'AVATAR_UPLOAD');
         return data?.signedUrl || null;
     },
     
@@ -447,6 +506,7 @@ export const dataService = {
     },
 
     async addSource(projectId: string, source: Source) {
+        const { data: { session } } = await supabase.auth.getSession();
         const { error } = await supabase
             .from('sources')
             .insert({
@@ -462,18 +522,27 @@ export const dataService = {
             });
         
         if (error) console.error('Error adding source:', error.message);
+        else if (session?.user) {
+            await this.logAudit(session.user.id, 'CREATE', 'SOURCE', { title: source.title, type: source.type }, 'UPLOAD');
+        }
         return error;
     },
 
     async updateSourceDetails(sourceId: string, updates: { date?: string, title?: string, content?: string }) {
+        const { data: { session } } = await supabase.auth.getSession();
         const { error } = await supabase
             .from('sources')
             .update(updates)
             .eq('id', sourceId);
+        
+        if (!error && session?.user) {
+            await this.logAudit(session.user.id, 'UPDATE', 'SOURCE', { id: sourceId, updates }, 'SOURCE_DETAIL_MODAL');
+        }
         return error;
     },
 
     async deleteSource(sourceId: string, filePath?: string) {
+        const { data: { session } } = await supabase.auth.getSession();
         if (filePath) {
             try {
                 await supabase.storage
@@ -490,6 +559,9 @@ export const dataService = {
             .eq('id', sourceId);
         
         if (error) console.error('Error deleting source:', error.message);
+        else if (session?.user) {
+            await this.logAudit(session.user.id, 'DELETE', 'SOURCE', { id: sourceId, path: filePath }, 'SOURCE_LIST');
+        }
         return error;
     },
 
@@ -512,7 +584,8 @@ export const dataService = {
         if (error) console.error('Error toggling source:', error.message);
     },
 
-    async addMetric(projectId: string, category: string, point: MetricPoint) {
+    async addMetric(projectId: string, category: string, point: MetricPoint, source: string = 'UNKNOWN') {
+        const { data: { session } } = await supabase.auth.getSession();
         let safeDate = point.date;
         if (point.date.includes('/')) {
             const parts = point.date.split('/');
@@ -535,9 +608,14 @@ export const dataService = {
             });
         
         if (error) console.error('Error adding metric:', error.message);
+        else if (session?.user) {
+            await this.logAudit(session.user.id, 'CREATE', 'METRIC', { category, value: point.value, unit: point.unit, date: point.date }, source);
+        }
     },
 
-    async updateProjectSettings(projectId: string, objective: string, protocol: ProtocolItem[], trainingNotes?: string, dietCalories?: string) {
+    async updateProjectSettings(projectId: string, objective: string, protocol: ProtocolItem[], trainingNotes?: string, dietCalories?: string, source: string = 'UNKNOWN') {
+        const { data: { session } } = await supabase.auth.getSession();
+        
         const updateData: any = { 
             current_protocol: protocol,
             objective: objective
@@ -560,6 +638,8 @@ export const dataService = {
         if (error) {
             // Log detalhado para debug do usuário
             console.error('Error updating project settings:', JSON.stringify(error, null, 2));
+        } else if (session?.user) {
+            await this.logAudit(session.user.id, 'UPDATE', 'PROJECT_SETTINGS', updateData, source);
         }
     },
 
