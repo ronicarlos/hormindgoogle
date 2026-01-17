@@ -5,7 +5,7 @@ import { dataService } from '../services/dataService';
 import { supabase } from '../lib/supabase';
 import { IconWizard, IconCheck, IconArrowLeft, IconUser, IconActivity, IconFlame, IconAlert, IconScience, IconDumbbell, IconPill, IconPlus, IconClose, IconFolder, IconInfo, IconCalendar } from './Icons';
 import { Tooltip } from './Tooltip';
-import BodyGuide from './BodyGuide'; // Usando componente centralizado
+import BodyGuide from './BodyGuide'; 
 
 interface WizardModalProps {
     isOpen: boolean;
@@ -79,54 +79,54 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
     // Estado visual para o BodyGuide
     const [activeMeasurement, setActiveMeasurement] = useState<string>('chest');
 
+    // Inicialização segura - Só roda ao ABRIR o modal, não a cada update do project
     useEffect(() => {
-        if (!isOpen) return;
-
-        if (project.userProfile) {
-            const p = project.userProfile;
-            setProfileData({
-                ...p,
-                measurements: p.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
-                targetMeasurements: p.targetMeasurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' }
-            });
-            
-            // Sync Display Date
-            if (p.birthDate) {
-                const parts = p.birthDate.split('-');
-                if (parts.length === 3) {
-                    setBirthDateDisplay(`${parts[2]}/${parts[1]}/${parts[0]}`);
+        if (isOpen) {
+            if (project.userProfile) {
+                const p = project.userProfile;
+                // Preserva dados locais se já foram editados, senão usa do projeto
+                setProfileData(prev => ({
+                    ...p,
+                    ...prev, // Mantém edições locais se houver (merge safe)
+                    measurements: p.measurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
+                    targetMeasurements: p.targetMeasurements || { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' }
+                }));
+                
+                // Sync Display Date from DB format (YYYY-MM-DD) to Display (DD/MM/YYYY)
+                // Apenas se o campo de display estiver vazio (primeira carga)
+                if (p.birthDate && !birthDateDisplay) {
+                    const parts = p.birthDate.split('-');
+                    if (parts.length === 3) {
+                        setBirthDateDisplay(`${parts[2]}/${parts[1]}/${parts[0]}`);
+                    }
                 }
             }
-        }
 
-        if (project.objective) setObjective(project.objective);
-        if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
-        if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
-        
-        // Carregar calorias
-        if (project.dietCalories) {
-            setCalories(project.dietCalories);
-        } else {
-            const calMetrics = project.metrics['Calories'];
-            if (calMetrics && calMetrics.length > 0) {
-                const sorted = [...calMetrics].sort((a,b) => {
-                     const da = a.date.split('/').reverse().join('-');
-                     const db = b.date.split('/').reverse().join('-');
-                     return new Date(db).getTime() - new Date(da).getTime();
-                });
-                setCalories(sorted[0].value.toString());
+            if (project.objective) setObjective(project.objective);
+            if (project.trainingNotes) setTrainingNotes(project.trainingNotes);
+            if (project.currentProtocol) setProtocol(project.currentProtocol.length > 0 ? project.currentProtocol : [{ compound: '', dosage: '', frequency: '' }]);
+            
+            if (project.dietCalories) {
+                setCalories(project.dietCalories);
             } else {
-                setCalories(''); 
+                const calMetrics = project.metrics['Calories'];
+                if (calMetrics && calMetrics.length > 0) {
+                    const sorted = [...calMetrics].sort((a,b) => {
+                         const da = a.date.split('/').reverse().join('-');
+                         const db = b.date.split('/').reverse().join('-');
+                         return new Date(db).getTime() - new Date(da).getTime();
+                    });
+                    setCalories(sorted[0].value.toString());
+                }
             }
+            
+            const testoMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'];
+            if (testoMetrics && testoMetrics.length > 0) setManualTesto(testoMetrics[testoMetrics.length - 1].value.toString());
+            
+            const e2Metrics = project.metrics['Estradiol'];
+            if (e2Metrics && e2Metrics.length > 0) setManualE2(e2Metrics[e2Metrics.length - 1].value.toString());
         }
-        
-        const testoMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'];
-        if (testoMetrics && testoMetrics.length > 0) setManualTesto(testoMetrics[testoMetrics.length - 1].value.toString());
-        
-        const e2Metrics = project.metrics['Estradiol'];
-        if (e2Metrics && e2Metrics.length > 0) setManualE2(e2Metrics[e2Metrics.length - 1].value.toString());
-
-    }, [project, isOpen]);
+    }, [isOpen]); // Dependência reduzida para evitar resets indesejados durante a edição
 
     // Lógica de "Resume" (começar de onde parou)
     useEffect(() => {
@@ -141,7 +141,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
             else if (!p.comorbidities && !p.medications) startStep = 4;
             else startStep = 0; 
 
-            setCurrentStep(startStep);
+            // Apenas define se for a primeira abertura (currentStep 0)
+            if (currentStep === 0) setCurrentStep(startStep);
         }
     }, [isOpen]);
 
@@ -232,13 +233,28 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
         setIsSaving(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
+            
+            // Validação de Data antes de prosseguir (Passo 0)
+            if (currentStep === 0 && birthDateDisplay.length === 10 && !profileData.birthDate) {
+                // O usuário digitou uma data visualmente completa mas inválida (ex: 31/02/2000)
+                alert("Data de nascimento inválida. Por favor verifique.");
+                setIsSaving(false);
+                return;
+            }
+
             if (session?.user) {
                 const updatedMetrics = { ...project.metrics };
                 const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
 
                 // Salva perfil progressivamente nos primeiros passos
                 if (currentStep <= 4) {
-                    await dataService.saveUserProfile(session.user.id, profileData);
+                    const saveError = await dataService.saveUserProfile(session.user.id, profileData);
+                    if (saveError) {
+                        console.error("Erro ao salvar perfil:", saveError);
+                        alert("Houve um erro ao salvar seus dados. Tente novamente.");
+                        setIsSaving(false);
+                        return;
+                    }
                     onUpdateProfile(profileData);
                 }
                 
@@ -283,6 +299,7 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                 }
             }
 
+            // Avança o passo
             if (currentStep < steps.length - 1) {
                 setCurrentStep(prev => prev + 1);
             } else {
@@ -292,7 +309,8 @@ const WizardModal: React.FC<WizardModalProps> = ({ isOpen, onClose, project, onU
                 }
             }
         } catch (error) {
-            console.error("Error saving wizard step:", error);
+            console.error("Critical Error saving wizard step:", error);
+            alert("Ocorreu um erro inesperado ao salvar. Verifique sua conexão.");
         } finally {
             setIsSaving(false);
         }
