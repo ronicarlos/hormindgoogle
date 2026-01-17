@@ -276,7 +276,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
             case 'SAUDE': return <IconActivity className="w-3.5 h-3.5" />;
             default: return <IconSparkles className="w-3.5 h-3.5" />;
         }
-    };
+        };
 
     let lastMonthYear = '';
 
