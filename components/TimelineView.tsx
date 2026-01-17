@@ -1,14 +1,15 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Source, ChatMessage, SourceType } from '../types';
+import { Source, ChatMessage, SourceType, MetricPoint } from '../types';
 import { dataService } from '../services/dataService';
-import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell, IconClose, IconCalendar, IconArrowLeft, IconDownload, IconSearch } from './Icons';
+import { IconClock, IconFile, IconSparkles, IconUser, IconDumbbell, IconClose, IconCalendar, IconArrowLeft, IconDownload, IconSearch, IconAlert } from './Icons';
 import ReactMarkdown from 'react-markdown';
 
 interface TimelineViewProps {
     sources: Source[];
     messages: ChatMessage[];
-    projectId?: string; // Novo prop para permitir fetch autônomo
+    projectId?: string;
+    metrics?: Record<string, MetricPoint[]>; // New Prop for Data Enrichment
 }
 
 interface TimelineItem {
@@ -21,6 +22,7 @@ interface TimelineItem {
     content: string;
     isHighlight?: boolean;
     originalObject?: any;
+    topMetrics?: { category: string, value: number, unit: string, status: 'NORMAL' | 'HIGH' | 'LOW' }[]; // Enriched Data
 }
 
 // Helper para destacar texto (Replicado do ChatInterface para consistência visual)
@@ -147,7 +149,7 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                                 className="px-4 py-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-lg text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                             >
                                 <IconDownload className="w-4 h-4" />
-                                Original
+                                Baixar Arquivo Original
                             </button>
                         )}
                         <button 
@@ -163,7 +165,7 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
     );
 };
 
-const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialMessages, projectId }) => {
+const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialMessages, projectId, metrics }) => {
     const [filter, setFilter] = useState<'ALL' | 'EXAMS' | 'ANALYSIS'>('ALL');
     const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -203,13 +205,49 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
 
     const timelineData = useMemo(() => {
         const items: TimelineItem[] = [];
-
+        
+        // --- 1. SOURCES (Documentos, Exames, Uploads) ---
+        // São eventos reais e sempre relevantes.
         sources.forEach(source => {
             const parts = source.date.split('/');
             let dateObj = new Date();
             if (parts.length === 3) {
                 dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
             }
+
+            // Data Enrichment: Find matching metrics for this source date
+            const sourceTopMetrics: { category: string, value: number, unit: string, status: 'NORMAL' | 'HIGH' | 'LOW' }[] = [];
+            
+            if (metrics) {
+                Object.entries(metrics).forEach(([category, points]) => {
+                    // Encontra ponto na mesma data do source
+                    const matchingPoint = points.find(p => p.date === source.date);
+                    if (matchingPoint) {
+                        let status: 'NORMAL' | 'HIGH' | 'LOW' = 'NORMAL';
+                        
+                        // Simple Range Check (if refs exist)
+                        if (matchingPoint.refMax !== undefined && matchingPoint.value > matchingPoint.refMax) status = 'HIGH';
+                        if (matchingPoint.refMin !== undefined && matchingPoint.value < matchingPoint.refMin) status = 'LOW';
+
+                        sourceTopMetrics.push({
+                            category,
+                            value: matchingPoint.value,
+                            unit: matchingPoint.unit,
+                            status
+                        });
+                    }
+                });
+            }
+
+            // Ordenar métricas: Críticas primeiro, depois por nome
+            sourceTopMetrics.sort((a, b) => {
+                if (a.status !== 'NORMAL' && b.status === 'NORMAL') return -1;
+                if (a.status === 'NORMAL' && b.status !== 'NORMAL') return 1;
+                return a.category.localeCompare(b.category);
+            });
+
+            // Limitar a 6 métricas principais para não poluir
+            const displayMetrics = sourceTopMetrics.slice(0, 6);
 
             items.push({
                 id: source.id,
@@ -220,39 +258,103 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                 title: source.title,
                 content: source.summary || source.content,
                 isHighlight: source.type === SourceType.PDF || source.type === SourceType.IMAGE || source.type === SourceType.PRONTUARIO,
-                originalObject: source
+                originalObject: source,
+                topMetrics: displayMetrics
             });
         });
 
-        messages.forEach(msg => {
-            if (msg.role !== 'model') return;
-            const isBookmarked = msg.isBookmarked;
-            
-            // Filtra mensagens de sistema puramente técnicas para não poluir, mas deixa as úteis
-            const isSystemNotification = 
-                msg.text.startsWith('✅') || 
-                msg.text.startsWith('🔄') || 
-                msg.text.startsWith('❌') ||
-                msg.text.includes('processado');
+        // --- 2. MESSAGES (Análises da IA) ---
+        // Aqui aplicamos a limpeza rigorosa de ruídos.
+        const seenContent = new Set<string>();
 
-            if (isSystemNotification && !isBookmarked) return;
-            if (msg.text.length < 50 && !isBookmarked) return; // Ignora mensagens muito curtas não favoritadas
+        messages.forEach(msg => {
+            // Apenas mensagens da IA
+            if (msg.role !== 'model') return;
+            
+            const text = msg.text.trim();
+            const lowerText = text.toLowerCase();
+
+            // REGRA: Favoritos sempre passam
+            if (msg.isBookmarked) {
+                items.push({
+                    id: msg.id,
+                    dateObj: new Date(msg.timestamp),
+                    dateDisplay: new Date(msg.timestamp).toLocaleDateString('pt-BR'),
+                    type: 'ANALYSIS',
+                    title: 'Insight Favorito',
+                    content: text,
+                    isHighlight: true,
+                    originalObject: msg
+                });
+                return;
+            }
+
+            // --- FILTRO DE RUÍDO (NOISE FILTER) ---
+            
+            // 1. Mensagens de Sistema / Processamento
+            if (
+                text.startsWith('✅') || 
+                text.startsWith('🔄') || 
+                text.startsWith('❌') || 
+                text.includes('processado') ||
+                text.includes('tokens')
+            ) return;
+
+            // 2. Saudações e Introduções (IA sendo educada, não relevante para Timeline)
+            if (
+                lowerText.startsWith('olá') || 
+                lowerText.startsWith('oi,') || 
+                lowerText.includes('sou sua ia') || 
+                lowerText.includes('sou o fitlm') || 
+                lowerText.includes('como posso ajudar') ||
+                lowerText.startsWith('claro,') ||
+                lowerText.startsWith('entendido')
+            ) return;
+
+            // 3. Erros
+            if (
+                lowerText.includes('erro ao') || 
+                lowerText.includes('desculpe') || 
+                lowerText.includes('tente novamente')
+            ) return;
+
+            // 4. Conteúdo Duplicado (Ignorar repetições exatas)
+            if (seenContent.has(text)) return;
+            seenContent.add(text);
+
+            // 5. Tamanho Mínimo (Evitar respostas curtas como "Sim", "Ok")
+            // Exceção: Se contiver palavras-chave de alerta
+            const isImportantKeyword = 
+                lowerText.includes('risco') || 
+                lowerText.includes('alerta') || 
+                lowerText.includes('crítico') ||
+                lowerText.includes('atenção');
+
+            if (text.length < 60 && !isImportantKeyword) return;
 
             const dateObj = new Date(msg.timestamp);
+            
+            // Título mais descritivo baseado no conteúdo
+            let title = 'Análise IA';
+            if (lowerText.includes('treino')) title = 'Análise de Treino';
+            else if (lowerText.includes('dieta') || lowerText.includes('calorias')) title = 'Análise de Dieta';
+            else if (lowerText.includes('exame') || lowerText.includes('hemograma')) title = 'Análise Laboratorial';
+            else if (lowerText.includes('protocolo') || lowerText.includes('ciclo')) title = 'Análise de Protocolo';
+
             items.push({
                 id: msg.id,
                 dateObj: dateObj,
                 dateDisplay: dateObj.toLocaleDateString('pt-BR'),
                 type: 'ANALYSIS',
-                title: isBookmarked ? 'Insight Favorito' : 'Análise IA',
-                content: msg.text,
-                isHighlight: isBookmarked,
+                title: title,
+                content: text,
+                isHighlight: false,
                 originalObject: msg
             });
         });
 
         return items.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
-    }, [sources, messages]);
+    }, [sources, messages, metrics]);
 
     const filteredData = timelineData.filter(item => {
         // Search Filter
@@ -268,6 +370,12 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
         if (filter === 'ANALYSIS') return item.type === 'ANALYSIS';
         return true;
     });
+
+    // Handle Open Link within card
+    const handleOpenLink = (e: React.MouseEvent, url: string) => {
+        e.stopPropagation();
+        window.open(url, '_blank');
+    };
 
     let lastMonthYear = '';
 
@@ -412,7 +520,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                                 : 'border-gray-100 hover:border-gray-300 dark:hover:border-gray-700'
                                             }`}
                                         >
-                                            {/* Date Badge */}
+                                            {/* Date Badge & Header */}
                                             <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`p-1.5 rounded-lg ${
@@ -429,10 +537,16 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                                         {item.dateDisplay}
                                                     </span>
                                                 </div>
-                                                {item.type === 'SOURCE' && (
-                                                    <span className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-bold dark:bg-gray-800 dark:text-gray-400">
-                                                        {item.subType}
-                                                    </span>
+                                                
+                                                {/* Download/External Link Icon (ALWAYS VISIBLE for Sources) */}
+                                                {item.type === 'SOURCE' && item.originalObject?.fileUrl && (
+                                                    <button 
+                                                        onClick={(e) => handleOpenLink(e, item.originalObject.fileUrl)}
+                                                        className="p-1.5 bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-blue-600 rounded-lg transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-500 dark:hover:text-blue-400"
+                                                        title="Baixar Original"
+                                                    >
+                                                        <IconDownload className="w-4 h-4" />
+                                                    </button>
                                                 )}
                                             </div>
 
@@ -440,29 +554,64 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                                 <HighlightText text={item.title} highlight={searchTerm} />
                                             </h3>
 
+                                            {/* --- SMART METRICS GRID (NEW FEATURE) --- */}
+                                            {item.type === 'SOURCE' && item.topMetrics && item.topMetrics.length > 0 && (
+                                                <div className="my-3 grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100 dark:bg-gray-800/50 dark:border-gray-700">
+                                                    {item.topMetrics.map((m, i) => (
+                                                        <div key={i} className="flex flex-col p-1.5 rounded-lg bg-white shadow-sm border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
+                                                            <div className="flex justify-between items-start mb-0.5">
+                                                                <span className="text-[9px] text-gray-500 font-bold uppercase truncate max-w-[80px] dark:text-gray-400" title={m.category}>{m.category}</span>
+                                                                {m.status !== 'NORMAL' && (
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${m.status === 'HIGH' ? 'bg-red-500' : 'bg-orange-400'}`} title={m.status === 'HIGH' ? 'Alto' : 'Baixo'} />
+                                                                )}
+                                                            </div>
+                                                            <span className={`text-xs font-black ${
+                                                                m.status === 'HIGH' ? 'text-red-600 dark:text-red-400' : 
+                                                                m.status === 'LOW' ? 'text-blue-600 dark:text-blue-400' : 
+                                                                'text-gray-800 dark:text-gray-200'
+                                                            }`}>
+                                                                {m.value} <span className="text-[8px] font-normal text-gray-400 uppercase">{m.unit}</span>
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Summary / Content Snippet */}
                                             <div className="text-xs text-gray-500 leading-relaxed line-clamp-3 prose prose-sm max-w-none dark:text-gray-400 dark:prose-invert">
-                                                {/* Use HighlightText wrapper instead of ReactMarkdown directly when searching to ensure painting works on preview */}
-                                                {searchTerm ? (
-                                                    <HighlightText 
-                                                        text={item.content.length > 200 ? item.content.substring(0, 200) + "..." : item.content} 
-                                                        highlight={searchTerm} 
-                                                    />
+                                                {/* Prioritize AI Summary if available */}
+                                                {item.type === 'SOURCE' && item.originalObject?.summary && item.originalObject.summary.length > 20 ? (
+                                                    <span className="italic text-gray-600 dark:text-gray-300">
+                                                        "{item.originalObject.summary}"
+                                                    </span>
                                                 ) : (
-                                                    <ReactMarkdown>
-                                                        {item.content.length > 200 
-                                                            ? item.content.substring(0, 200) + "..." 
-                                                            : item.content}
-                                                    </ReactMarkdown>
+                                                    // Fallback to highlight or raw content
+                                                    searchTerm ? (
+                                                        <HighlightText 
+                                                            text={item.content.length > 200 ? item.content.substring(0, 200) + "..." : item.content} 
+                                                            highlight={searchTerm} 
+                                                        />
+                                                    ) : (
+                                                        <ReactMarkdown>
+                                                            {item.content.length > 200 
+                                                                ? item.content.substring(0, 200) + "..." 
+                                                                : item.content}
+                                                        </ReactMarkdown>
+                                                    )
                                                 )}
                                             </div>
 
                                             {/* Hover Action */}
                                             <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between dark:border-gray-800">
-                                                <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">
-                                                    {item.type === 'SOURCE' ? 'Documento' : 'Insight'}
-                                                </span>
+                                                <div className="flex gap-2">
+                                                    {item.type === 'SOURCE' && (
+                                                        <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest bg-gray-50 px-2 py-0.5 rounded dark:bg-gray-800 dark:text-gray-500">
+                                                            {item.subType}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity dark:text-blue-400">
-                                                    Abrir <IconArrowLeft className="w-3 h-3 rotate-180" />
+                                                    Abrir Análise <IconArrowLeft className="w-3 h-3 rotate-180" />
                                                 </span>
                                             </div>
                                         </div>

@@ -621,6 +621,7 @@ export default function App() {
                               sources={project.sources}
                               messages={[]} 
                               projectId={project.id} 
+                              metrics={project.metrics} // Passa métricas para o TimelineView (NOVO)
                           />
                       )}
 
