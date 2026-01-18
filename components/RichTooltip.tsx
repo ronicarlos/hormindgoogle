@@ -29,12 +29,12 @@ const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gende
         return analyzePoint(value, date, history, info, gender);
     }, [value, date, history, info, gender]);
 
-    // Cor do Header baseada no Status
+    // Cor do Header baseada no Status (4 Zonas)
     let headerColor = 'bg-gray-50 border-gray-100 dark:bg-gray-800 dark:border-gray-700';
-    if (analysis.status === 'HIGH') {
+    if (analysis.status.includes('CRITICAL')) {
         headerColor = 'bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800';
-    } else if (analysis.status === 'LOW') {
-        headerColor = 'bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800';
+    } else if (analysis.status === 'HIGH' || analysis.status === 'LOW') {
+        headerColor = 'bg-orange-50 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800';
     } else if (analysis.status.includes('BORDERLINE')) {
         headerColor = 'bg-yellow-50 border-yellow-100 dark:bg-yellow-900/20 dark:border-yellow-800';
     }

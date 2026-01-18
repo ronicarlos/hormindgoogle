@@ -1,15 +1,14 @@
-
 import { MetricPoint } from '../types';
 import { MarkerInfo } from './markerRegistry';
 
 export interface AnalysisResult {
-    status: 'LOW' | 'BORDERLINE_LOW' | 'NORMAL' | 'BORDERLINE_HIGH' | 'HIGH' | 'UNKNOWN';
+    status: 'LOW' | 'BORDERLINE_LOW' | 'NORMAL' | 'BORDERLINE_HIGH' | 'HIGH' | 'CRITICAL_HIGH' | 'CRITICAL_LOW' | 'UNKNOWN';
     trend: 'UP' | 'DOWN' | 'STABLE' | 'UNKNOWN';
     trendPercent: number;
     delta: number;
     message: string;
     riskColor: string;
-    activeRange: { min: number, max: number } | null; // Added field
+    activeRange: { min: number, max: number } | null;
 }
 
 const parseDate = (dateStr: string): number => {
@@ -26,67 +25,110 @@ export const analyzePoint = (
     history: MetricPoint[], 
     marker: MarkerInfo, 
     gender: 'Masculino' | 'Feminino',
-    dynamicRef?: { min?: number, max?: number } // Nova prop para referências dinâmicas
+    dynamicRef?: { min?: number, max?: number }
 ): AnalysisResult => {
     
-    // 1. Determinar Faixa de Referência
-    let range: [number, number] | undefined = marker.ranges?.general;
-    if (gender === 'Masculino' && marker.ranges?.male) range = marker.ranges.male;
-    else if (gender === 'Feminino' && marker.ranges?.female) range = marker.ranges.female;
+    // 1. Determinar Faixa de Referência (LÓGICA DE FALLBACK ROBUSTA)
+    // Prioridade: 
+    // 1. Referência dinâmica do ponto (OCR) SE for válida
+    // 2. Referência da base de conhecimento (Registry) baseada em gênero
+    // 3. Referência geral da base de conhecimento
+    
+    let minRef: number | undefined = undefined;
+    let maxRef: number | undefined = undefined;
 
-    // Se o marcador for genérico e tivermos referências dinâmicas, usá-las
-    if (marker.isGeneric && dynamicRef && (dynamicRef.min !== undefined || dynamicRef.max !== undefined)) {
-        // Fallback: Se faltar um lado, assume infinito (lógica simplificada para alertas)
-        const min = dynamicRef.min !== undefined ? dynamicRef.min : -Infinity;
-        const max = dynamicRef.max !== undefined ? dynamicRef.max : Infinity;
-        range = [min, max];
+    // Tenta usar referência dinâmica se existir e não for nula
+    if (dynamicRef && dynamicRef.min !== undefined && dynamicRef.min !== null) minRef = dynamicRef.min;
+    if (dynamicRef && dynamicRef.max !== undefined && dynamicRef.max !== null) maxRef = dynamicRef.max;
+
+    // Se falhar a dinâmica, busca no Registry (Inteligência da IA)
+    if (minRef === undefined || maxRef === undefined) {
+        let registryRange: [number, number] | undefined = marker.ranges?.general;
+        if (gender === 'Masculino' && marker.ranges?.male) registryRange = marker.ranges.male;
+        else if (gender === 'Feminino' && marker.ranges?.female) registryRange = marker.ranges.female;
+
+        if (registryRange) {
+            if (minRef === undefined) minRef = registryRange[0];
+            if (maxRef === undefined) maxRef = registryRange[1];
+        }
     }
 
-    let activeRange = null;
-    if (range) {
-        activeRange = { min: range[0], max: range[1] };
+    // Se ainda não temos referências, é impossível calcular zonas
+    if (minRef === undefined && maxRef === undefined) {
+        return {
+            status: 'UNKNOWN',
+            trend: 'UNKNOWN',
+            trendPercent: 0,
+            delta: 0,
+            message: 'Sem referência para análise.',
+            riskColor: 'text-gray-400',
+            activeRange: null
+        };
     }
 
-    // 2. Status (High/Low/Normal/Borderline)
+    // Normaliza infinitos para cálculo
+    const effectiveMin = minRef !== undefined ? minRef : -999999;
+    const effectiveMax = maxRef !== undefined ? maxRef : 999999;
+    
+    const activeRange = { min: effectiveMin, max: effectiveMax };
+
+    // 2. Status (Lógica de 4 Zonas Percentuais)
     let status: AnalysisResult['status'] = 'UNKNOWN';
     let riskColor = 'text-gray-500 dark:text-gray-400';
 
-    if (range) {
-        const [min, max] = range;
-        
-        // Ajuste para Infinito (ex: apenas "Inferior a 10")
-        const effectiveMin = min === -Infinity ? -999999 : min;
-        const effectiveMax = max === Infinity ? 999999 : max;
+    const span = effectiveMax - effectiveMin;
+    
+    // Se o span for muito grande (infinito) ou zero, não dá pra calcular porcentagem, usa lógica simples
+    if (span > 100000 || span <= 0) {
+        if (value < effectiveMin) { status = 'CRITICAL_LOW'; riskColor = 'text-red-600 dark:text-red-400'; }
+        else if (value > effectiveMax) { status = 'CRITICAL_HIGH'; riskColor = 'text-red-600 dark:text-red-400'; }
+        else { status = 'NORMAL'; riskColor = 'text-emerald-600 dark:text-emerald-400'; }
+    } else {
+        // CÁLCULO PERCENTUAL PRECISO
+        // Zona Laranja (Atenção): 0% a 10% de distância do limite
+        const orangeBuffer = span * 0.10; // 10%
+        // Zona Amarela (Alerta): 10% a 20% de distância do limite
+        const yellowBuffer = span * 0.20; // 20%
 
-        // Margem de segurança de 15% para alertas preventivos
-        // Evita divisão por zero se o range for 0
-        const span = effectiveMax - effectiveMin;
-        const buffer = span > 0 && span < 999999 ? span * 0.15 : effectiveMax * 0.10; 
-
+        // 1. VERMELHO (CRÍTICO) - Saiu do limite
         if (value < effectiveMin) {
-            status = 'LOW';
-            riskColor = 'text-orange-600 dark:text-orange-400'; // Alterado para laranja (Atenção Baixa)
-        } else if (value <= effectiveMin + buffer && min !== -Infinity) {
-            status = 'BORDERLINE_LOW';
-            riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
-        } else if (value > effectiveMax) {
-            status = 'HIGH';
-            riskColor = 'text-orange-600 dark:text-orange-400'; // Alterado para laranja (Atenção Alta) - Não Vermelho
-        } else if (value >= effectiveMax - buffer && max !== Infinity) {
-            status = 'BORDERLINE_HIGH';
-            riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
-        } else {
+            status = 'CRITICAL_LOW';
+            riskColor = 'text-red-600 dark:text-red-400';
+        } 
+        else if (value > effectiveMax) {
+            status = 'CRITICAL_HIGH';
+            riskColor = 'text-red-600 dark:text-red-400';
+        } 
+        // 2. LARANJA (ATENÇÃO) - Dentro, mas a < 10% do limite (Zona de Perigo Iminente)
+        else if (value <= effectiveMin + orangeBuffer) {
+            status = 'LOW'; 
+            riskColor = 'text-orange-600 dark:text-orange-400';
+        }
+        else if (value >= effectiveMax - orangeBuffer) {
+            status = 'HIGH'; 
+            riskColor = 'text-orange-600 dark:text-orange-400';
+        }
+        // 3. AMARELO (ALERTA) - Dentro, entre 10% e 20% do limite (Zona de Cuidado)
+        else if (value <= effectiveMin + yellowBuffer) {
+            status = 'BORDERLINE_LOW'; 
+            riskColor = 'text-yellow-600 dark:text-yellow-400';
+        }
+        else if (value >= effectiveMax - yellowBuffer) {
+            status = 'BORDERLINE_HIGH'; 
+            riskColor = 'text-yellow-600 dark:text-yellow-400';
+        }
+        // 4. VERDE (NORMAL) - Longe dos limites (> 20%)
+        else {
             status = 'NORMAL';
             riskColor = 'text-emerald-600 dark:text-emerald-400';
         }
     }
 
-    // 3. Tendência (Comparando com ponto anterior mais próximo)
+    // 3. Tendência
     let trend: AnalysisResult['trend'] = 'UNKNOWN';
     let trendPercent = 0;
     let delta = 0;
 
-    // Ordenar histórico cronologicamente
     const sortedHistory = [...history].sort((a, b) => parseDate(a.date) - parseDate(b.date));
     const currentIndex = sortedHistory.findIndex(h => h.date === date && Number(h.value) === value);
 
@@ -106,21 +148,25 @@ export const analyzePoint = (
 
     // 4. Montar Mensagem Narrativa
     let message = '';
-    const refText = range ? `(${range[0] !== -Infinity ? range[0] : '<'} - ${range[1] !== Infinity ? range[1] : '>'} ${marker.unit})` : '';
+    const refText = `(Ref: ${effectiveMin} - ${effectiveMax})`;
     
-    // Parte A: Status
-    if (status === 'NORMAL') message += `✅ Valor saudável e estável.`;
-    else if (status === 'HIGH') message += `⚠️ ATENÇÃO: Acima da referência ${refText}.`;
-    else if (status === 'LOW') message += `⚠️ ATENÇÃO: Abaixo da referência ${refText}.`;
-    else if (status === 'BORDERLINE_HIGH') message += `⚠️ ALERTA: Próximo ao limite superior ${refText}.`;
-    else if (status === 'BORDERLINE_LOW') message += `⚠️ ALERTA: Próximo ao limite inferior ${refText}.`;
-    else message += `Valor registrado: ${value}`;
+    if (status === 'NORMAL') {
+        message += `✅ Ideal. Longe dos limites.`;
+    } else if (status === 'CRITICAL_HIGH' || status === 'CRITICAL_LOW') {
+        message += `🔴 CRÍTICO: Ultrapassou a referência ${refText}.`;
+    } else if (status === 'HIGH' || status === 'LOW') {
+        message += `🟠 ATENÇÃO: Muito próximo do limite (<10%).`;
+    } else if (status === 'BORDERLINE_HIGH' || status === 'BORDERLINE_LOW') {
+        message += `🟡 ALERTA: Aproximando do limite (10-20%).`;
+    } else {
+        // Caso residual (se status for UNKNOWN ou outro não previsto, mas UNKNOWN é tratado no início)
+        message += `Registrado: ${value}`;
+    }
 
-    // Parte B: Tendência
     if (trend !== 'UNKNOWN') {
         const arrow = trend === 'UP' ? '⬆️' : trend === 'DOWN' ? '⬇️' : '➡️';
         const absPercent = Math.abs(trendPercent).toFixed(1);
-        message += ` ${arrow} Variação de ${trendPercent > 0 ? '+' : ''}${absPercent}% em relação ao anterior.`;
+        message += ` ${arrow} ${trendPercent > 0 ? '+' : ''}${absPercent}% vs anterior.`;
     }
 
     return {

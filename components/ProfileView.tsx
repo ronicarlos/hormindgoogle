@@ -15,7 +15,7 @@ import {
     IconFile, IconCalendar, IconHistory, IconCamera, IconUpload
 } from './Icons';
 
-const CODE_VERSION = "v1.6.70";
+const CODE_VERSION = "v1.6.71";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',

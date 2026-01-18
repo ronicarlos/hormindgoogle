@@ -229,6 +229,101 @@ const CollapsibleSection = ({ title, icon: Icon, count, children, defaultExpande
     );
 };
 
+// Componente de Card de Métrica (Reutilizável)
+const MetricCard = ({ item, onClick }: { item: any, onClick: () => void }) => {
+    // DEFINIÇÃO VISUAL (4 ZONAS)
+    let styleClass = '';
+    let textClass = '';
+    let description = '';
+
+    // Lógica de Cores baseada no STATUS retornado pelo AnalyticsService
+    if (item.status.includes('CRITICAL')) {
+        // ZONA 4: CRÍTICO (VERMELHO) - Fora da referência
+        styleClass = 'bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/40';
+        textClass = 'text-red-900 dark:text-red-200';
+        description = item.status === 'CRITICAL_HIGH' ? 'Crítico (Estourou Máx)' : 'Crítico (Abaixo Mín)';
+    } else if (item.status === 'HIGH' || item.status === 'LOW') {
+        // ZONA 3: LARANJA (ATENÇÃO) - Muito próximo (0-10% buffer)
+        styleClass = 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/40';
+        textClass = 'text-orange-900 dark:text-orange-200';
+        description = item.status === 'HIGH' ? 'Atenção (Muito Alto)' : 'Atenção (Muito Baixo)';
+    } else if (item.status.includes('BORDERLINE')) {
+        // ZONA 2: AMARELO (ALERTA) - Próximo (10-20% buffer)
+        styleClass = 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
+        textClass = 'text-yellow-900 dark:text-yellow-200';
+        description = item.status === 'BORDERLINE_HIGH' ? 'Alerta (Subindo)' : 'Alerta (Caindo)';
+    } else if (item.status === 'NORMAL') {
+        // ZONA 1: VERDE (NORMAL)
+        styleClass = 'bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900/30';
+        textClass = 'text-emerald-900 dark:text-emerald-200';
+        description = 'Ideal / Estável';
+    } else {
+        // UNKNOWN
+        styleClass = 'bg-gray-50 border-gray-200 hover:bg-gray-100 dark:bg-gray-900/20 dark:border-gray-700';
+        textClass = 'text-gray-900 dark:text-gray-200';
+        description = "Sem referência";
+    }
+
+    // Override se tiver Stale Warning
+    if (item.staleWarning) {
+        if (item.status === 'NORMAL' || item.status === 'UNKNOWN') {
+            styleClass = 'bg-orange-50 border-orange-300 hover:bg-orange-100 dark:bg-orange-900/20 dark:border-orange-700';
+            textClass = 'text-orange-900 dark:text-orange-200';
+        } else {
+            styleClass = styleClass.replace(/border-\w+-\d+/, 'border-orange-400');
+        }
+    }
+
+    const rangeText = item.range ? `Ref: ${item.range.min} - ${item.range.max}` : 'Ref: N/A';
+
+    return (
+        <div onClick={onClick} className={`rounded-xl p-4 cursor-pointer transition-colors border relative ${styleClass}`}>
+            {/* STALE DATA BADGE */}
+            {item.staleWarning && (
+                <div className="absolute -top-2 -right-2 bg-orange-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10 border border-white dark:border-gray-900">
+                    <IconRefresh className="w-3 h-3" /> Att Necessária
+                </div>
+            )}
+
+            <div className="flex justify-between items-center mb-1">
+                <h4 className={`font-bold text-xs uppercase tracking-wider ${textClass}`}>{item.category}</h4>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-bold opacity-60 flex items-center gap-1">
+                        {item.sourceType === 'Cadastro' ? <IconUser className="w-3 h-3" /> : <IconFile className="w-3 h-3" />}
+                        {item.date}
+                    </span>
+                    <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded mt-0.5 ${
+                        item.sourceType === 'Cadastro' 
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                        : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                        {item.sourceType === 'Cadastro' ? 'Input Manual' : 'Exame Lab'}
+                    </span>
+                </div>
+            </div>
+            <div className="flex justify-between items-end mt-2">
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-bold opacity-80 mb-1 bg-white/40 px-1.5 py-0.5 rounded w-fit">{rangeText}</span>
+                    <p className={`text-[10px] font-medium leading-snug max-w-[120px] ${textClass} opacity-90`}>
+                        {item.staleWarning ? "Valor manual difere do exame mais recente." : description || item.message}
+                    </p>
+                </div>
+                <div className="text-right">
+                    <span className={`text-xl font-black block ${textClass}`}>{item.value} <span className="text-[10px] font-normal opacity-70">{item.unit}</span></span>
+                    {item.secondaryData && (
+                        <div className="text-[9px] opacity-70 mt-1 border-t border-black/10 pt-1 flex flex-col items-end">
+                            <span className="font-bold flex items-center gap-1">
+                                <IconFile className="w-2.5 h-2.5" /> Lab: {item.secondaryData.value}
+                            </span>
+                            <span className="text-[8px] opacity-80">{item.secondaryData.date}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- DASHBOARD PRINCIPAL ---
 
 const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView = false, isProcessing, onViewSource }) => {
@@ -266,9 +361,10 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
     const gender = project.userProfile?.gender || 'Masculino';
     const filteredCategories = allCategories.filter(cat => cat.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    // --- CÁLCULO UNIFICADO COM REGRA DE PRIORIDADE ABSOLUTA E CORES ---
-    const { preventiveItems, healthyItems } = useMemo(() => {
-        const preventive: any[] = [];
+    // --- CÁLCULO UNIFICADO COM 3 GRUPOS CLAROS ---
+    const { criticalItems, attentionItems, healthyItems } = useMemo(() => {
+        const critical: any[] = [];
+        const attention: any[] = [];
         const healthy: any[] = [];
 
         allCategories.forEach(cat => {
@@ -296,32 +392,22 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
             examPoints.sort(sorter);
 
             // 3. SELEÇÃO DE PRIORIDADE ABSOLUTA
-            // REGRA: Se existe Manual, ele é o PRIMARY, independente da data.
-            // O Exame mais recente vira SECONDARY para comparação.
-            
             let primaryPoint: MetricPoint | null = null;
             let secondaryPoint: MetricPoint | null = null;
             let sourceType: 'Cadastro' | 'Exame' = 'Exame';
             let staleWarning = false;
 
             if (manualPoints.length > 0) {
-                // MANUAL É O REI
                 primaryPoint = manualPoints[0];
                 sourceType = 'Cadastro';
                 
-                // Pega o exame mais recente para comparação (se existir)
                 if (examPoints.length > 0) {
                     secondaryPoint = examPoints[0];
                     const manualDate = normalizeDate(primaryPoint.date);
                     const examDate = normalizeDate(secondaryPoint.date);
-                    
-                    // Se Exame > Manual, ativa flag de alerta, mas NÃO troca o valor principal
-                    if (examDate > manualDate) {
-                        staleWarning = true;
-                    }
+                    if (examDate > manualDate) staleWarning = true;
                 }
             } else {
-                // Só tem exame
                 primaryPoint = examPoints[0];
                 sourceType = 'Exame';
                 if (examPoints.length > 1) secondaryPoint = examPoints[1];
@@ -329,9 +415,10 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
             
             if (!primaryPoint) return;
 
-            // ANALISAR O PONTO PRINCIPAL
+            // ANALISAR O PONTO PRINCIPAL (COM FALLBACK DE REF)
             const info = getMarkerInfo(cat);
-            const dynamicRef = (primaryPoint.refMin !== undefined || primaryPoint.refMax !== undefined) 
+            // Se o ponto não tem referência, ou é nulo, tenta usar undefined para forçar o fallback do analyticsService
+            const dynamicRef = (primaryPoint.refMin !== undefined && primaryPoint.refMin !== null) || (primaryPoint.refMax !== undefined && primaryPoint.refMax !== null)
                 ? { min: primaryPoint.refMin, max: primaryPoint.refMax } 
                 : undefined;
 
@@ -346,7 +433,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 date: primaryPoint.date,
                 point: primaryPoint,
                 history: history,
-                range: analysis.activeRange, 
+                range: analysis.activeRange, // Usa o range calculado pela IA (que já fez o fallback)
                 sourceType: sourceType,
                 secondaryData: secondaryPoint ? {
                     value: secondaryPoint.value,
@@ -357,20 +444,31 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 staleWarning
             };
 
-            // SE for HIGH ou tiver WARNING, vai para Preventivo/Crítico
-            if (staleWarning || analysis.status === 'HIGH' || analysis.status === 'LOW' || analysis.status.includes('BORDERLINE')) {
-                preventive.push(itemData);
-            } else {
+            // AGORA SEPARA NOS 3 GRUPOS
+            if (staleWarning) {
+                // Se tem aviso de desatualização, joga em Atenção (a menos que seja crítico, aí prioriza crítico)
+                if (analysis.status.includes('CRITICAL')) critical.push(itemData);
+                else attention.push(itemData);
+            } 
+            else if (analysis.status.includes('CRITICAL')) {
+                critical.push(itemData);
+            } 
+            else if (analysis.status === 'HIGH' || analysis.status === 'LOW' || analysis.status.includes('BORDERLINE')) {
+                attention.push(itemData);
+            } 
+            else {
+                // Normal ou Unknown
                 healthy.push(itemData);
             }
         });
         
-        return { preventiveItems: preventive, healthyItems: healthy };
+        return { criticalItems: critical, attentionItems: attention, healthyItems: healthy };
     }, [metrics, gender, allCategories]);
 
     // Filtros de busca
     const filteredRisks = risks.filter(r => r.category.toLowerCase().includes(searchTerm.toLowerCase()));
-    const filteredPreventive = preventiveItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredCritical = criticalItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredAttention = attentionItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
     const filteredHealthy = healthyItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
@@ -407,16 +505,16 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         {!searchTerm && (
                             <div className="mb-6 bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-[10px] dark:bg-gray-900 dark:border-gray-800">
                                 <div className="flex flex-wrap gap-4 text-gray-500 font-medium dark:text-gray-400">
-                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span><span>Normal</span></div>
-                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-sm"></span><span>Alerta</span></div>
-                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></span><span>Atenção</span></div>
-                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm"></span><span>Crítico</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span><span>Verde (Seguro &gt;20%)</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-sm"></span><span>Amarelo (Alerta 10-20%)</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></span><span>Laranja (Atenção 0-10%)</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm"></span><span>Vermelho (Fora)</span></div>
                                 </div>
                                 <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/30"><span className="text-sm">👆</span><span>Toque para detalhes</span></div>
                             </div>
                         )}
 
-                        {/* RISKS SECTION (Mantido) */}
+                        {/* 1. RISCOS E DIAGNÓSTICOS (TEXTO) */}
                         <CollapsibleSection title="Diagnósticos de Risco" count={filteredRisks.length} icon={IconShield} colorClass="text-red-700 dark:text-red-400">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {filteredRisks.map((risk, idx) => (
@@ -431,121 +529,30 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                             </div>
                         </CollapsibleSection>
 
-                        {/* PREVENTIVE / ATTENTION SECTION */}
-                        <CollapsibleSection title="Monitoramento Preventivo" count={filteredPreventive.length} icon={IconEye} colorClass="text-red-700 dark:text-red-400">
+                        {/* 2. CRÍTICOS (VERMELHO) */}
+                        <CollapsibleSection title="Ação Iminente (Críticos)" count={filteredCritical.length} icon={IconAlert} colorClass="text-red-700 dark:text-red-400">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {filteredPreventive.map((alert: any, idx: number) => {
-                                    const isHigh = alert.status === 'HIGH';
-                                    const isLow = alert.status === 'LOW';
-                                    
-                                    // VISUAL SPECIFIC FOR STALE DATA OR CRITICAL VALUE
-                                    let styleClass = 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
-                                    let textClass = 'text-yellow-900 dark:text-yellow-200';
-                                    
-                                    if (alert.staleWarning) {
-                                        styleClass = 'bg-orange-50 border-orange-300 hover:bg-orange-100 dark:bg-orange-900/20 dark:border-orange-700'; 
-                                        textClass = 'text-orange-900 dark:text-orange-200';
-                                    } 
-                                    // FORCE RED IF HIGH (User Request)
-                                    if (isHigh) {
-                                        styleClass = 'bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/40';
-                                        textClass = 'text-red-900 dark:text-red-200';
-                                    } else if (isLow) {
-                                        styleClass = 'bg-blue-50 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/10 dark:border-blue-900/40';
-                                        textClass = 'text-blue-900 dark:text-blue-200';
-                                    }
-
-                                    const rangeText = alert.range ? `Ref: ${alert.range.min} - ${alert.range.max}` : 'Ref: N/A';
-
-                                    return (
-                                        <div key={idx} onClick={() => handleChartHover(alert.point, alert.category, alert.history)} className={`rounded-xl p-4 cursor-pointer transition-colors border relative ${styleClass}`}>
-                                            
-                                            {/* STALE DATA BADGE */}
-                                            {alert.staleWarning && (
-                                                <div className="absolute -top-2 -right-2 bg-orange-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10 border border-white dark:border-gray-900">
-                                                    <IconRefresh className="w-3 h-3" /> Att Necessária
-                                                </div>
-                                            )}
-
-                                            <div className="flex justify-between items-center mb-1">
-                                                <h4 className={`font-bold text-xs uppercase tracking-wider ${textClass}`}>{alert.category}</h4>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] font-bold opacity-60 flex items-center gap-1">
-                                                        {alert.sourceType === 'Cadastro' ? <IconUser className="w-3 h-3" /> : <IconFile className="w-3 h-3" />}
-                                                        {alert.date}
-                                                    </span>
-                                                    {/* Badge Explícita de Fonte Principal */}
-                                                    <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded mt-0.5 ${
-                                                        alert.sourceType === 'Cadastro' 
-                                                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
-                                                        : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                                                    }`}>
-                                                        {alert.sourceType === 'Cadastro' ? 'Input Manual' : 'Exame Lab'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between items-end mt-2">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-bold opacity-80 mb-1 bg-white/40 px-1.5 py-0.5 rounded w-fit">{rangeText}</span>
-                                                    <p className={`text-[10px] font-medium leading-snug max-w-[120px] ${textClass} opacity-90`}>
-                                                        {alert.staleWarning 
-                                                            ? "Valor manual difere do exame mais recente." 
-                                                            : (isHigh ? 'Nível Crítico (Alto)' : 'Nível Baixo')}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className={`text-xl font-black block ${textClass}`}>{alert.value} <span className="text-[10px] font-normal opacity-70">{alert.unit}</span></span>
-                                                    
-                                                    {/* SECONDARY DATA (Exame anterior ou mais recente que o manual) */}
-                                                    {alert.secondaryData && (
-                                                        <div className="text-[9px] opacity-70 mt-1 border-t border-black/10 pt-1 flex flex-col items-end">
-                                                            <span className="font-bold flex items-center gap-1">
-                                                                <IconFile className="w-2.5 h-2.5" /> Lab: {alert.secondaryData.value}
-                                                            </span>
-                                                            <span className="text-[8px] opacity-80">{alert.secondaryData.date}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                {filteredCritical.map((item, idx) => (
+                                    <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
+                                ))}
                             </div>
                         </CollapsibleSection>
 
-                        {/* HEALTHY SECTION */}
+                        {/* 3. ATENÇÃO (LARANJA + AMARELO) */}
+                        <CollapsibleSection title="Monitoramento e Alerta" count={filteredAttention.length} icon={IconEye} colorClass="text-orange-700 dark:text-orange-400">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {filteredAttention.map((item, idx) => (
+                                    <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
+                                ))}
+                            </div>
+                        </CollapsibleSection>
+
+                        {/* 4. SAUDÁVEIS (VERDE) */}
                         <CollapsibleSection title="Marcadores Saudáveis" count={filteredHealthy.length} icon={IconCheck} defaultExpanded={false} colorClass="text-emerald-700 dark:text-emerald-400">
                             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                {filteredHealthy.map((item: any, idx: number) => {
-                                    const rangeText = item.range ? `Ref: ${item.range.min} - ${item.range.max}` : 'Ref: N/A';
-                                    return (
-                                        <div key={idx} onClick={() => handleChartHover(item.point, item.category, item.history)} className="bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 rounded-xl p-4 cursor-pointer transition-colors dark:bg-emerald-900/10 dark:border-emerald-900/30">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-900 dark:text-emerald-200">{item.category}</h4>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                                        {item.sourceType === 'Cadastro' ? <IconUser className="w-3 h-3" /> : <IconFile className="w-3 h-3" />}
-                                                        {item.date}
-                                                    </span>
-                                                    {item.sourceType === 'Cadastro' && (
-                                                        <span className="text-[8px] font-black uppercase tracking-wider text-blue-600 bg-blue-100 px-1 rounded dark:bg-blue-900 dark:text-blue-300">Manual</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between items-end mt-2">
-                                                <span className="text-[9px] font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-white/40 px-1.5 py-0.5 rounded">{rangeText}</span>
-                                                <div className="text-right">
-                                                    <span className="text-sm font-black text-emerald-800 dark:text-emerald-100 block">{item.value} <span className="text-[9px] font-normal opacity-70">{item.unit}</span></span>
-                                                    {item.secondaryData && (
-                                                        <div className="text-[8px] text-emerald-700/60 font-medium mt-0.5">
-                                                            {item.secondaryData.sourceType}: {item.secondaryData.value}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                {filteredHealthy.map((item, idx) => (
+                                    <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
+                                ))}
                             </div>
                         </CollapsibleSection>
                     </div>
