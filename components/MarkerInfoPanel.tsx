@@ -68,7 +68,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     let statusColor = 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800';
     let labelStatus = 'Normal / Ideal';
     
-    // ATENÇÃO: Mudança para Laranja em vez de Vermelho para reduzir alarmismo em métricas isoladas
     if (analysis.status === 'HIGH') {
         statusColor = 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800';
         labelStatus = 'Atenção (Alto)';
@@ -89,7 +88,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     const IconStatus = analysis.status === 'NORMAL' ? IconCheck : IconAlert;
 
     // Componente de Conteúdo Reutilizável
-    // AVISO: 'touch-pan-y' é crucial aqui para permitir o scroll vertical no container
     const Content = ({ isModal = false }) => (
         <div className="flex flex-col h-full w-full bg-transparent overflow-hidden">
             
@@ -133,8 +131,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
             </div>
 
             {/* Body Scrolling Area */}
-            {/* min-h-0 + flex-1 garante que o flexbox calcule o tamanho restante corretamente */}
-            {/* touch-pan-y informa ao navegador que gestos verticais devem ser tratados como scroll deste elemento */}
             <div 
                 className={`flex-1 overflow-y-auto custom-scrollbar space-y-6 min-h-0 scroll-touch overscroll-contain touch-pan-y ${isModal ? 'p-6 pt-4' : 'py-6 pr-1'}`}
             >
@@ -230,7 +226,6 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
     );
 
     // 2. Mobile View (Modal via Portal)
-    // AVISO: 'touch-none' no overlay previne que o scroll vaze para o body (rubber band effect indesejado)
     if (isMobile) {
         return createPortal(
             <div 

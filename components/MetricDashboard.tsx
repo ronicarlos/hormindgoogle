@@ -7,6 +7,7 @@ import { Tooltip } from './Tooltip';
 import MarkerInfoPanel from './MarkerInfoPanel'; 
 import { getMarkerInfo } from '../services/markerRegistry';
 import { analyzePoint } from '../services/analyticsService';
+import RichTooltip from './RichTooltip'; // Importando o Tooltip Rico
 
 interface MetricDashboardProps {
   project: Project;
@@ -80,6 +81,8 @@ interface InteractiveChartWrapperProps {
     width?: number | string;
     height?: number | string;
     className?: string;
+    gender: 'Masculino' | 'Feminino';
+    history: MetricPoint[];
 }
 
 const InteractiveChartWrapper = ({ 
@@ -91,9 +94,13 @@ const InteractiveChartWrapper = ({
     onClick,
     width,
     height,
-    className
+    className,
+    gender,
+    history
 }: InteractiveChartWrapperProps) => {
-    const TriggerTooltip = ({ active, payload }: any) => {
+    
+    // Tooltip customizado que usa o RichTooltip
+    const CustomTooltip = ({ active, payload, label }: any) => {
         const lastPointRef = useRef<string | null>(null);
 
         useEffect(() => {
@@ -109,38 +116,17 @@ const InteractiveChartWrapper = ({
                 lastPointRef.current = null;
             }
         }, [active, payload]);
-        
-        if (!active || !payload || !payload.length) return null;
-        
-        const point = payload[0].payload;
 
-        if (isMobile) {
-            return (
-                <div 
-                    className="bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-gray-200 flex flex-col items-center gap-1 z-50 dark:bg-gray-800/95 dark:border-gray-700 pointer-events-auto cursor-pointer active:scale-95 transition-transform select-none touch-manipulation"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        onActivate({ ...point, label: point.label || title, unit: point.unit });
-                    }}
-                >
-                    <div className="text-center pointer-events-none">
-                        <span className="block font-black text-sm text-gray-900 dark:text-white">
-                            {point.value} <span className="text-[10px] font-normal text-gray-500 uppercase">{point.unit}</span>
-                        </span>
-                        <span className="text-[9px] text-gray-400 font-medium">{point.date}</span>
-                    </div>
-                    <div className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md mt-1 dark:bg-blue-900/30 dark:text-blue-300 pointer-events-none">
-                        <span className="text-[8px] font-bold uppercase tracking-wide block">Toque para detalhes</span>
-                    </div>
-                </div>
-            );
-        }
-        
+        if (isMobile) return null; // Mobile usa clique
+
         return (
-            <div className="bg-white/90 backdrop-blur px-2 py-1 rounded shadow-sm border border-gray-200 text-[10px] font-bold text-gray-600 dark:bg-gray-800/90 dark:border-gray-700 dark:text-gray-300">
-                {point.value}
-            </div>
+            <RichTooltip 
+                active={active} 
+                payload={payload} 
+                label={label} 
+                gender={gender} 
+                history={history} 
+            />
         );
     };
 
@@ -156,7 +142,7 @@ const InteractiveChartWrapper = ({
                             ...(React.Children.toArray((child.props as any).children)),
                             <RechartsTooltip 
                                 key="trigger-tooltip"
-                                content={<TriggerTooltip />}
+                                content={<CustomTooltip />}
                                 cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '3 3' }}
                                 isAnimationActive={false}
                                 wrapperStyle={{ zIndex: 100, pointerEvents: 'auto' }} 
@@ -181,7 +167,8 @@ const BiomarkerChart = ({
     yDomain,
     type = 'line',
     onHover,
-    isMobile
+    isMobile,
+    gender
 }: { 
     title: string; 
     data: MetricPoint[]; 
@@ -192,6 +179,7 @@ const BiomarkerChart = ({
     type?: 'line' | 'area';
     onHover: (point: MetricPoint) => void;
     isMobile: boolean;
+    gender: 'Masculino' | 'Feminino';
 }) => {
     
     const { cleanData, minIndex, maxIndex } = useMemo<{ cleanData: MetricPoint[], minIndex: number, maxIndex: number }>(() => {
@@ -238,7 +226,10 @@ const BiomarkerChart = ({
     };
 
     if (!data || data.length === 0) return null;
+    
+    // Lógica visual de Referência no Header do Gráfico
     const hasRefs = minRef !== undefined && maxRef !== undefined;
+    const refString = hasRefs ? `${minRef} - ${maxRef}` : 'N/A';
 
     return (
         <div className="mb-8 w-full">
@@ -246,9 +237,15 @@ const BiomarkerChart = ({
                 <h3 className="text-xs font-bold text-gray-700 uppercase tracking-tight dark:text-gray-300 truncate pr-2" title={title}>
                     {title}
                 </h3>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 shrink-0 items-center">
+                    {/* Referência Exibida no Header do Gráfico */}
+                    {hasRefs && (
+                        <div className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
+                            <span className="text-[9px] text-gray-400 font-bold uppercase">Ref:</span>
+                            <span className="text-[9px] text-gray-600 font-bold dark:text-gray-300">{refString}</span>
+                        </div>
+                    )}
                     {data[0].unit && <span className="text-[10px] text-gray-400 font-medium">{data[0].unit}</span>}
-                    {hasRefs && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 rounded dark:bg-gray-800">Ref: {minRef}-{maxRef}</span>}
                 </div>
             </div>
             
@@ -264,6 +261,8 @@ const BiomarkerChart = ({
                         onActivate={triggerActivate} 
                         isMobile={isMobile}
                         onClick={handleChartClick}
+                        gender={gender}
+                        history={data}
                     >
                         {type === 'area' ? (
                             <AreaChart data={cleanData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
@@ -449,39 +448,54 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
             const history = metrics[cat];
             if (!history || history.length === 0) return;
             
-            // --- LÓGICA DE PRIORIDADE: MANUAL vs EXAME ---
-            // 1. Identificar Fontes Manuais (Profile, Wizard, Input)
+            // --- LÓGICA DE PRIORIDADE: MANUAL (KING) vs EXAME ---
+            
+            // 1. Identificar TODAS as fontes Manuais e Exames
             const manualLabels = ['Manual', 'Wizard', 'Profile', 'User', 'Input'];
-            const isManual = (p: MetricPoint) => manualLabels.some(l => p.label?.includes(l));
+            const manualPoints = history.filter(p => 
+                manualLabels.some(l => p.label?.toLowerCase().includes(l.toLowerCase()))
+            );
+            const examPoints = history.filter(p => 
+                !manualLabels.some(l => p.label?.toLowerCase().includes(l.toLowerCase()))
+            );
 
-            // Ordena histórico por data decrescente
-            const sortedHistory = [...history].sort((a,b) => parseDateHelper(b.date) - parseDateHelper(a.date));
+            // 2. Ordenar ambos por data decrescente (mais recente primeiro)
+            manualPoints.sort((a,b) => parseDateHelper(b.date) - parseDateHelper(a.date));
+            examPoints.sort((a,b) => parseDateHelper(b.date) - parseDateHelper(a.date));
 
-            // Encontra o último manual e o último exame (OCR/Arquivo)
-            const latestManual = sortedHistory.find(p => isManual(p));
-            const latestExam = sortedHistory.find(p => !isManual(p));
-
-            // REGRA: Manual é SEMPRE o prioritário para exibição principal ("O Valor da Verdade")
-            // Se não houver manual, usa o exame mais recente.
-            let primaryPoint = latestManual || latestExam;
-            let secondaryPoint = latestManual ? latestExam : null; // Exibe exame como secundário se houver manual
+            // 3. SELEÇÃO DO VALOR DA VERDADE (Primary Point)
+            // REGRA: Se existe MANUAL, ele é o primário, NÃO IMPORTA A DATA DO EXAME.
+            // O usuário disse que o valor 3400 (Profile) deve vencer o 2286 (Exame).
+            let primaryPoint = manualPoints.length > 0 ? manualPoints[0] : examPoints[0];
+            
+            // 4. Seleção do Comparativo (Secondary Point)
+            // Se o primário for Manual, o secundário deve ser o último Exame.
+            // Se o primário for Exame, o secundário deve ser o penúltimo Exame (evolução).
+            let secondaryPoint = null;
+            if (manualPoints.length > 0 && examPoints.length > 0) {
+                secondaryPoint = examPoints[0];
+            } else if (examPoints.length > 1) {
+                secondaryPoint = examPoints[1];
+            }
             
             if (!primaryPoint) return;
 
             // ANALISAR O PONTO PRINCIPAL
             const info = getMarkerInfo(cat);
+            
+            // Se o ponto tem ref dinâmica (OCR), usa. Senão, undefined (analyticsService pega do MarkerInfo static)
             const dynamicRef = (primaryPoint.refMin !== undefined || primaryPoint.refMax !== undefined) 
                 ? { min: primaryPoint.refMin, max: primaryPoint.refMax } 
                 : undefined;
 
             const analysis = analyzePoint(Number(primaryPoint.value), primaryPoint.date, history, info, gender, dynamicRef);
             
-            // VERIFICAÇÃO DE DADOS DESATUALIZADOS
-            // Se temos um Manual antigo e um Exame NOVO (data posterior), avisar usuário
+            // VERIFICAÇÃO DE DADOS DESATUALIZADOS (Warning apenas)
             let staleWarning = false;
-            if (latestManual && latestExam) {
-                const manualDate = parseDateHelper(latestManual.date);
-                const examDate = parseDateHelper(latestExam.date);
+            // Só avisa se temos um manual antigo E um exame NOVO que contradiz
+            if (manualPoints.length > 0 && examPoints.length > 0) {
+                const manualDate = parseDateHelper(manualPoints[0].date);
+                const examDate = parseDateHelper(examPoints[0].date);
                 if (examDate > manualDate) {
                     staleWarning = true;
                 }
@@ -496,8 +510,8 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 date: primaryPoint.date,
                 point: primaryPoint,
                 history: history,
-                range: analysis.activeRange,
-                sourceType: isManual(primaryPoint) ? 'Cadastro' : 'Exame',
+                range: analysis.activeRange, // IMPORTANTE: Passa o range calculado para o Card
+                sourceType: manualPoints.length > 0 && primaryPoint === manualPoints[0] ? 'Cadastro' : 'Exame',
                 secondaryData: secondaryPoint ? {
                     value: secondaryPoint.value,
                     date: secondaryPoint.date,
@@ -625,7 +639,10 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                             textClass = 'text-orange-900 dark:text-orange-200';
                                         }
 
-                                        const rangeText = alert.range ? `Ref: ${alert.range.min} - ${alert.range.max}` : 'Ref: N/A';
+                                        // EXIBIÇÃO DA REFERÊNCIA NO CARD
+                                        const rangeText = alert.range 
+                                            ? `Ref: ${alert.range.min} - ${alert.range.max}` 
+                                            : 'Ref: Indefinida';
 
                                         return (
                                             <div 
@@ -637,7 +654,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                                 {alert.staleWarning && (
                                                     <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
                                                         <IconAlert className="w-3 h-3" />
-                                                        Atualizar Perfil?
+                                                        Exame Recente Divergente
                                                     </div>
                                                 )}
 
@@ -651,10 +668,11 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                                 
                                                 <div className="flex justify-between items-end">
                                                     <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold opacity-70 mb-1">{rangeText}</span>
+                                                        {/* REFERÊNCIA VISÍVEL NO CARD */}
+                                                        <span className="text-[10px] font-bold opacity-80 mb-1 bg-white/30 px-1.5 py-0.5 rounded w-fit">{rangeText}</span>
                                                         <p className={`text-[10px] font-medium leading-snug max-w-[150px] ${textClass} opacity-90`}>
                                                             {alert.staleWarning 
-                                                                ? "Exame recente indica valor diferente do cadastro." 
+                                                                ? "Valor do cadastro (oficial) difere do exame mais recente." 
                                                                 : (alert.status.includes('HIGH') ? 'Acima do esperado' : 'Abaixo do esperado')
                                                             }
                                                         </p>
@@ -695,7 +713,8 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                                     <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{item.date}</span>
                                                 </div>
                                                 <div className="flex justify-between items-end mt-2">
-                                                    <span className="text-[9px] font-medium text-emerald-600/80 dark:text-emerald-400/80">{rangeText}</span>
+                                                    {/* REFERÊNCIA VISÍVEL NO CARD VERDE */}
+                                                    <span className="text-[9px] font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-white/40 px-1.5 py-0.5 rounded">{rangeText}</span>
                                                     <div className="text-right">
                                                         <span className="text-sm font-black text-emerald-800 dark:text-emerald-100 block">
                                                             {item.value} <span className="text-[9px] font-normal opacity-70">{item.unit}</span>
@@ -745,6 +764,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                     else if (cleanCat.includes('hemo') || cleanCat.includes('eritro')) chartColor = '#ef4444';
 
                                     const history = metrics[cat];
+                                    // Para o gráfico, usamos o último ponto histórico para determinar o range padrão
                                     const lastPoint = history[history.length - 1];
                                     const info = getMarkerInfo(cat);
                                     
@@ -767,6 +787,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                                 maxRef={maxRef}
                                                 onHover={(point) => handleChartHover(point, cat, metrics[cat])}
                                                 isMobile={isMobileView}
+                                                gender={gender}
                                             />
                                         </div>
                                     );
