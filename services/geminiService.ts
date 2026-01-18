@@ -290,7 +290,9 @@ const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string,
   });
 };
 
-function decodeAudioData(base64: string): ArrayBuffer {
+// --- AUDIO UTILS (DECODIFICAÇÃO MANUAL) ---
+
+const base64ToArrayBuffer = (base64: string): ArrayBuffer => {
   const binaryString = atob(base64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
@@ -298,6 +300,30 @@ function decodeAudioData(base64: string): ArrayBuffer {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
+}
+
+/**
+ * Decodifica PCM Raw (16-bit signed integer) para AudioBuffer.
+ * Necessário porque o Gemini TTS retorna dados brutos sem cabeçalho WAV/MP3.
+ */
+export const pcmToAudioBuffer = (
+  buffer: ArrayBuffer,
+  ctx: AudioContext,
+  sampleRate: number = 24000 // Padrão do Gemini
+): AudioBuffer => {
+    const dataInt16 = new Int16Array(buffer);
+    const numChannels = 1; // Mono por padrão
+    const frameCount = dataInt16.length / numChannels;
+    const audioBuffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+    for (let channel = 0; channel < numChannels; channel++) {
+        const channelData = audioBuffer.getChannelData(channel);
+        for (let i = 0; i < frameCount; i++) {
+            // Converte Int16 (-32768 a 32767) para Float32 (-1.0 a 1.0)
+            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+        }
+    }
+    return audioBuffer;
 }
 
 // --- FUNÇÃO DE OCR (USA VITE_GEMINI_MODEL - FLASH LITE) ---
@@ -494,7 +520,7 @@ export const generateSpeech = async (text: string): Promise<ArrayBuffer | null> 
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         
         if (base64Audio) {
-            return decodeAudioData(base64Audio);
+            return base64ToArrayBuffer(base64Audio); // Retorna raw bytes
         }
         
         return null;

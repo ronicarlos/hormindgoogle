@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Project, ChatMessage } from '../types';
-import { generateAIResponse, generateSpeech } from '../services/geminiService';
+import { generateAIResponse, generateSpeech, pcmToAudioBuffer } from '../services/geminiService';
 import { dataService } from '../services/dataService';
 import { 
     IconSend, IconSparkles, IconUser, IconRefresh, IconCopy, 
@@ -37,6 +37,42 @@ const HighlightText = ({ text, highlight }: { text: string, highlight: string })
             )}
         </span>
     );
+};
+
+// --- AUDIO FX HELPER ---
+const playCompletionSound = () => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+
+        // Cria um oscilador (som sintético)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        // Conecta: Oscilador -> Volume -> Saída
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        // Configuração do som "Chime/Pop" suave
+        osc.type = 'sine'; // Onda senoidal (som puro e suave)
+        
+        // Variação de frequência (Slide sutil para cima dá tom de "sucesso")
+        osc.frequency.setValueAtTime(523.25, now); // Nota C5
+        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.1); // Slide rápido para A5
+
+        // Envelope de volume (Fade out rápido para não incomodar)
+        gain.gain.setValueAtTime(0.05, now); // Volume inicial baixo (5%)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5); // Fade out em 0.5s
+
+        // Toca o som
+        osc.start(now);
+        osc.stop(now + 0.5);
+    } catch (e) {
+        console.error("Erro ao tocar som de notificação:", e);
+    }
 };
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject, refreshTrigger = 0, isProcessing = false }) => {
@@ -129,18 +165,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
         try {
             // Inicializa AudioContext (necessário interação do usuário para iniciar em alguns browsers)
             if (!audioContextRef.current) {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+                const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
+                audioContextRef.current = new AudioCtor({ sampleRate: 24000 });
             }
             
             if (audioContextRef.current.state === 'suspended') {
                 await audioContextRef.current.resume();
             }
 
-            const audioBufferData = await generateSpeech(text);
+            const audioBufferRaw = await generateSpeech(text);
             
-            if (!audioBufferData) throw new Error("Falha ao gerar áudio.");
+            if (!audioBufferRaw) throw new Error("Falha ao gerar áudio.");
 
-            const audioBuffer = await audioContextRef.current.decodeAudioData(audioBufferData);
+            // FIX: Usa o decodificador PCM manual em vez do nativo decodeAudioData
+            const audioBuffer = pcmToAudioBuffer(audioBufferRaw, audioContextRef.current, 24000);
             
             const source = audioContextRef.current.createBufferSource();
             source.buffer = audioBuffer;
@@ -255,6 +293,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
 
             setMessages(prev => [...prev, aiMsg]);
             await dataService.addMessage(project.id, aiMsg);
+            
+            // TOCA O SOM DE CONCLUSÃO
+            playCompletionSound();
 
         } catch (error) {
             console.error("Chat Error:", error);
