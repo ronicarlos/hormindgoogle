@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Compound } from '../types';
 import { fetchCompounds } from '../services/protocolService';
 import { IconSearch, IconPill, IconScience, IconClose, IconAlert, IconActivity, IconArrowUp } from './Icons';
+import HormoneGuideModal from './HormoneGuideModal'; // Import do novo componente
 
 const ProtocolLibrary: React.FC = () => {
     const [compounds, setCompounds] = useState<Compound[]>([]);
@@ -10,6 +11,7 @@ const ProtocolLibrary: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState('Todos');
     const [selectedCompound, setSelectedCompound] = useState<Compound | null>(null);
     const [showScrollTop, setShowScrollTop] = useState(false);
+    const [showHormoneGuide, setShowHormoneGuide] = useState(false); // Estado do modal
     
     const listRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +90,8 @@ const ProtocolLibrary: React.FC = () => {
     return (
         <div className="flex-1 bg-white h-full flex flex-col overflow-hidden relative w-full dark:bg-gray-950">
              
+            <HormoneGuideModal isOpen={showHormoneGuide} onClose={() => setShowHormoneGuide(false)} />
+
             {/* GRID CONTENT CONTAINER (SCROLLABLE) */}
             <div 
                 className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 custom-scrollbar pb-32 md:pb-40 w-full dark:bg-gray-950 relative"
@@ -108,16 +112,24 @@ const ProtocolLibrary: React.FC = () => {
                                 </span>
                             </div>
                             
-                            <div className="relative w-full md:max-w-xs">
-                                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                                <input 
-                                    ref={searchInputRef}
-                                    type="text" 
-                                    placeholder="Buscar..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-8 pr-3 py-2 bg-gray-100/50 border-0 md:border md:border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-medium placeholder-gray-400 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-purple-900"
-                                />
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={() => setShowHormoneGuide(true)}
+                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap active:scale-95"
+                                >
+                                    📘 Guia Mestre
+                                </button>
+                                <div className="relative flex-1 md:w-64">
+                                    <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                    <input 
+                                        ref={searchInputRef}
+                                        type="text" 
+                                        placeholder="Buscar..." 
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-2 bg-gray-100/50 border-0 md:border md:border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-medium placeholder-gray-400 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-purple-900"
+                                    />
+                                </div>
                             </div>
                         </div>
                         

@@ -1,7 +1,7 @@
 
--- Versão 1.6.79
--- FIX: Correção de referências nulas (Fallback inteligente) e reagrupamento de cards por criticidade real.
+-- Versão 1.6.80
+-- FEATURE: Adição do Guia Mestre de Endocrinologia (Conteúdo Educativo) na Biblioteca Pharma.
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.79', 'Dashboard: Correção de referências nulas e separação estrita de grupos (Crítico vs Alerta vs Saudável).', NOW());
+VALUES ('1.6.80', 'Education: Implementação da Enciclopédia Hormonal interativa com análise por gênero e fase da vida.', NOW());
 
 NOTIFY pgrst, 'reload config';
