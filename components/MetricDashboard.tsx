@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo, IconChevronDown } from './Icons';
+import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo, IconChevronDown, IconAlert } from './Icons';
 import { Tooltip } from './Tooltip';
 import MarkerInfoPanel from './MarkerInfoPanel'; 
 import { getMarkerInfo } from '../services/markerRegistry';
@@ -438,43 +438,79 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
         const preventive: any[] = [];
         const healthy: any[] = [];
 
+        const parseDateHelper = (d: string) => {
+            if(!d) return 0;
+            const parts = d.split('/');
+            if(parts.length === 3) return new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0])).getTime();
+            return new Date(d).getTime();
+        };
+
         allCategories.forEach(cat => {
             const history = metrics[cat];
             if (!history || history.length === 0) return;
             
-            const lastPoint = [...history].sort((a,b) => {
-                 const da = a.date.split('/').reverse().join('-');
-                 const db = b.date.split('/').reverse().join('-');
-                 return new Date(da).getTime() - new Date(db).getTime();
-            }).pop();
+            // --- LÓGICA DE PRIORIDADE: MANUAL vs EXAME ---
+            // 1. Identificar Fontes Manuais (Profile, Wizard, Input)
+            const manualLabels = ['Manual', 'Wizard', 'Profile', 'User', 'Input'];
+            const isManual = (p: MetricPoint) => manualLabels.some(l => p.label?.includes(l));
 
-            if (lastPoint) {
-                const info = getMarkerInfo(cat);
-                const dynamicRef = (lastPoint.refMin !== undefined || lastPoint.refMax !== undefined) 
-                    ? { min: lastPoint.refMin, max: lastPoint.refMax } 
-                    : undefined;
+            // Ordena histórico por data decrescente
+            const sortedHistory = [...history].sort((a,b) => parseDateHelper(b.date) - parseDateHelper(a.date));
 
-                const analysis = analyzePoint(Number(lastPoint.value), lastPoint.date, history, info, gender, dynamicRef);
-                
-                const itemData = {
-                    category: cat,
-                    value: lastPoint.value,
-                    unit: lastPoint.unit,
-                    status: analysis.status,
-                    message: analysis.message,
-                    date: lastPoint.date,
-                    point: lastPoint,
-                    history: history,
-                    range: analysis.activeRange // Range usado na análise
-                };
+            // Encontra o último manual e o último exame (OCR/Arquivo)
+            const latestManual = sortedHistory.find(p => isManual(p));
+            const latestExam = sortedHistory.find(p => !isManual(p));
 
-                if (analysis.status === 'NORMAL') {
-                    healthy.push(itemData);
-                } else {
-                    // Qualquer coisa fora do normal (HIGH/LOW/BORDERLINE) vai para preventivo
-                    // O "Diagnóstico" (Vermelho) vem de props.risks
-                    preventive.push(itemData);
+            // REGRA: Manual é SEMPRE o prioritário para exibição principal ("O Valor da Verdade")
+            // Se não houver manual, usa o exame mais recente.
+            let primaryPoint = latestManual || latestExam;
+            let secondaryPoint = latestManual ? latestExam : null; // Exibe exame como secundário se houver manual
+            
+            if (!primaryPoint) return;
+
+            // ANALISAR O PONTO PRINCIPAL
+            const info = getMarkerInfo(cat);
+            const dynamicRef = (primaryPoint.refMin !== undefined || primaryPoint.refMax !== undefined) 
+                ? { min: primaryPoint.refMin, max: primaryPoint.refMax } 
+                : undefined;
+
+            const analysis = analyzePoint(Number(primaryPoint.value), primaryPoint.date, history, info, gender, dynamicRef);
+            
+            // VERIFICAÇÃO DE DADOS DESATUALIZADOS
+            // Se temos um Manual antigo e um Exame NOVO (data posterior), avisar usuário
+            let staleWarning = false;
+            if (latestManual && latestExam) {
+                const manualDate = parseDateHelper(latestManual.date);
+                const examDate = parseDateHelper(latestExam.date);
+                if (examDate > manualDate) {
+                    staleWarning = true;
                 }
+            }
+
+            const itemData = {
+                category: cat,
+                value: primaryPoint.value,
+                unit: primaryPoint.unit,
+                status: analysis.status,
+                message: analysis.message,
+                date: primaryPoint.date,
+                point: primaryPoint,
+                history: history,
+                range: analysis.activeRange,
+                sourceType: isManual(primaryPoint) ? 'Cadastro' : 'Exame',
+                secondaryData: secondaryPoint ? {
+                    value: secondaryPoint.value,
+                    date: secondaryPoint.date,
+                    sourceType: 'Histórico'
+                } : null,
+                staleWarning
+            };
+
+            if (analysis.status === 'NORMAL' && !staleWarning) {
+                healthy.push(itemData);
+            } else {
+                // Qualquer coisa fora do normal (HIGH/LOW/BORDERLINE) OU com aviso de atualização vai para preventivo
+                preventive.push(itemData);
             }
         });
         return { preventiveItems: preventive, healthyItems: healthy };
@@ -571,38 +607,71 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 </div>
                             </CollapsibleSection>
 
-                            {/* 2. MONITORAMENTO PREVENTIVO (AMARELO/LARANJA) */}
+                            {/* 2. MONITORAMENTO PREVENTIVO (AMARELO/LARANJA + ALERTAS DE UPDATE) */}
                             <CollapsibleSection title="Monitoramento Preventivo" count={preventiveItems.length} icon={IconEye} colorClass="text-yellow-700 dark:text-yellow-400">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {preventiveItems.map((alert: any, idx: number) => {
                                         const isCriticalValue = alert.status === 'HIGH' || alert.status === 'LOW';
-                                        const styleClass = isCriticalValue
-                                            ? 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/40'
-                                            : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
                                         
-                                        const textClass = isCriticalValue ? 'text-orange-900 dark:text-orange-200' : 'text-yellow-900 dark:text-yellow-200';
+                                        // Prioridade de Cor: Aviso de desatualização (Laranja forte) > Crítico > Atenção
+                                        let styleClass = 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
+                                        let textClass = 'text-yellow-900 dark:text-yellow-200';
+                                        
+                                        if (alert.staleWarning) {
+                                            styleClass = 'bg-orange-50 border-orange-300 hover:bg-orange-100 dark:bg-orange-900/20 dark:border-orange-700';
+                                            textClass = 'text-orange-900 dark:text-orange-200';
+                                        } else if (isCriticalValue) {
+                                            styleClass = 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/40';
+                                            textClass = 'text-orange-900 dark:text-orange-200';
+                                        }
+
                                         const rangeText = alert.range ? `Ref: ${alert.range.min} - ${alert.range.max}` : 'Ref: N/A';
 
                                         return (
                                             <div 
                                                 key={idx}
                                                 onClick={() => handleChartHover(alert.point, alert.category, alert.history)}
-                                                className={`rounded-xl p-4 cursor-pointer transition-colors border ${styleClass}`}
+                                                className={`rounded-xl p-4 cursor-pointer transition-colors border relative ${styleClass}`}
                                             >
+                                                {/* WARNING BADGE */}
+                                                {alert.staleWarning && (
+                                                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
+                                                        <IconAlert className="w-3 h-3" />
+                                                        Atualizar Perfil?
+                                                    </div>
+                                                )}
+
                                                 <div className="flex justify-between items-center mb-1">
                                                     <h4 className={`font-bold text-xs uppercase tracking-wider ${textClass}`}>{alert.category}</h4>
-                                                    <span className="text-[10px] font-bold opacity-60">{alert.date}</span>
+                                                    <span className="text-[10px] font-bold opacity-60 flex items-center gap-1">
+                                                        {alert.sourceType === 'Cadastro' ? <IconActivity className="w-3 h-3" /> : null}
+                                                        {alert.date}
+                                                    </span>
                                                 </div>
+                                                
                                                 <div className="flex justify-between items-end">
                                                     <div className="flex flex-col">
                                                         <span className="text-[9px] font-bold opacity-70 mb-1">{rangeText}</span>
                                                         <p className={`text-[10px] font-medium leading-snug max-w-[150px] ${textClass} opacity-90`}>
-                                                            {alert.status.includes('HIGH') ? 'Acima do esperado' : 'Abaixo do esperado'}
+                                                            {alert.staleWarning 
+                                                                ? "Exame recente indica valor diferente do cadastro." 
+                                                                : (alert.status.includes('HIGH') ? 'Acima do esperado' : 'Abaixo do esperado')
+                                                            }
                                                         </p>
                                                     </div>
-                                                    <span className={`text-sm font-black ${textClass}`}>
-                                                        {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
-                                                    </span>
+                                                    
+                                                    <div className="text-right">
+                                                        <span className={`text-sm font-black block ${textClass}`}>
+                                                            {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
+                                                        </span>
+                                                        
+                                                        {/* VALOR SECUNDÁRIO (HISTÓRICO) */}
+                                                        {alert.secondaryData && (
+                                                            <div className="text-[9px] opacity-70 mt-0.5 border-t border-black/10 pt-0.5">
+                                                                Exame ({alert.secondaryData.date}): <strong>{alert.secondaryData.value}</strong>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -627,9 +696,16 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                                 </div>
                                                 <div className="flex justify-between items-end mt-2">
                                                     <span className="text-[9px] font-medium text-emerald-600/80 dark:text-emerald-400/80">{rangeText}</span>
-                                                    <span className="text-sm font-black text-emerald-800 dark:text-emerald-100">
-                                                        {item.value} <span className="text-[9px] font-normal opacity-70">{item.unit}</span>
-                                                    </span>
+                                                    <div className="text-right">
+                                                        <span className="text-sm font-black text-emerald-800 dark:text-emerald-100 block">
+                                                            {item.value} <span className="text-[9px] font-normal opacity-70">{item.unit}</span>
+                                                        </span>
+                                                        {item.secondaryData && (
+                                                            <div className="text-[8px] text-emerald-700/60 font-medium">
+                                                                Exame: {item.secondaryData.value}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
