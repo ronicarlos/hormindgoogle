@@ -1,7 +1,7 @@
 
--- Versão 1.6.62
--- FIX: Restauração da área de Sistema e melhorias de visibilidade no PWA.
+-- Versão 1.6.63
+-- FIX: Restaurada lista completa de histórico de versões na tela de Perfil.
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.62', 'FIX: Restauração da área de Sistema/Versão e correção de visibilidade da Galeria no PWA.', NOW());
+VALUES ('1.6.63', 'FIX: Restaurada lista completa de histórico de versões (Changelog) na tela de Perfil.', NOW());
 
 NOTIFY pgrst, 'reload config';

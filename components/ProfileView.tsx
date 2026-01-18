@@ -29,7 +29,7 @@ import {
 // 6. Antropometria: Medidas corporais com guia visual.
 // 7. Painel Hormonal: Testo, E2, Comorbidades.
 // 8. Estratégia: Objetivo, Dieta, Treino, Protocolo.
-// 9. SISTEMA & VERSÃO: Controle de versão, Tema, Logs e Cache Reset.
+// 9. SISTEMA & VERSÃO: Controle de versão, Histórico de updates (Changelog), Tema, Logs e Cache Reset.
 // ============================================================================
 
 interface ProfileViewProps {
@@ -44,7 +44,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.62"; 
+const CODE_VERSION = "v1.6.63"; 
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -850,12 +850,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* === SEÇÃO 9: SISTEMA & CONTROLE DE VERSÃO (RESTAURADO) === */}
-                {/* Esta área foi restaurada para garantir acesso a logs, reset de cache e informações de versão */}
+                {/* === SEÇÃO 9: SISTEMA & CONTROLE DE VERSÃO (RESTAURADO E COMPLETO) === */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-white">
                         <IconInfo className="w-4 h-4 text-gray-400" />
-                        Sistema & Controle
+                        Sistema e Controle de Versão
                     </h3>
                     <div className="space-y-4">
                         <div className="flex justify-between items-center text-sm">
@@ -874,13 +873,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             </div>
                         </div>
                         
+                        {/* LISTA DE HISTÓRICO DE VERSÕES (CHANGELOG) */}
+                        <div className="mt-6 border-t border-gray-100 pt-4 dark:border-gray-800">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 dark:text-gray-400">Histórico de Atualizações</h4>
+                            <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-3 pr-1">
+                                {versionHistory.map((v) => (
+                                    <div key={v.id} className="text-xs border-b border-gray-50 pb-2 last:border-0 dark:border-gray-800">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold text-gray-900 dark:text-white">{v.version}</span>
+                                            <span className="text-[10px] text-gray-400">{new Date(v.created_at).toLocaleDateString()}</span>
+                                        </div>
+                                        <p className="text-gray-500 dark:text-gray-400 leading-relaxed text-[11px]">{v.description}</p>
+                                    </div>
+                                ))}
+                                {versionHistory.length === 0 && <p className="text-xs text-gray-400 italic">Nenhum histórico disponível.</p>}
+                            </div>
+                        </div>
+
                         {/* Botões de Ação do Sistema */}
                         <div className="pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-3 dark:border-gray-800">
                             <button onClick={() => setIsAuditOpen(true)} className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                                 <IconList className="w-3.5 h-3.5" /> Ver Logs de Auditoria
                             </button>
                             
-                            {/* BOTÃO DE UPDATE / HARD REFRESH */}
                             <button 
                                 onClick={handleHardRefresh} 
                                 className="flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
