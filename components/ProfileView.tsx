@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, AppVersion, Project, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
@@ -6,14 +7,30 @@ import CostTracker from './CostTracker';
 import { Tooltip } from './Tooltip';
 import BodyGuide from './BodyGuide';
 import AuditLogModal from './AuditLogModal';
-import EvolutionGallery from './EvolutionGallery'; // Import
+import EvolutionGallery from './EvolutionGallery'; // Import da Galeria
 import { 
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
     IconWizard, IconCheck, IconInfo, IconCopy, IconClock,
     IconPill, IconDumbbell, IconList, IconClose, IconScience,
-    IconFile, IconCalendar, IconHistory, IconCamera
+    IconFile, IconCalendar, IconHistory, IconCamera, IconUpload
 } from './Icons';
+
+// ============================================================================
+// DOCUMENTAÇÃO DA TELA DE PERFIL (CRÍTICO)
+// ============================================================================
+// Esta tela é o coração dos dados do usuário.
+// COMPONENTES OBRIGATÓRIOS (NÃO REMOVER):
+// 1. Header Fixo: Título + Botão Galeria + Botão Salvar.
+// 2. CostTracker: Resumo de custos da IA.
+// 3. Banner Evolução: Acesso rápido à comparação de fotos.
+// 4. Avatar & Dados Básicos: Foto, Nome, Altura, Peso, Idade.
+// 5. Metas & Evolução: Comparativo Peso/BF Atual vs Meta.
+// 6. Antropometria: Medidas corporais com guia visual.
+// 7. Painel Hormonal: Testo, E2, Comorbidades.
+// 8. Estratégia: Objetivo, Dieta, Treino, Protocolo.
+// 9. SISTEMA & VERSÃO: Controle de versão, Tema, Logs e Cache Reset.
+// ============================================================================
 
 interface ProfileViewProps {
     project?: Project;
@@ -27,7 +44,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.61"; 
+const CODE_VERSION = "v1.6.62"; 
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -443,7 +460,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         }
     };
     
-    // --- ADMIN ACTIONS ---
+    // --- ADMIN ACTIONS (SYSTEM) ---
     const handleHardRefresh = async () => {
         if ('serviceWorker' in navigator) {
             try {
@@ -494,39 +511,41 @@ const ProfileView: React.FC<ProfileViewProps> = ({
              {/* Audit Modal */}
              <AuditLogModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
 
-             {/* Header */}
-             <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-white">
-                    <IconUser className="w-6 h-6 text-blue-600" />
+             {/* === SEÇÃO 1: HEADER FIXO === */}
+             <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-4 md:px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800">
+                <h2 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-white">
+                    <IconUser className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                     Ficha Biométrica
                 </h2>
                 <div className="flex gap-2">
-                    {/* BOTÃO ADICIONADO NO HEADER PARA GARANTIR VISIBILIDADE */}
+                    {/* BOTÃO DA GALERIA DE EVOLUÇÃO (Ajustado para PWA) */}
                     <button 
                         onClick={() => setShowEvolutionGallery(true)}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-all active:scale-95 shadow-sm flex items-center gap-2"
+                        className="px-3 md:px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-all active:scale-95 shadow-sm flex items-center gap-1.5 md:gap-2 text-xs md:text-sm"
                         title="Ver Galeria de Fotos"
                     >
-                        <IconCamera className="w-4 h-4" />
-                        <span className="hidden md:inline">Galeria</span>
+                        <IconCamera className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        <span>Galeria</span> {/* Removido hidden para garantir que apareça no PWA */}
                     </button>
 
                     <button 
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-2"
+                        className="px-4 md:px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-2 text-xs md:text-sm"
                     >
-                        {isSaving ? <IconRefresh className="w-4 h-4 animate-spin" /> : <IconCheck className="w-4 h-4" />}
-                        Salvar Tudo
+                        {isSaving ? <IconRefresh className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" /> : <IconCheck className="w-3.5 h-3.5 md:w-4 md:h-4" />}
+                        <span className="hidden md:inline">Salvar Tudo</span>
+                        <span className="md:hidden">Salvar</span>
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full space-y-8 pb-32">
+            <div className="flex-1 overflow-y-auto p-4 md:p-10 max-w-4xl mx-auto w-full space-y-6 md:space-y-8 pb-32">
                 
+                {/* === SEÇÃO 2: RASTREADOR DE CUSTOS === */}
                 <CostTracker variant="inline" refreshTrigger={billingTrigger} onOpenSubscription={onOpenSubscription} />
 
-                {/* BANNER EVOLUÇÃO (MANTIDO TAMBÉM NO CORPO) */}
+                {/* === SEÇÃO 3: BANNER DE EVOLUÇÃO (ATALHO PRINCIPAL) === */}
                 <div 
                     onClick={() => setShowEvolutionGallery(true)}
                     role="button"
@@ -554,7 +573,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 )}
                 
-                {/* 1. PERFIL BIOMÉTRICO (AVATAR + INFO BÁSICA) */}
+                {/* === SEÇÃO 4: DADOS CADASTRAIS (AVATAR/NOME) === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center dark:bg-gray-900 dark:border-gray-800">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative dark:bg-gray-800 dark:border-gray-700">
@@ -627,7 +646,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* 2. METAS E EVOLUÇÃO (PESO E BF - ATUAL VS META) */}
+                {/* === SEÇÃO 5: METAS (PESO/BF) === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconActivity className="w-4 h-4 text-emerald-500" />
@@ -690,7 +709,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* 3. MEDIDAS */}
+                {/* === SEÇÃO 6: ANTROPOMETRIA === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-2 dark:border-gray-800">
                         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2 dark:text-white">
@@ -735,7 +754,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* 4. HORMONIOS & SAUDE */}
+                {/* === SEÇÃO 7: PAINEL HORMONAL === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconScience className="w-4 h-4 text-purple-500" />
@@ -771,7 +790,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* 5. ESTRATÉGIA (DIETA/TREINO/PROTOCOLO) */}
+                {/* === SEÇÃO 8: ESTRATÉGIA === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconDumbbell className="w-4 h-4 text-blue-600" />
@@ -831,15 +850,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* 6. VERSÃO & SISTEMA */}
+                {/* === SEÇÃO 9: SISTEMA & CONTROLE DE VERSÃO (RESTAURADO) === */}
+                {/* Esta área foi restaurada para garantir acesso a logs, reset de cache e informações de versão */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-white">
                         <IconInfo className="w-4 h-4 text-gray-400" />
-                        Sistema
+                        Sistema & Controle
                     </h3>
                     <div className="space-y-4">
                         <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600 dark:text-gray-400">Versão do App</span>
+                            <span className="text-gray-600 dark:text-gray-400">Versão Atual</span>
                             <span className="font-mono font-bold text-gray-900 dark:text-white">{CODE_VERSION}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
@@ -853,12 +873,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                 <button onClick={() => handleChange('theme', 'dark')} className={`p-1.5 rounded ${formData.theme === 'dark' ? 'bg-white shadow text-purple-600 dark:bg-gray-700 dark:text-purple-400' : 'text-gray-400'}`}><IconMoon className="w-4 h-4" /></button>
                             </div>
                         </div>
-                        <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 dark:border-gray-800">
-                            <button onClick={() => setIsAuditOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
-                                <IconList className="w-3.5 h-3.5" /> Logs
+                        
+                        {/* Botões de Ação do Sistema */}
+                        <div className="pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-3 dark:border-gray-800">
+                            <button onClick={() => setIsAuditOpen(true)} className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                                <IconList className="w-3.5 h-3.5" /> Ver Logs de Auditoria
                             </button>
-                            <button onClick={handleHardRefresh} className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
-                                <IconRefresh className="w-3.5 h-3.5" /> Reset Cache
+                            
+                            {/* BOTÃO DE UPDATE / HARD REFRESH */}
+                            <button 
+                                onClick={handleHardRefresh} 
+                                className="flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+                            >
+                                <IconRefresh className="w-3.5 h-3.5" /> Atualizar App / Limpar Cache
                             </button>
                         </div>
                     </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { dataService } from './services/dataService';
@@ -29,13 +30,13 @@ import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
 /*
-  SQL UPDATE SCRIPT FOR VERSION 1.6.61
+  SQL UPDATE SCRIPT FOR VERSION 1.6.62
   --------------------------------------------------
   INSERT INTO app_versions (version, description, created_at) 
-  VALUES ('1.6.61', 'Correção de tipo no seletor de objetivo do ProfileView.', NOW());
+  VALUES ('1.6.62', 'Restaurada área de Sistema e melhorias na UX do PWA para Galeria de Evolução.', NOW());
   --------------------------------------------------
 */
-const APP_VERSION = '1.6.61'; 
+const APP_VERSION = '1.6.62'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
