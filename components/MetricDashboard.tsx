@@ -230,7 +230,12 @@ const CollapsibleSection = ({ title, icon: Icon, count, children, defaultExpande
 };
 
 // Componente de Card de Métrica (Reutilizável)
-const MetricCard = ({ item, onClick }: { item: any, onClick: () => void }) => {
+interface MetricCardProps {
+    item: any;
+    onClick: () => void;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({ item, onClick }) => {
     // DEFINIÇÃO VISUAL (4 ZONAS)
     let styleClass = '';
     let textClass = '';

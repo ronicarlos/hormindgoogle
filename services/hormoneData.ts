@@ -1,6 +1,7 @@
 
 export interface HormoneData {
     id: string;
+    category: 'Sexual' | 'Tireoide' | 'Estresse' | 'Metabolismo';
     name: string;
     function: string;
     genderDifferences: string;
@@ -10,157 +11,314 @@ export interface HormoneData {
 }
 
 export const HORMONE_GUIDE_DATA: HormoneData[] = [
+    // === SEXUAIS & REPRODUÇÃO ===
     {
         id: 'testosterone',
+        category: 'Sexual',
         name: 'Testosterona',
-        function: 'Principal hormônio anabólico e androgênico. Regula massa muscular, densidade óssea, libido e motivação (dopamina).',
-        genderDifferences: 'HOMENS: Produzida nos testículos. Níveis 10x a 15x maiores. Define características masculinas.\nMULHERES: Produzida nos ovários/adrenais. Vital para libido, energia e tônus muscular, mas em doses muito menores.',
+        function: 'O "motor" anabólico e androgênico. Regula massa muscular, densidade óssea, libido, produção de hemácias (sangue) e motivação dopaminérgica.',
+        genderDifferences: 'HOMENS: Produzida nos testículos. Níveis 10x-15x maiores. Define características masculinas.\nMULHERES: Produzida nos ovários/adrenais. Vital para libido, energia e tônus muscular, mas em doses menores.',
         lowSymptoms: [
             'Baixa libido e disfunção erétil (H)',
-            'Perda de massa muscular e força',
+            'Perda de força e massa muscular',
             'Acúmulo de gordura abdominal',
-            'Depressão, falta de motivação e "brain fog"',
+            'Depressão, falta de motivação, "brain fog"',
             'Fadiga crônica e letargia'
         ],
         highSymptoms: [
             'Oleosidade na pele e acne severa',
-            'Agressividade ou irritabilidade (pavio curto)',
+            'Irritabilidade e agressividade (pavio curto)',
             'Queda de cabelo (se converter em DHT)',
-            'Virilização em mulheres (pelos, voz grossa)',
-            'Aumento do hematócrito (sangue grosso)'
+            'Virilização em mulheres (voz, pelos)',
+            'Hematócrito alto (sangue grosso)'
         ],
         lifestyleFixes: [
-            'Sono: Dormir 7-9h é inegociável (pico de produção ocorre no sono REM).',
-            'Dieta: Consumir gorduras saturadas e monoinsaturadas (colesterol é a matéria-prima).',
-            'Treino: Musculação pesada (compostos) estimula a produção.',
-            'Nutrientes: Zinco, Magnésio e Vitamina D devem estar otimizados.'
+            'Sono: 7-9h é inegociável (pico no sono REM).',
+            'Nutrição: Gorduras saturadas/monoinsaturadas e Zinco.',
+            'Treino: Musculação pesada (compostos).',
+            'Controle de gordura: Obesidade converte Testo em Estradiol.'
         ]
     },
     {
         id: 'estradiol',
+        category: 'Sexual',
         name: 'Estradiol (E2)',
-        function: 'Principal estrogênio. Protege o cérebro (neuroprotetor), articulações, ossos e sistema cardiovascular.',
-        genderDifferences: 'HOMENS: Derivado da conversão da testosterona. Essencial para libido e ereção.\nMULHERES: Regula ciclo menstrual, hidratação da pele/mucosas e humor.',
+        function: 'Principal estrogênio. Neuroprotetor (cérebro), cardioprotetor (vasos), lubrificação articular e saúde óssea.',
+        genderDifferences: 'HOMENS: Vem da conversão da Testosterona. Essencial para libido e ereção.\nMULHERES: Regula ciclo, hidratação da pele/mucosas e humor. Cai na menopausa.',
         lowSymptoms: [
-            'Dor nas articulações (ressecamento)',
-            'Risco de osteoporose e fraturas',
-            'Queda de libido (sim, mesmo em homens)',
-            'Pele seca e envelhecida',
-            'Irritabilidade e ansiedade'
+            'Dor articular (ressecamento)',
+            'Risco de osteoporose',
+            'Queda de libido (ambos os sexos)',
+            'Pele seca/envelhecida',
+            'Ondas de calor (mulheres)'
         ],
         highSymptoms: [
             'Retenção hídrica severa (inchaço)',
             'Labilidade emocional (choro fácil)',
-            'Ginecomastia (em homens)',
-            'Acúmulo de gordura no quadril/coxas',
-            'Dificuldade de ereção'
+            'Ginecomastia (homens)',
+            'Dificuldade de ereção',
+            'Acúmulo de gordura no quadril'
         ],
         lifestyleFixes: [
-            'Controle de Peso: Gordura visceral contém aromatase, que converte Testo em E2. Emagrecer baixa o E2.',
-            'Fígado: Evitar álcool ajuda o fígado a metabolizar o excesso de estrogênio.',
-            'Fibras: Dieta rica em vegetais crucíferos (brócolis) ajuda a eliminar estrogênio.',
-            'Cuidado com IAs: Não zere seu estradiol com medicamentos sem necessidade médica.'
+            'Peso: Reduzir gordura visceral (onde ocorre a aromatização).',
+            'Fígado: Evitar álcool ajuda a metabolizar excesso de E2.',
+            'Fibras: Vegetais crucíferos ajudam na eliminação.',
+            'Cuidado: Não zere o estradiol com remédios sem indicação.'
         ]
     },
     {
-        id: 'cortisol',
-        name: 'Cortisol',
-        function: 'Hormônio do estresse e do despertar. Mobiliza energia (glicose) em situações de perigo. Anti-inflamatório natural.',
-        genderDifferences: 'Atua de forma similar. Mulheres podem ser mais sensíveis a distúrbios de cortisol devido à interação com progesterona.',
+        id: 'progesterone',
+        category: 'Sexual',
+        name: 'Progesterona',
+        function: 'Hormônio "calmante" e regulador do ciclo. Equilibra os efeitos do estrogênio e prepara o útero.',
+        genderDifferences: 'HOMENS: Baixa relevância clínica direta (exceto uso de medicamentos).\nMULHERES: Fundamental no pós-ovulação e gravidez. Efeito ansiolítico (sono).',
         lowSymptoms: [
-            'Fadiga extrema (Burnout / Fadiga Adrenal)',
-            'Tontura ao levantar rápido (hipotensão)',
-            'Baixa resistência a inflamações e doenças',
-            'Dificuldade de acordar pela manhã'
+            'TPM severa e irritabilidade',
+            'Ciclos irregulares ou curtos',
+            'Insônia e ansiedade',
+            'Dominância estrogênica (inchaço)'
         ],
         highSymptoms: [
-            'Ansiedade, taquicardia e insônia',
-            'Catabolismo muscular (perda de massa)',
-            'Gordura visceral (barriga dura)',
-            'Rosto inchado ("Face de Lua")',
-            'Queda de imunidade'
+            'Sonolência excessiva',
+            'Alteração de libido',
+            'Comum na gravidez ou suplementação'
         ],
         lifestyleFixes: [
-            'Gestão de Estresse: Meditação, respiração profunda e lazer.',
-            'Cafeína: Evitar estimulantes após as 14h.',
-            'Ritmo: Exposição à luz solar ao acordar e escuridão total à noite.',
-            'Pós-Treino: Carboidratos após treino intenso ajudam a baixar o cortisol.'
+            'Gerenciamento de estresse (o corpo "rouba" matéria-prima da progesterona para fazer cortisol).',
+            'Nutrientes: Vitamina B6 e Magnésio.',
+            'Ovulação saudável é necessária para produção natural.'
         ]
     },
     {
-        id: 'thyroid',
-        name: 'Tireoide (T3/T4/TSH)',
-        function: 'O termostato do corpo. Regula a velocidade do metabolismo, temperatura corporal e síntese proteica.',
-        genderDifferences: 'Mulheres têm 5x a 8x mais chances de desenvolver problemas na tireoide (Hipotireoidismo/Hashimoto).',
+        id: 'shbg',
+        category: 'Sexual',
+        name: 'SHBG (Globulina)',
+        function: 'O "táxi" dos hormônios. Transporta Testosterona e Estradiol no sangue. Quando ligados ao SHBG, eles ficam inativos.',
+        genderDifferences: 'Semelhante na função. Mulheres tendem a ter SHBG mais alto naturalmente (proteção contra excesso androgênico).',
         lowSymptoms: [
-            'Metabolismo lento (ganho de peso fácil)',
-            'Frio excessivo (pés e mãos gelados)',
-            'Queda de cabelo difusa e unhas fracas',
+            'Sintomas de excesso de andrógenos (acne, pelos)',
+            'Resistência à insulina (forte correlação)',
+            'Risco de diabetes tipo 2',
+            'Fígado gorduroso'
+        ],
+        highSymptoms: [
+            'Sintomas de testosterona baixa (mesmo com total normal)',
+            'Perda de libido',
+            'Dificuldade em ganhar massa',
+            'Comum em dietas muito restritivas (Low Carb extremo)'
+        ],
+        lifestyleFixes: [
+            'Para baixar: Corrigir resistência à insulina, aumentar carboidratos complexos.',
+            'Para subir: Reduzir inflamação, tratar fígado, evitar excesso de açúcar.'
+        ]
+    },
+    {
+        id: 'prolactin',
+        category: 'Sexual',
+        name: 'Prolactina',
+        function: 'Ligado à lactação, mas é o hormônio da "saciedade sexual". Inibe dopamina e GnRH (desliga o eixo sexual).',
+        genderDifferences: 'HOMENS: Inimigo da ereção e libido. Aumenta no período refratário.\nMULHERES: Produção de leite. Alta inibe ovulação (amenorreia).',
+        lowSymptoms: [
+            'Raro ser problema clínico isolado',
+            'Pode indicar necrose hipofisária (raríssimo)'
+        ],
+        highSymptoms: [
+            'Perda total de libido',
+            'Disfunção erétil / Anorgasmia',
+            'Galactorreia (leite nas mamas)',
+            'Infertilidade (bloqueia LH/FSH)',
+            'Ginecomastia'
+        ],
+        lifestyleFixes: [
+            'Dopamina: Aumentar dopamina baixa prolactina.',
+            'Sono: Falta de sono eleva prolactina.',
+            'Stress: Cortisol alto puxa prolactina.',
+            'Medicações: Antidepressivos são causa comum de aumento.'
+        ]
+    },
+
+    // === COMANDO CENTRAL (HIPÓFISE) ===
+    {
+        id: 'lh_fsh',
+        category: 'Sexual',
+        name: 'LH e FSH',
+        function: 'Os chefes. LH manda produzir hormônios (Testo/Prog). FSH manda produzir células (Esperma/Óvulos).',
+        genderDifferences: 'HOMENS: Constantes. LH -> Testículo (Leydig). FSH -> Sertoli.\nMULHERES: Cíclicos. Variam drasticamente conforme fase do mês e menopausa.',
+        lowSymptoms: [
+            'Eixo desligado (Hipotrofia testicular)',
+            'Infertilidade',
+            'Causa comum: Uso de esteroides ou stress extremo'
+        ],
+        highSymptoms: [
+            'Falência testicular/ovariana (O cérebro grita, mas a gônada não ouve)',
+            'Menopausa ou Andropausa primária',
+            'Tumor hipofisário (raro)'
+        ],
+        lifestyleFixes: [
+            'Não usar hormônios exógenos sem TPC.',
+            'Nutrição adequada (déficit calórico extremo desliga o GnRH).',
+            'Descanso adequado.'
+        ]
+    },
+
+    // === TIREOIDE & METABOLISMO ===
+    {
+        id: 'tsh_thyroid',
+        category: 'Tireoide',
+        name: 'Tireoide (TSH, T3, T4)',
+        function: 'O termostato do corpo. TSH (cérebro) manda na Tireoide. T4 é estoque, T3 é o hormônio ativo que queima energia.',
+        genderDifferences: 'Mulheres têm 5x-8x mais chance de problemas autoimunes (Hashimoto) e hipotireoidismo.',
+        lowSymptoms: [
+            'Metabolismo lento e ganho de peso',
+            'Frio excessivo, pele seca, queda de cabelo',
             'Constipação intestinal',
-            'Fadiga mental e depressão'
+            'Depressão e fadiga mental'
         ],
         highSymptoms: [
-            'Perda de peso rápida (mesmo comendo)',
-            'Calor excessivo e sudorese',
-            'Taquicardia e tremores',
-            'Ansiedade e insônia',
-            'Olhos saltados (casos graves)'
+            'Perda de peso rápida (catabolismo)',
+            'Calor, sudorese, taquicardia',
+            'Ansiedade, tremores, insônia',
+            'Olhos saltados (Graves)'
         ],
         lifestyleFixes: [
-            'Nutrientes: Iodo, Selênio e Zinco são essenciais para conversão de T4 em T3.',
-            'Estresse: Cortisol alto bloqueia a tireoide.',
-            'Gut Health: O intestino converte 20% do T4 em T3. Trate disbioses.',
-            'Evitar dietas extremas: Déficit calórico muito agressivo "desliga" a tireoide.'
+            'Nutrientes: Iodo, Selênio e Zinco (conversão T4->T3).',
+            'Gut Health: 20% da conversão ocorre no intestino.',
+            'Stress: Cortisol alto bloqueia a tireoide.',
+            'Não fazer dietas de fome (crash diet desliga T3).'
         ]
     },
     {
         id: 'insulin',
+        category: 'Metabolismo',
         name: 'Insulina',
-        function: 'Hormônio de armazenamento. Transporta glicose e aminoácidos para dentro das células (músculo ou gordura).',
-        genderDifferences: 'Similar. Síndrome dos Ovários Policísticos (SOP) em mulheres está fortemente ligada à resistência à insulina.',
+        function: 'Hormônio de armazenamento. Abre a porta das células para glicose e aminoácidos. É altamente anabólico (para músculo e gordura).',
+        genderDifferences: 'Similar. Na mulher, resistência à insulina causa SOP (Síndrome dos Ovários Policísticos).',
         lowSymptoms: [
-            'Diabetes Tipo 1 (dependência externa)',
+            'Diabetes Tipo 1 (falência)',
             'Catabolismo muscular severo',
-            'Cetoacidose (hálito de acetona)',
-            'Sede excessiva e muita urina'
+            'Sede excessiva, muita urina',
+            'Glicose alta no sangue'
         ],
         highSymptoms: [
             'Resistência à Insulina (Pré-diabetes)',
-            'Dificuldade extrema em queimar gordura',
-            'Sonolência após refeições',
-            'Acantose (manchas escuras no pescoço)',
-            'Fome constante (carb cravings)'
+            'Gordura visceral (barriga dura)',
+            'Acantose (manchas escuras pescoço)',
+            'Fome constante e sono pós-refeição'
         ],
         lifestyleFixes: [
-            'Dieta: Reduzir carboidratos refinados e açúcar. Jejum intermitente ajuda muito.',
-            'Treino: Musculação aumenta a sensibilidade à insulina (músculo é um "ralo" de glicose).',
-            'Suplementos: Cromo, Berberina e Ácido Alfa Lipóico podem ajudar.',
-            'Sono: Uma noite mal dormida pode causar resistência à insulina temporária.'
+            'Treino: Músculo é o maior consumidor de glicose.',
+            'Dieta: Reduzir açúcar/farinha. Fibras e proteínas.',
+            'Jejum Intermitente: Melhora a sensibilidade.',
+            'Sono: 1 noite ruim já causa resistência temporária.'
         ]
     },
     {
-        id: 'gh',
-        name: 'GH (Hormônio do Crescimento)',
-        function: 'Reparo tecidual, crescimento celular e lipólise (queima de gordura). É o hormônio da "juventude".',
-        genderDifferences: 'Mulheres secretam mais GH basalmente, mas em pulsos diferentes. Homens têm picos maiores durante o sono.',
+        id: 'gh_igf1',
+        category: 'Metabolismo',
+        name: 'GH e IGF-1',
+        function: 'GH (Crescimento) queima gordura e repara tecidos. IGF-1 (Fígado) executa o crescimento celular e muscular.',
+        genderDifferences: 'Mulheres secretam mais GH basalmente. Homens têm picos maiores no sono profundo.',
         lowSymptoms: [
-            'Envelhecimento precoce da pele',
+            'Envelhecimento precoce (pele fina)',
             'Aumento de gordura abdominal',
-            'Dificuldade de recuperação muscular',
-            'Perda de densidade óssea',
-            'Baixa qualidade de sono'
+            'Perda de massa magra e óssea',
+            'Recuperação lenta de lesões'
         ],
         highSymptoms: [
-            'Gigantismo (em crianças) ou Acromegalia (adultos)',
-            'Crescimento de mãos, pés e mandíbula',
+            'Acromegalia (crescimento ossos face/mãos)',
             'Resistência à insulina (GH antagoniza insulina)',
-            'Dor nas articulações (Síndrome do túnel do carpo)'
+            'Dor articular e retenção',
+            'Risco aumentado de tumores'
         ],
         lifestyleFixes: [
-            'Sono Profundo: 70% do GH é liberado no sono profundo (Delta).',
-            'Jejum: A insulina inibe o GH. Dormir de estômago vazio potencializa o pico noturno.',
-            'Treino: Exercícios de alta intensidade (HIIT/Pesos) estimulam a produção.',
-            'Sauna: Exposição ao calor intenso pode aumentar GH temporariamente.'
+            'Sono Profundo (Delta): 70% do GH sai aqui.',
+            'Jejum: Insulina baixa libera GH.',
+            'Treino Intenso (Láctico): Estimula secreção.',
+            'Evitar comer logo antes de dormir.'
+        ]
+    },
+
+    // === ESTRESSE & ADRENAIS ===
+    {
+        id: 'cortisol',
+        category: 'Estresse',
+        name: 'Cortisol',
+        function: 'Hormônio da vida e do estresse. Anti-inflamatório natural. Nos acorda de manhã e mobiliza energia em perigo.',
+        genderDifferences: 'Similar. Mulheres podem ser mais sensíveis a desregulação devido à interação com progesterona.',
+        lowSymptoms: [
+            'Fadiga extrema (Burnout)',
+            'Tontura ao levantar (hipotensão)',
+            'Baixa imunidade e inflamação crônica',
+            'Dificuldade de acordar'
+        ],
+        highSymptoms: [
+            'Ansiedade, taquicardia, insônia ("tired but wired")',
+            'Perda de massa muscular (catabolismo)',
+            'Gordura visceral',
+            'Rosto inchado (Face de Lua)'
+        ],
+        lifestyleFixes: [
+            'Ritmo: Luz solar ao acordar, escuro à noite.',
+            'Cafeína: Cortar após 14h.',
+            'Mental: Meditação reduz cortisol basal.',
+            'Pós-treino: Carboidrato baixa o cortisol induzido pelo treino.'
+        ]
+    },
+    {
+        id: 'dhea',
+        category: 'Estresse',
+        name: 'DHEA-S',
+        function: 'Pró-hormônio adrenal. Precursor de Testo/E2. Marcador de "juventude adrenal" e contraponto do cortisol.',
+        genderDifferences: 'Importante fonte de andrógenos para mulheres (libido/energia). Homens dependem mais do testículo.',
+        lowSymptoms: [
+            'Baixa energia e libido',
+            'Envelhecimento acelerado',
+            'Baixa imunidade',
+            'Sinal de fadiga adrenal'
+        ],
+        highSymptoms: [
+            'Pele oleosa e acne',
+            'Hirsutismo (pelos) em mulheres',
+            'Pode indicar SOP ou estresse agudo'
+        ],
+        lifestyleFixes: [
+            'Gerenciar estresse (cortisol "rouba" a via do DHEA).',
+            'Sono de qualidade.',
+            'Treino de força.'
+        ]
+    }
+];
+
+export const CORRECTION_LEVELS = [
+    {
+        level: 1,
+        title: 'Nível 1: A Base (Estilo de Vida)',
+        description: '90% dos desequilíbrios leves se resolvem aqui. Sem isso, nenhum remédio funciona direito.',
+        actions: [
+            { icon: '💤', title: 'Sono Sagrado', text: 'Dormir 7-9h. O pico de testosterona e GH ocorre no sono profundo. Pouco sono = Cortisol alto e Testo baixa.' },
+            { icon: '🏋️', title: 'Estímulo Físico', text: 'Musculação sinaliza ao corpo que ele PRECISA de músculo e osso (aumentando hormônios anabólicos). Cardio melhora a sensibilidade à insulina.' },
+            { icon: '🥗', title: 'Combustível Real', text: 'Comer proteínas suficientes e gorduras boas (colesterol é a mãe dos hormônios). Evitar déficits calóricos agressivos por muito tempo.' },
+            { icon: '🧠', title: 'Gestão de Stress', text: 'O estresse crônico "rouba" a matéria-prima dos hormônios sexuais para fazer Cortisol (Pregnenolone Steal).' }
+        ]
+    },
+    {
+        level: 2,
+        title: 'Nível 2: Investigação (Causas Ocultas)',
+        description: 'Se a base está feita e os sintomas persistem, procure os sabotadores.',
+        actions: [
+            { icon: '💊', title: 'Revisão de Fármacos', text: 'Antidepressivos, finasterida, anticoncepcionais e estatinas podem alterar libido e eixos hormonais.' },
+            { icon: '🥕', title: 'Deficiências', text: 'Falta de Zinco, Magnésio, Vitamina D3 ou Ferro pode simular hipogonadismo ou hipotireoidismo.' },
+            { icon: '⚖️', title: 'Composição Corporal', text: 'Gordura em excesso é um órgão endócrino que inflama o corpo e converte Testo em Estradiol. Emagrecer muitas vezes "cura" o hormônio.' }
+        ]
+    },
+    {
+        level: 3,
+        title: 'Nível 3: Intervenção Clínica',
+        description: 'Zona médica. Quando a fisiologia falha e precisa de reparo externo.',
+        actions: [
+            { icon: '👨‍⚕️', title: 'Reposição (TRT/TH)', text: 'Indicada quando há sintomas severos E exames comprovando falência da glândula, irreversível por meios naturais.' },
+            { icon: '🧪', title: 'Modulação', text: 'Uso de SERMs, HCG ou inibidores de enzima para "religar" ou ajustar eixos (com acompanhamento).' },
+            { icon: '⚠️', title: 'Alerta de Segurança', text: 'Automedicação com hormônios pode desligar sua produção natural permanentemente e causar infertilidade.' }
         ]
     }
 ];
@@ -168,20 +326,20 @@ export const HORMONE_GUIDE_DATA: HormoneData[] = [
 export const LIFE_CYCLE_DATA = [
     {
         phase: 'Adulto Jovem (20-35 anos)',
-        description: 'O auge hormonal. O corpo perdoa erros de estilo de vida, mas é a fase de construir a "poupança" metabólica.',
-        men: 'Testosterona no pico. Facilidade em ganhar músculo e manter baixo BF. Foco: Maximizar construção de massa magra.',
-        women: 'Ciclos menstruais regulares. Pico de fertilidade. Estradiol protege ossos e coração. Foco: Regularidade do ciclo e ferro.'
+        description: 'O auge da fertilidade e resiliência metabólica.',
+        men: 'Pico de Testosterona. Facilidade em ganhar músculo. Eixo resiliente a noites mal dormidas (mas cobra juros depois). Foco: Construir a "poupança" muscular.',
+        women: 'Ciclos regulares e pico de fertilidade. Estradiol alto protege ossos e coração. Foco: Regularidade menstrual é o sinal vital #1.'
     },
     {
         phase: 'Meia Idade (35-50 anos)',
-        description: 'O declínio sutil. O metabolismo desacelera e o estresse (cortisol) costuma aumentar devido à carreira/família.',
-        men: 'Testosterona cai ~1% ao ano. Primeiros sinais de gordura visceral. Recuperação mais lenta. Exige treino e dieta mais limpos.',
-        women: 'Perimenopausa. Progesterona cai primeiro (ansiedade, insônia). Ciclos irregulares. Metabolismo muda. Foco: Musculação para ossos.'
+        description: 'O declínio sutil e o aumento das responsabilidades (estresse).',
+        men: 'Testosterona cai ~1% ao ano. Primeiros sinais de gordura visceral e queda de recuperação. Exige dieta limpa e sono regrado para manter performance.',
+        women: 'Perimenopausa. Progesterona cai primeiro (ansiedade, sono ruim, TPM). Ciclos encurtam. Metabolismo desacelera. Foco: Musculação é obrigatória.'
     },
     {
-        phase: 'Envelhecimento (50+ anos)',
-        description: 'A fase de manutenção. Hormônios sexuais caem drasticamente. O foco muda de "estética" para "funcionalidade e longevidade".',
-        men: 'Andropausa parcial. Risco cardiovascular aumenta. Sarcopenia (perda de músculo) é o inimigo nº 1. TRT pode ser indicada medicamente.',
-        women: 'Menopausa (queda brusca de E2). Risco cardíaco iguala ao dos homens. Osteoporose. Reposição hormonal (se indicada) muda qualidade de vida.'
+        phase: 'Maturidade (50+ anos)',
+        description: 'A fase de manutenção funcional e proteção.',
+        men: 'Andropausa parcial. Risco cardiovascular sobe. Sarcopenia (perda de músculo) é o inimigo. TRT pode ser necessária se houver sintomas de hipogonadismo.',
+        women: 'Menopausa (queda brusca de E2). Risco cardíaco iguala ao homem. Osteoporose acelera. Reposição hormonal (janela de oportunidade) muda qualidade de vida.'
     }
 ];

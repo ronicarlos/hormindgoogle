@@ -164,7 +164,9 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
             const sourceTopMetrics: any[] = [];
             if (metrics) {
                 Object.entries(metrics).forEach(([category, points]) => {
-                    const matchingPoint = points.find(p => p.date === source.date);
+                    // Fix for TS unknown error: cast points to MetricPoint[]
+                    const pts = points as MetricPoint[];
+                    const matchingPoint = pts.find(p => p.date === source.date);
                     if (matchingPoint) {
                         let status: 'NORMAL' | 'HIGH' | 'LOW' = 'NORMAL';
                         if (matchingPoint.refMax !== undefined && matchingPoint.value > matchingPoint.refMax) status = 'HIGH';
