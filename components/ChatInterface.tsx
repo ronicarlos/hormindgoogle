@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Project, ChatMessage } from '../types';
-import { generateAIResponse } from '../services/geminiService';
+import { generateAIResponse, generateSpeech } from '../services/geminiService';
 import { dataService } from '../services/dataService';
 import { 
     IconSend, IconSparkles, IconUser, IconRefresh, IconCopy, 
     IconSearch, IconBookmark, IconBookmarkFilled, IconClose, 
     IconArrowLeft, IconActivity, IconShare, IconReportPDF, IconCheck,
-    IconMic 
+    IconMic, IconSpeaker, IconStop 
 } from './Icons';
 import ProntuarioModal from './ProntuarioModal';
 
@@ -48,6 +48,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
     const [isRecording, setIsRecording] = useState(false);
     const recognitionRef = useRef<any>(null);
     
+    // TTS (Audio Output) State
+    const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+    const [isLoadingAudio, setIsLoadingAudio] = useState<string | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
     // Search & Filter States
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -69,6 +75,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
         loadMessages();
     }, [project.id, refreshTrigger]);
 
+    // Cleanup Audio on unmount
+    useEffect(() => {
+        return () => {
+            stopAudio();
+        };
+    }, []);
+
     // Scroll para baixo quando mensagens mudam, ou quando entra em estado de processamento
     useEffect(() => {
         if ((!searchTerm && !showBookmarksOnly) || isThinking || isProcessing) {
@@ -82,6 +95,73 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
             searchInputRef.current.focus();
         }
     }, [isSearchOpen]);
+
+    // --- TTS LOGIC ---
+    const stopAudio = () => {
+        if (audioSourceRef.current) {
+            try {
+                audioSourceRef.current.stop();
+            } catch (e) {
+                // Ignore errors if already stopped
+            }
+            audioSourceRef.current = null;
+        }
+        if (audioContextRef.current) {
+            // Suspender ou fechar o contexto pode economizar recursos
+            // audioContextRef.current.close();
+            // audioContextRef.current = null;
+        }
+        setPlayingMessageId(null);
+    };
+
+    const handlePlayMessage = async (msgId: string, text: string) => {
+        // Se já estiver tocando esta mensagem, para.
+        if (playingMessageId === msgId) {
+            stopAudio();
+            return;
+        }
+
+        // Se estiver tocando outra, para a anterior.
+        stopAudio();
+
+        setIsLoadingAudio(msgId);
+
+        try {
+            // Inicializa AudioContext (necessário interação do usuário para iniciar em alguns browsers)
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            }
+            
+            if (audioContextRef.current.state === 'suspended') {
+                await audioContextRef.current.resume();
+            }
+
+            const audioBufferData = await generateSpeech(text);
+            
+            if (!audioBufferData) throw new Error("Falha ao gerar áudio.");
+
+            const audioBuffer = await audioContextRef.current.decodeAudioData(audioBufferData);
+            
+            const source = audioContextRef.current.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContextRef.current.destination);
+            
+            source.onended = () => {
+                setPlayingMessageId(null);
+                audioSourceRef.current = null;
+            };
+
+            audioSourceRef.current = source;
+            source.start(0);
+            setPlayingMessageId(msgId);
+
+        } catch (error) {
+            console.error("Erro ao reproduzir áudio:", error);
+            alert("Não foi possível reproduzir o áudio desta mensagem.");
+        } finally {
+            setIsLoadingAudio(null);
+        }
+    };
 
     // --- VOICE INPUT LOGIC ---
     const handleVoiceInput = () => {
@@ -104,7 +184,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
         recognition.continuous = false; // Para ao terminar de falar
         recognition.interimResults = true; // Mostra resultados enquanto fala
 
-        recognition.onstart = () => setIsRecording(true);
+        recognition.onstart = () => {
+            setIsRecording(true);
+            stopAudio(); // Para qualquer reprodução ao começar a falar
+        };
         recognition.onend = () => setIsRecording(false);
         recognition.onerror = (event: any) => {
             console.error("Speech Recognition Error", event.error);
@@ -130,6 +213,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
 
     const handleSendMessage = async () => {
         if (!inputValue.trim()) return;
+
+        stopAudio(); // Para áudio ao enviar
 
         const userMsg: ChatMessage = {
             id: Date.now().toString(),
@@ -371,6 +456,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ project, onUpdateProject,
                                     {/* Action Bar (Only for AI messages) */}
                                     {msg.role === 'model' ? (
                                         <div className="flex items-center gap-1">
+                                            <button 
+                                                onClick={() => handlePlayMessage(msg.id, msg.text)}
+                                                className={`p-1.5 rounded-lg transition-colors ${
+                                                    playingMessageId === msg.id 
+                                                    ? 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 dark:text-purple-400' 
+                                                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300'
+                                                }`}
+                                                title={playingMessageId === msg.id ? "Parar leitura" : "Ouvir resposta"}
+                                            >
+                                                {isLoadingAudio === msg.id ? (
+                                                    <div className="w-3.5 h-3.5 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin" />
+                                                ) : playingMessageId === msg.id ? (
+                                                    <IconStop className="w-3.5 h-3.5 animate-pulse" />
+                                                ) : (
+                                                    <IconSpeaker className="w-3.5 h-3.5" />
+                                                )}
+                                            </button>
+
                                             <button 
                                                 onClick={() => handleCopy(msg.text, msg.id)}
                                                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-300"

@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import { Source, ChatMessage, UserProfile, MetricPoint, SourceType } from '../types';
 import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 import { dataService } from './dataService';
@@ -51,8 +51,9 @@ const getMedicalModel = () => {
 export const OCR_MODEL = getOcrModel() || 'gemini-2.0-flash-lite-preview-02-05';
 export const MEDICAL_MODEL = getMedicalModel() || 'gemini-3-pro-preview';
 export const VISION_MODEL = 'gemini-2.5-flash-image'; // Novo modelo para análise visual (Nano Banana)
+export const TTS_MODEL = 'gemini-2.5-flash-preview-tts'; // Modelo para Texto para Fala
 
-console.log(`🤖 Arquitetura Ativa:\n - OCR: ${OCR_MODEL}\n - Cérebro Clínico: ${MEDICAL_MODEL}\n - Visão: ${VISION_MODEL}`);
+console.log(`🤖 Arquitetura Ativa:\n - OCR: ${OCR_MODEL}\n - Cérebro Clínico: ${MEDICAL_MODEL}\n - Visão: ${VISION_MODEL}\n - Voz: ${TTS_MODEL}`);
 
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
 
@@ -289,6 +290,16 @@ const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string,
   });
 };
 
+function decodeAudioData(base64: string): ArrayBuffer {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 // --- FUNÇÃO DE OCR (USA VITE_GEMINI_MODEL - FLASH LITE) ---
 export const processDocument = async (file: File, defaultDate: string): Promise<{ extractedText: string, metrics: { category: string, data: MetricPoint }[], documentType?: string, detectedDate?: string }> => {
     if (!apiKey) throw new Error("API Key missing");
@@ -452,6 +463,45 @@ export const analyzePhysique = async (files: File[], comparisonMode: boolean = f
     } catch (error) {
         console.error("Physique Analysis Error:", error);
         return "Erro ao processar análise visual. Tente novamente.";
+    }
+};
+
+// --- FUNÇÃO DE SÍNTESE DE VOZ (TTS) ---
+export const generateSpeech = async (text: string): Promise<ArrayBuffer | null> => {
+    if (!apiKey) return null;
+
+    try {
+        console.log(`FitLM TTS: Sintetizando voz com ${TTS_MODEL}...`);
+        
+        // Limita o texto para evitar tokens excessivos ou falhas
+        const safeText = text.length > 3000 ? text.substring(0, 3000) + "..." : text;
+
+        const response = await ai.models.generateContent({
+            model: TTS_MODEL,
+            contents: {
+                parts: [{ text: safeText }]
+            },
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: 'Kore' } // 'Kore' é uma voz feminina geralmente clara
+                    }
+                }
+            }
+        });
+
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        
+        if (base64Audio) {
+            return decodeAudioData(base64Audio);
+        }
+        
+        return null;
+
+    } catch (error) {
+        console.error("TTS Error:", error);
+        return null;
     }
 };
 
