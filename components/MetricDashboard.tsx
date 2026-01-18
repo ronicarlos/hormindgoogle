@@ -559,7 +559,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                     </h3>
                                 </div>
                                 
-                                {/* LEGENDA VISUAL DE CORES & INSTRUÇÃO DE INTERAÇÃO */}
+                                {/* LEGENDA VISUAL DE CORES & INSTRUÇÃO DE INTERAÇÃO (ATUALIZADA) */}
                                 <div className="mb-6 bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-[10px] dark:bg-gray-900 dark:border-gray-800">
                                     <div className="flex flex-wrap gap-4 text-gray-500 font-medium dark:text-gray-400">
                                         <div className="flex items-center gap-1.5">
@@ -568,10 +568,14 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-sm"></span>
-                                            <span>Atenção (Próximo ao limite)</span>
+                                            <span>Atenção Moderada</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm"></span>
+                                            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></span>
+                                            <span>Atenção Alta (Preventivo)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm"></span>
                                             <span>Problema Consumado</span>
                                         </div>
                                     </div>
@@ -620,7 +624,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 )}
                             </div>
 
-                            {/* MONITORAMENTO PREVENTIVO */}
+                            {/* MONITORAMENTO PREVENTIVO (Cores Ajustadas: Laranja/Amarelo, SEM VERMELHO) */}
                             {preventiveAlerts.length > 0 && (
                                 <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                                     <div className="flex items-center gap-2 mb-4">
@@ -632,38 +636,50 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                         </h3>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {preventiveAlerts.map((alert, idx) => (
-                                            <div 
-                                                key={idx}
-                                                onClick={() => handleChartHover(alert.point, alert.category, alert.history)}
-                                                className={`rounded-xl p-4 cursor-pointer transition-colors border ${
-                                                    alert.status === 'HIGH' || alert.status === 'LOW' 
-                                                    ? 'bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/40'
-                                                    : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40'
-                                                }`}
-                                            >
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <h4 className={`font-bold text-xs uppercase tracking-wider ${
-                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-900 dark:text-red-200' : 'text-yellow-900 dark:text-yellow-200'
-                                                    }`}>{alert.category}</h4>
-                                                    <span className={`text-[10px] font-bold ${
-                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'
-                                                    }`}>{alert.date}</span>
+                                        {preventiveAlerts.map((alert, idx) => {
+                                            const isCriticalValue = alert.status === 'HIGH' || alert.status === 'LOW';
+                                            // Lógica de Cores: Se for crítico, usa LARANJA (Atenção Alta), se for borderline, usa AMARELO (Atenção Moderada). NUNCA VERMELHO.
+                                            const styleClass = isCriticalValue
+                                                ? 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/40'
+                                                : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
+                                            
+                                            const textClass = isCriticalValue
+                                                ? 'text-orange-900 dark:text-orange-200'
+                                                : 'text-yellow-900 dark:text-yellow-200';
+
+                                            const dateClass = isCriticalValue
+                                                ? 'text-orange-700 dark:text-orange-400'
+                                                : 'text-yellow-700 dark:text-yellow-400';
+
+                                            const messageClass = isCriticalValue
+                                                ? 'text-orange-800 dark:text-orange-300/80'
+                                                : 'text-yellow-800 dark:text-yellow-300/80';
+
+                                            const valueClass = isCriticalValue
+                                                ? 'text-orange-900 dark:text-orange-100'
+                                                : 'text-yellow-900 dark:text-yellow-100';
+
+                                            return (
+                                                <div 
+                                                    key={idx}
+                                                    onClick={() => handleChartHover(alert.point, alert.category, alert.history)}
+                                                    className={`rounded-xl p-4 cursor-pointer transition-colors border ${styleClass}`}
+                                                >
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <h4 className={`font-bold text-xs uppercase tracking-wider ${textClass}`}>{alert.category}</h4>
+                                                        <span className={`text-[10px] font-bold ${dateClass}`}>{alert.date}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-end">
+                                                        <p className={`text-[10px] font-medium leading-snug max-w-[70%] ${messageClass}`}>
+                                                            {alert.message}
+                                                        </p>
+                                                        <span className={`text-sm font-black ${valueClass}`}>
+                                                            {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex justify-between items-end">
-                                                    <p className={`text-[10px] font-medium leading-snug max-w-[70%] ${
-                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-800 dark:text-red-300/80' : 'text-yellow-800 dark:text-yellow-300/80'
-                                                    }`}>
-                                                        {alert.message}
-                                                    </p>
-                                                    <span className={`text-sm font-black ${
-                                                        alert.status === 'HIGH' || alert.status === 'LOW' ? 'text-red-900 dark:text-red-100' : 'text-yellow-900 dark:text-yellow-100'
-                                                    }`}>
-                                                        {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

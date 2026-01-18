@@ -59,13 +59,13 @@ export const analyzePoint = (
 
         if (value < effectiveMin) {
             status = 'LOW';
-            riskColor = 'text-blue-600 dark:text-blue-400';
+            riskColor = 'text-orange-600 dark:text-orange-400'; // Alterado para laranja (Atenção Baixa)
         } else if (value <= effectiveMin + buffer && min !== -Infinity) {
             status = 'BORDERLINE_LOW';
             riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
         } else if (value > effectiveMax) {
             status = 'HIGH';
-            riskColor = 'text-red-600 dark:text-red-400'; // Crítico Vermelho
+            riskColor = 'text-orange-600 dark:text-orange-400'; // Alterado para laranja (Atenção Alta) - Não Vermelho
         } else if (value >= effectiveMax - buffer && max !== Infinity) {
             status = 'BORDERLINE_HIGH';
             riskColor = 'text-yellow-600 dark:text-yellow-400'; // Preventivo Amarelo
@@ -104,10 +104,10 @@ export const analyzePoint = (
     
     // Parte A: Status
     if (status === 'NORMAL') message += `✅ Valor saudável e estável.`;
-    else if (status === 'HIGH') message += `🚨 CRÍTICO: Acima da referência ${refText}.`;
-    else if (status === 'LOW') message += `📉 CRÍTICO: Abaixo da referência ${refText}.`;
-    else if (status === 'BORDERLINE_HIGH') message += `⚠️ ATENÇÃO: Próximo ao limite superior ${refText}.`;
-    else if (status === 'BORDERLINE_LOW') message += `⚠️ ATENÇÃO: Próximo ao limite inferior ${refText}.`;
+    else if (status === 'HIGH') message += `⚠️ ATENÇÃO: Acima da referência ${refText}.`;
+    else if (status === 'LOW') message += `⚠️ ATENÇÃO: Abaixo da referência ${refText}.`;
+    else if (status === 'BORDERLINE_HIGH') message += `⚠️ ALERTA: Próximo ao limite superior ${refText}.`;
+    else if (status === 'BORDERLINE_LOW') message += `⚠️ ALERTA: Próximo ao limite inferior ${refText}.`;
     else message += `Valor registrado: ${value}`;
 
     // Parte B: Tendência
