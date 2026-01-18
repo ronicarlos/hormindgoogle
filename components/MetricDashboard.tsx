@@ -215,7 +215,7 @@ const CollapsibleSection = ({ title, icon: Icon, count, children, defaultExpande
         <div className="mb-6">
             <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center justify-between w-full group mb-4">
                 <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-lg ${colorClass.includes('red') ? 'bg-red-100 dark:bg-red-900/30' : colorClass.includes('yellow') || colorClass.includes('orange') ? 'bg-yellow-100 dark:bg-yellow-900/30' : colorClass.includes('emerald') ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    <div className={`p-1.5 rounded-lg ${colorClass.includes('red') ? 'bg-red-100 dark:bg-red-900/30' : colorClass.includes('orange') ? 'bg-orange-100 dark:bg-orange-900/30' : colorClass.includes('yellow') ? 'bg-yellow-100 dark:bg-yellow-900/30' : colorClass.includes('emerald') ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
                         <Icon className={`w-4 h-4 ${colorClass.split(' ')[0]}`} />
                     </div>
                     <h3 className={`text-xs font-black uppercase tracking-widest ${colorClass}`}>{title} ({count})</h3>
@@ -266,6 +266,7 @@ const MetricCard = ({ item, onClick }: { item: any, onClick: () => void }) => {
 
     // Override se tiver Stale Warning
     if (item.staleWarning) {
+        // Stale Warning agora é sempre tratado como Atenção (Laranja) visualmente na borda
         if (item.status === 'NORMAL' || item.status === 'UNKNOWN') {
             styleClass = 'bg-orange-50 border-orange-300 hover:bg-orange-100 dark:bg-orange-900/20 dark:border-orange-700';
             textClass = 'text-orange-900 dark:text-orange-200';
@@ -361,11 +362,12 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
     const gender = project.userProfile?.gender || 'Masculino';
     const filteredCategories = allCategories.filter(cat => cat.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    // --- CÁLCULO UNIFICADO COM 3 GRUPOS CLAROS ---
-    const { criticalItems, attentionItems, healthyItems } = useMemo(() => {
+    // --- CÁLCULO UNIFICADO COM 4 GRUPOS CLAROS ---
+    const { criticalItems, highAttentionItems, alertItems, healthyItems } = useMemo(() => {
         const critical: any[] = [];
-        const attention: any[] = [];
-        const healthy: any[] = [];
+        const highAttention: any[] = []; // Laranja
+        const alert: any[] = [];         // Amarelo
+        const healthy: any[] = [];       // Verde
 
         allCategories.forEach(cat => {
             const history = metrics[cat];
@@ -444,31 +446,36 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 staleWarning
             };
 
-            // AGORA SEPARA NOS 3 GRUPOS
-            if (staleWarning) {
-                // Se tem aviso de desatualização, joga em Atenção (a menos que seja crítico, aí prioriza crítico)
-                if (analysis.status.includes('CRITICAL')) critical.push(itemData);
-                else attention.push(itemData);
-            } 
-            else if (analysis.status.includes('CRITICAL')) {
+            // AGORA SEPARA NOS 4 GRUPOS
+            if (analysis.status.includes('CRITICAL')) {
                 critical.push(itemData);
+            }
+            else if (staleWarning) {
+                // Se o dado é velho/conflitante, joga para Laranja (Atenção), a não ser que fosse crítico (tratado acima)
+                highAttention.push(itemData);
             } 
-            else if (analysis.status === 'HIGH' || analysis.status === 'LOW' || analysis.status.includes('BORDERLINE')) {
-                attention.push(itemData);
+            else if (analysis.status === 'HIGH' || analysis.status === 'LOW') {
+                // Zona Laranja (Atenção - Muito próximo do limite)
+                highAttention.push(itemData);
             } 
+            else if (analysis.status.includes('BORDERLINE')) {
+                // Zona Amarela (Alerta - Próximo mas seguro)
+                alert.push(itemData);
+            }
             else {
                 // Normal ou Unknown
                 healthy.push(itemData);
             }
         });
         
-        return { criticalItems: critical, attentionItems: attention, healthyItems: healthy };
+        return { criticalItems: critical, highAttentionItems: highAttention, alertItems: alert, healthyItems: healthy };
     }, [metrics, gender, allCategories]);
 
     // Filtros de busca
     const filteredRisks = risks.filter(r => r.category.toLowerCase().includes(searchTerm.toLowerCase()));
     const filteredCritical = criticalItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
-    const filteredAttention = attentionItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredHighAttention = highAttentionItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredAlert = alertItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
     const filteredHealthy = healthyItems.filter(item => item.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
@@ -515,7 +522,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         )}
 
                         {/* 1. RISCOS E DIAGNÓSTICOS (TEXTO) */}
-                        <CollapsibleSection title="Diagnósticos de Risco" count={filteredRisks.length} icon={IconShield} colorClass="text-red-700 dark:text-red-400">
+                        <CollapsibleSection title="🛡️ Diagnósticos de Risco" count={filteredRisks.length} icon={IconShield} colorClass="text-red-700 dark:text-red-400">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {filteredRisks.map((risk, idx) => (
                                     <div key={idx} onClick={() => risk.sourceId && onViewSource && onViewSource(risk.sourceId)} className="group p-5 rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-pointer bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/50">
@@ -530,7 +537,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                         </CollapsibleSection>
 
                         {/* 2. CRÍTICOS (VERMELHO) */}
-                        <CollapsibleSection title="Ação Iminente (Críticos)" count={filteredCritical.length} icon={IconAlert} colorClass="text-red-700 dark:text-red-400">
+                        <CollapsibleSection title="🚨 Ação Iminente (Críticos)" count={filteredCritical.length} icon={IconAlert} colorClass="text-red-700 dark:text-red-400">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {filteredCritical.map((item, idx) => (
                                     <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
@@ -538,17 +545,26 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                             </div>
                         </CollapsibleSection>
 
-                        {/* 3. ATENÇÃO (LARANJA + AMARELO) */}
-                        <CollapsibleSection title="Monitoramento e Alerta" count={filteredAttention.length} icon={IconEye} colorClass="text-orange-700 dark:text-orange-400">
+                        {/* 3. ATENÇÃO (LARANJA) - Separado */}
+                        <CollapsibleSection title="🟠 Atenção (Margem Estreita)" count={filteredHighAttention.length} icon={IconEye} colorClass="text-orange-700 dark:text-orange-400">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {filteredAttention.map((item, idx) => (
+                                {filteredHighAttention.map((item, idx) => (
                                     <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
                                 ))}
                             </div>
                         </CollapsibleSection>
 
-                        {/* 4. SAUDÁVEIS (VERDE) */}
-                        <CollapsibleSection title="Marcadores Saudáveis" count={filteredHealthy.length} icon={IconCheck} defaultExpanded={false} colorClass="text-emerald-700 dark:text-emerald-400">
+                        {/* 4. ALERTA (AMARELO) - Separado */}
+                        <CollapsibleSection title="🟡 Alerta (Tendência)" count={filteredAlert.length} icon={IconActivity} colorClass="text-yellow-700 dark:text-yellow-400">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {filteredAlert.map((item, idx) => (
+                                    <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
+                                ))}
+                            </div>
+                        </CollapsibleSection>
+
+                        {/* 5. SAUDÁVEIS (VERDE) */}
+                        <CollapsibleSection title="🟢 Marcadores Saudáveis" count={filteredHealthy.length} icon={IconCheck} defaultExpanded={false} colorClass="text-emerald-700 dark:text-emerald-400">
                             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                 {filteredHealthy.map((item, idx) => (
                                     <MetricCard key={idx} item={item} onClick={() => handleChartHover(item.point, item.category, item.history)} />
