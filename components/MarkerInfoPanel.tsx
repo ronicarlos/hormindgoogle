@@ -38,6 +38,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
 
     const analysis = useMemo(() => {
         if (!activeData || !info) return null;
+        // Passa undefined como dynamicRef pois aqui queremos a análise padrão ou a que o analyzePoint resolver
         return analyzePoint(activeData.value, activeData.date, activeData.history, info, gender);
     }, [activeData, info, gender]);
 
@@ -105,22 +106,29 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                     </div>
                 )}
 
-                <div className="flex justify-between items-start mb-2 pr-6">
+                <div className="flex justify-between items-start mb-2 pr-2">
                     <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{activeData.date}</span>
                         <h2 className="text-xl font-black text-gray-900 leading-tight dark:text-white mt-0.5 break-words">{info.label}</h2>
+                        
+                        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wide mt-2 ${statusColor}`}>
+                            <IconStatus className="w-3 h-3" />
+                            <span>{labelStatus}</span>
+                        </div>
                     </div>
-                    <div className="text-right whitespace-nowrap">
+                    
+                    <div className="text-right flex flex-col items-end">
                         <span className={`block text-2xl font-black ${analysis.riskColor}`}>
-                            {activeData.value}
+                            {activeData.value} <span className="text-xs text-gray-400 font-bold uppercase">{info.unit}</span>
                         </span>
-                        <span className="text-xs font-bold text-gray-400 uppercase">{info.unit}</span>
+                        
+                        {/* EXIBIÇÃO DA REFERÊNCIA (ADICIONADO) */}
+                        {analysis.activeRange && (
+                            <div className="mt-1 bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-400 whitespace-nowrap">
+                                Ref: {analysis.activeRange.min} - {analysis.activeRange.max}
+                            </div>
+                        )}
                     </div>
-                </div>
-                
-                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold uppercase tracking-wide ${statusColor}`}>
-                    <IconStatus className="w-3.5 h-3.5" />
-                    <span>{labelStatus}</span>
                 </div>
             </div>
 
@@ -156,11 +164,11 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                             <IconAlert className="w-3.5 h-3.5 text-orange-500" />
                             {info.isGeneric 
                                 ? 'Interpretação Geral' 
-                                : (analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? 'Riscos se elevado' : 'Riscos se baixo')
+                                : (analysis.status.includes('HIGH') ? 'Riscos se elevado' : 'Riscos se baixo')
                             }
                         </h4>
                         <ul className="space-y-2">
-                            {(info.isGeneric || analysis.status === 'HIGH' || analysis.status === 'BORDERLINE_HIGH' ? info.risks.high : info.risks.low).map((risk, i) => (
+                            {(info.isGeneric || analysis.status.includes('HIGH') ? info.risks.high : info.risks.low).map((risk, i) => (
                                 <li key={`high-${i}`} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span className="mt-1.5 w-1.5 h-1.5 bg-orange-400 rounded-full shrink-0" />
                                     {info.isGeneric ? `Alto: ${risk}` : risk}

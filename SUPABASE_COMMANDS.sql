@@ -1,7 +1,7 @@
 
--- Versão 1.6.67
--- UX: Ajuste de prioridade de métricas (Manual > Exame) e alertas de dados desatualizados.
+-- Versão 1.6.68
+-- UX: Refinamento UX: Valores de referência agora visíveis dentro dos painéis de detalhe e tooltips de gráfico.
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.67', 'Lógica de Prioridade: Dados manuais agora têm precedência visual sobre exames (histórico), com alertas de atualização.', NOW());
+VALUES ('1.6.68', 'Refinamento UX: Valores de referência agora visíveis dentro dos painéis de detalhe e tooltips de gráfico.', NOW());
 
 NOTIFY pgrst, 'reload config';

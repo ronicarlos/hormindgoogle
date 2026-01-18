@@ -54,6 +54,12 @@ const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gende
                     <span className={`block text-xl font-black ${analysis.riskColor}`}>
                         {value} <span className="text-[10px] text-gray-400 font-medium uppercase">{info.unit}</span>
                     </span>
+                    {/* Exibição da Referência no Tooltip */}
+                    {analysis.activeRange && (
+                        <div className="mt-0.5 text-[9px] font-bold text-gray-500 dark:text-gray-400 opacity-80">
+                            Ref: {analysis.activeRange.min} - {analysis.activeRange.max}
+                        </div>
+                    )}
                 </div>
             </div>
 
