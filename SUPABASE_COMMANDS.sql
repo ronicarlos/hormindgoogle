@@ -1,7 +1,7 @@
 
--- Versão 1.6.69
--- UX/FIX: Força bruta na prioridade de dados manuais e exibição explícita de Referências (Min/Max) em todos os detalhes.
+-- Versão 1.6.74
+-- FIX: Ajuste de severidade visual (High = Vermelho) e fixação da prioridade de exibição (Manual > Exame).
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.69', 'Correção Crítica: Valor Manual agora tem prioridade absoluta sobre exames. Referências adicionadas aos painéis de detalhe.', NOW());
+VALUES ('1.6.74', 'UI: Status High agora é vermelho. Prioridade absoluta para Input Manual nos cards.', NOW());
 
 NOTIFY pgrst, 'reload config';

@@ -4,13 +4,33 @@ import { createPortal } from 'react-dom';
 import { MarkerInfo, getMarkerInfo } from '../services/markerRegistry';
 import { analyzePoint } from '../services/analyticsService';
 import { MetricPoint } from '../types';
-import { IconActivity, IconAlert, IconCheck, IconClose, IconScience, IconInfo } from './Icons';
+import { IconActivity, IconAlert, IconCheck, IconClose, IconScience, IconInfo, IconRefresh } from './Icons';
 
 interface MarkerInfoPanelProps {
     activeData: { markerId: string; value: number; date: string; history: MetricPoint[] } | null;
     onClose: () => void;
     gender: 'Masculino' | 'Feminino';
 }
+
+const normalizeDate = (dateStr: string): number => {
+    if (!dateStr) return 0;
+    try {
+        if (dateStr.includes('/') && dateStr.length <= 10) {
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]), 12, 0, 0).getTime();
+            }
+        }
+        const dateObj = new Date(dateStr);
+        if (!isNaN(dateObj.getTime())) {
+            if (dateStr.includes('T')) return dateObj.getTime();
+            return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 12, 0, 0).getTime();
+        }
+    } catch (e) {
+        return 0;
+    }
+    return 0;
+};
 
 const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, gender }) => {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -38,9 +58,56 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
 
     const analysis = useMemo(() => {
         if (!activeData || !info) return null;
-        // Passa undefined como dynamicRef pois aqui queremos a análise padrão ou a que o analyzePoint resolver
+        // Passa undefined como dynamicRef pois aqui queremos a análise padrão
         return analyzePoint(activeData.value, activeData.date, activeData.history, info, gender);
     }, [activeData, info, gender]);
+
+    // CALCULAR STALE STATUS (Lógica isolada para o Panel)
+    const staleData = useMemo(() => {
+        if (!activeData?.history) return null;
+        
+        const history = activeData.history;
+        const isManual = (p: MetricPoint) => {
+            const l = (p.label || '').toLowerCase();
+            return l.includes('manual') || l.includes('wizard') || l.includes('profile') || l.includes('user') || l.includes('input');
+        };
+
+        const manualPoints = history.filter(p => isManual(p));
+        const examPoints = history.filter(p => !isManual(p));
+
+        const sorter = (a: MetricPoint, b: MetricPoint) => {
+            const dateA = normalizeDate(a.date);
+            const dateB = normalizeDate(b.date);
+            if (dateA !== dateB) return dateB - dateA;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+        };
+
+        manualPoints.sort(sorter);
+        examPoints.sort(sorter);
+
+        // Se o dado ativo for manual e houver exame mais recente
+        if (manualPoints.length > 0 && examPoints.length > 0) {
+            const latestManual = manualPoints[0];
+            
+            // Só verifica se estamos olhando para o dado mais recente do manual
+            // Se o usuário clicou num ponto histórico antigo, não precisa avisar que é stale, pois é histórico.
+            if (activeData.date === latestManual.date && activeData.value === latestManual.value) {
+                const manualDate = normalizeDate(latestManual.date);
+                const latestExam = examPoints[0];
+                const examDate = normalizeDate(latestExam.date);
+
+                if (examDate > manualDate) {
+                    return {
+                        isStale: true,
+                        examDate: latestExam.date,
+                        examValue: latestExam.value,
+                        examUnit: latestExam.unit
+                    };
+                }
+            }
+        }
+        return null;
+    }, [activeData]);
 
     // --- RENDERERS ---
 
@@ -94,6 +161,20 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
             {/* Header (Fixo) */}
             <div className={`shrink-0 border-b border-gray-100 dark:border-gray-800 ${isModal ? 'p-6 pb-4' : 'pb-4'}`}>
                 
+                {/* ALERTA DE DESATUALIZAÇÃO (STALE DATA) */}
+                {staleData && (
+                    <div className="mb-4 bg-orange-50 text-orange-800 p-3 rounded-lg border border-orange-200 flex items-start gap-3 shadow-sm animate-in slide-in-from-top-2 dark:bg-orange-900/20 dark:text-orange-200 dark:border-orange-800">
+                        <IconRefresh className="w-5 h-5 shrink-0 mt-0.5 text-orange-600 animate-pulse" />
+                        <div className="text-xs">
+                            <strong className="block mb-1 font-bold text-orange-900 dark:text-orange-100">Atualização Necessária</strong>
+                            <p className="leading-relaxed">
+                                O valor exibido ({activeData.value}) é do seu cadastro manual, mas existe um exame mais recente ({staleData.examDate}) com o valor <strong>{staleData.examValue} {staleData.examUnit}</strong>.
+                            </p>
+                            <p className="mt-1 font-medium opacity-80">Recomendamos atualizar seu perfil ou wizard.</p>
+                        </div>
+                    </div>
+                )}
+
                 {info.isGeneric && (
                     <div className="mb-4 bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded-lg border border-yellow-100 flex items-start gap-2 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-900/30">
                         <IconInfo className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -120,7 +201,7 @@ const MarkerInfoPanel: React.FC<MarkerInfoPanelProps> = ({ activeData, onClose, 
                             {activeData.value} <span className="text-xs text-gray-400 font-bold uppercase">{info.unit}</span>
                         </span>
                         
-                        {/* EXIBIÇÃO DA REFERÊNCIA (ADICIONADO) */}
+                        {/* EXIBIÇÃO DA REFERÊNCIA */}
                         {analysis.activeRange && (
                             <div className="mt-1 bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-400 whitespace-nowrap">
                                 Ref: {analysis.activeRange.min} - {analysis.activeRange.max}

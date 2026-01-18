@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, AppVersion, Project, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
@@ -7,7 +6,7 @@ import CostTracker from './CostTracker';
 import { Tooltip } from './Tooltip';
 import BodyGuide from './BodyGuide';
 import AuditLogModal from './AuditLogModal';
-import EvolutionGallery from './EvolutionGallery'; // Import da Galeria
+import EvolutionGallery from './EvolutionGallery';
 import { 
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
@@ -16,35 +15,7 @@ import {
     IconFile, IconCalendar, IconHistory, IconCamera, IconUpload
 } from './Icons';
 
-// ============================================================================
-// DOCUMENTAÇÃO DA TELA DE PERFIL (CRÍTICO)
-// ============================================================================
-// Esta tela é o coração dos dados do usuário.
-// COMPONENTES OBRIGATÓRIOS (NÃO REMOVER):
-// 1. Header Fixo: Título + Botão Galeria + Botão Salvar.
-// 2. CostTracker: Resumo de custos da IA.
-// 3. Banner Evolução: Acesso rápido à comparação de fotos.
-// 4. Avatar & Dados Básicos: Foto, Nome, Altura, Peso, Idade.
-// 5. Metas & Evolução: Comparativo Peso/BF Atual vs Meta.
-// 6. Antropometria: Medidas corporais com guia visual.
-// 7. Painel Hormonal: Testo, E2, Comorbidades.
-// 8. Estratégia: Objetivo, Dieta, Treino, Protocolo.
-// 9. SISTEMA & VERSÃO: Controle de versão, Histórico de updates (Changelog), Tema, Logs e Cache Reset.
-// ============================================================================
-
-interface ProfileViewProps {
-    project?: Project;
-    profile?: UserProfile;
-    onSave: (profile: UserProfile) => void;
-    onUpdateProject?: (project: Project) => void;
-    onOpenWizard?: () => void;
-    billingTrigger: number;
-    onOpenSubscription: () => void;
-    onLogout?: () => void;
-    onRequestAnalysis?: (context: string) => void;
-}
-
-const CODE_VERSION = "v1.6.63"; 
+const CODE_VERSION = "v1.6.70";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -57,323 +28,193 @@ const MEASUREMENT_HINTS: Record<string, string> = {
 
 const LABELS_PT: Record<string, string> = {
     chest: 'Peitoral',
-    arm: 'Braço (Bíceps)',
+    arm: 'Braço',
     waist: 'Cintura',
     hips: 'Quadril',
     thigh: 'Coxa',
     calf: 'Panturrilha'
 };
 
+interface ProfileViewProps {
+    project: Project;
+    onSave: (profile: UserProfile) => void;
+    onUpdateProject?: (project: Project) => void;
+    onOpenWizard?: () => void;
+    billingTrigger: number;
+    onOpenSubscription: () => void;
+    onLogout?: () => void;
+    onRequestAnalysis?: (context: string) => void;
+}
+
 const ProfileView: React.FC<ProfileViewProps> = ({ 
     project, 
-    profile, 
     onSave, 
-    onUpdateProject,
+    onUpdateProject, 
     onOpenWizard, 
     billingTrigger, 
     onOpenSubscription, 
     onLogout, 
     onRequestAnalysis 
 }) => {
-    const [isSaving, setIsSaving] = useState(false);
-    const [successMsg, setSuccessMsg] = useState('');
-    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    // State initialization
+    const [formData, setFormData] = useState<UserProfile>(project.userProfile || {} as UserProfile);
+    const [initialFormData, setInitialFormData] = useState<UserProfile>(JSON.parse(JSON.stringify(project.userProfile || {})));
     
-    const [userId, setUserId] = useState<string>('');
-    const [versionHistory, setVersionHistory] = useState<AppVersion[]>([]);
+    const [goal, setGoal] = useState(project.objective);
+    const [initialGoal, setInitialGoal] = useState(project.objective);
     
-    // Audit Modal State
-    const [isAuditOpen, setIsAuditOpen] = useState(false);
+    const [calories, setCalories] = useState('');
+    const [initialCalories, setInitialCalories] = useState('');
     
-    // Evolution Gallery State
-    const [showEvolutionGallery, setShowEvolutionGallery] = useState(false);
+    const [trainingNotes, setTrainingNotes] = useState(project.trainingNotes || '');
+    const [initialTraining, setInitialTraining] = useState(project.trainingNotes || '');
     
-    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [protocol, setProtocol] = useState<ProtocolItem[]>(project.currentProtocol || []);
+    const [initialProtocol, setInitialProtocol] = useState<ProtocolItem[]>(JSON.parse(JSON.stringify(project.currentProtocol || [])));
 
-    // Default Profile Structure
-    const defaultProfile: UserProfile = {
-        name: '',
-        birthDate: '', 
-        gender: 'Masculino',
-        height: '',
-        weight: '',
-        bodyFat: '',
-        targetWeight: '',
-        targetBodyFat: '',
-        targetMeasurements: { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
-        comorbidities: '',
-        medications: '',
-        measurements: { chest: '', arm: '', waist: '', hips: '', thigh: '', calf: '' },
-        calculatedStats: { bmi: '', bmr: '', whr: '', bmiClassification: '', whrRisk: '' },
-        theme: 'light'
-    };
-
-    // States for Profile Data
-    const effectiveProfile = project?.userProfile || profile || defaultProfile;
-    const [formData, setFormData] = useState<UserProfile>(effectiveProfile);
-    const [initialFormData, setInitialFormData] = useState<UserProfile>(effectiveProfile);
-
-    // Date Mask State (DD/MM/YYYY)
-    const [birthDateDisplay, setBirthDateDisplay] = useState('');
-
-    // Hormones State (Testo/E2)
     const [hormones, setHormones] = useState({ testo: '', e2: '' });
     const [initialHormones, setInitialHormones] = useState({ testo: '', e2: '' });
 
-    // States for Project Data (Goal, Protocol, Training, Diet)
-    const [goal, setGoal] = useState(project?.objective || 'Bulking');
-    const [calories, setCalories] = useState(project?.dietCalories || '');
-    const [trainingNotes, setTrainingNotes] = useState(project?.trainingNotes || '');
-    const [protocol, setProtocol] = useState<ProtocolItem[]>(project?.currentProtocol || []);
-    
-    // Initial States for Dirty Checking (Project Data)
-    const [initialGoal, setInitialGoal] = useState(project?.objective || 'Bulking');
-    const [initialCalories, setInitialCalories] = useState(project?.dietCalories || '');
-    const [initialTraining, setInitialTraining] = useState(project?.trainingNotes || '');
-    const [initialProtocol, setInitialProtocol] = useState<ProtocolItem[]>(project?.currentProtocol || []);
+    const [isSaving, setIsSaving] = useState(false);
+    const [successMsg, setSuccessMsg] = useState('');
+    const [isAuditOpen, setIsAuditOpen] = useState(false);
+    const [versionHistory, setVersionHistory] = useState<AppVersion[]>([]);
+    const [userId, setUserId] = useState('');
+    const [birthDateDisplay, setBirthDateDisplay] = useState('');
+    const [activeMeasurement, setActiveMeasurement] = useState('chest');
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [showEvolutionGallery, setShowEvolutionGallery] = useState(false);
 
-    // Visual Interaction State
-    const [activeMeasurement, setActiveMeasurement] = useState<string>('chest');
+    const avatarInputRef = useRef<HTMLInputElement>(null);
 
+    // Initial load logic
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setUserId(session.user.id);
-        });
-        
-        dataService.getAppVersionHistory().then(history => {
-            setVersionHistory(history);
-        });
-    }, []);
+        const load = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) setUserId(session.user.id);
+            
+            const versions = await dataService.getAppVersionHistory();
+            setVersionHistory(versions);
 
-    // Sync state when props change
-    useEffect(() => {
-        if (project) {
-            const p = project.userProfile || defaultProfile;
-            const newProfile = {
-                ...defaultProfile, 
-                ...p,        
-                measurements: { ...defaultProfile.measurements, ...(p.measurements || {}) },
-                targetMeasurements: { ...defaultProfile.targetMeasurements, ...(p.targetMeasurements || {}) },
-                calculatedStats: defaultProfile.calculatedStats,
-                theme: p.theme || 'light'
-            };
-            setFormData(newProfile);
-            setInitialFormData(JSON.parse(JSON.stringify(newProfile)));
-
-            // Convert ISO YYYY-MM-DD to DD/MM/YYYY for display
-            if (newProfile.birthDate) {
-                const parts = newProfile.birthDate.split('-');
-                if (parts.length === 3) {
-                    setBirthDateDisplay(`${parts[2]}/${parts[1]}/${parts[0]}`);
-                }
+            // Metrics loading logic
+            if (project.dietCalories) {
+                setCalories(project.dietCalories);
+                setInitialCalories(project.dietCalories);
+            } else if (project.metrics?.['Calories']?.length) {
+                const vals = project.metrics['Calories'];
+                const val = vals[vals.length - 1].value.toString();
+                setCalories(val);
+                setInitialCalories(val);
             }
 
-            setGoal(project.objective);
-            setInitialGoal(project.objective);
+            const t = project.metrics?.['Testosterone'] || project.metrics?.['Testosterona'];
+            const e = project.metrics?.['Estradiol'];
+            const h = {
+                testo: t && t.length > 0 ? t[t.length-1].value.toString() : '',
+                e2: e && e.length > 0 ? e[e.length-1].value.toString() : ''
+            };
+            setHormones(h);
+            setInitialHormones(h);
+        };
+        load();
+    }, [project.id]);
 
-            setCalories(project.dietCalories || '');
-            setInitialCalories(project.dietCalories || '');
-
-            setTrainingNotes(project.trainingNotes || '');
-            setInitialTraining(project.trainingNotes || '');
-
-            setProtocol(project.currentProtocol || []);
-            setInitialProtocol(project.currentProtocol || []);
-
-            // Load Latest Hormones from Metrics
-            const tMetrics = project.metrics['Testosterone'] || project.metrics['Testosterona'] || [];
-            const eMetrics = project.metrics['Estradiol'] || [];
-            
-            const sortedT = [...tMetrics].sort((a,b) => {
-                 const da = a.date.split('/').reverse().join('-');
-                 const db = b.date.split('/').reverse().join('-');
-                 return new Date(da).getTime() - new Date(db).getTime();
-            });
-            const sortedE = [...eMetrics].sort((a,b) => {
-                 const da = a.date.split('/').reverse().join('-');
-                 const db = b.date.split('/').reverse().join('-');
-                 return new Date(da).getTime() - new Date(db).getTime();
-            });
-
-            const latestTesto = sortedT.length > 0 ? sortedT[sortedT.length - 1].value.toString() : '';
-            const latestE2 = sortedE.length > 0 ? sortedE[sortedE.length - 1].value.toString() : '';
-
-            setHormones({ testo: latestTesto, e2: latestE2 });
-            setInitialHormones({ testo: latestTesto, e2: latestE2 });
+    useEffect(() => {
+        if (formData.birthDate) {
+            const parts = formData.birthDate.split('-');
+            if (parts.length === 3) {
+                setBirthDateDisplay(`${parts[2]}/${parts[1]}/${parts[0]}`);
+            }
         }
-    }, [project]);
+    }, [formData.birthDate]);
 
-    // Metabolic Logic (IMC/RCQ/TMB)
-    const calculateAge = (dateString: string) => {
-        if (!dateString) return null;
+    // Helpers
+    const handleChange = (field: keyof UserProfile, value: any) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleMeasurementChange = (type: 'current' | 'target', part: string, value: string) => {
+        setFormData(prev => {
+            if (type === 'current') {
+                return { ...prev, measurements: { ...prev.measurements, [part]: value } };
+            } else {
+                return { ...prev, targetMeasurements: { ...(prev.targetMeasurements || {} as any), [part]: value } };
+            }
+        });
+    };
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '');
+        if (val.length > 8) val = val.substring(0, 8);
+        
+        let formatted = val;
+        if (val.length >= 5) formatted = `${val.substring(0, 2)}/${val.substring(2, 4)}/${val.substring(4)}`;
+        else if (val.length >= 3) formatted = `${val.substring(0, 2)}/${val.substring(2)}`;
+        
+        setBirthDateDisplay(formatted);
+
+        if (val.length === 8) {
+            const day = val.substring(0, 2);
+            const month = val.substring(2, 4);
+            const year = val.substring(4, 8);
+            handleChange('birthDate', `${year}-${month}-${day}`);
+        }
+    };
+
+    const calculateAge = (dob: string) => {
+        if (!dob) return '';
+        const birth = new Date(dob);
         const today = new Date();
-        const birthDate = new Date(dateString);
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-        }
-        return age;
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age.toString();
     };
     const currentAge = calculateAge(formData.birthDate);
 
-    useEffect(() => {
-        const heightM = parseFloat(formData.height) / 100;
-        const weightKg = parseFloat(formData.weight);
-        const bfPercent = parseFloat(formData.bodyFat);
-        const waistCm = parseFloat(formData.measurements.waist);
-        const hipCm = parseFloat(formData.measurements.hips);
-        const age = currentAge || 30;
-        const isMale = formData.gender === 'Masculino';
-        
-        let newStats = { bmi: '', bmr: '', whr: '', bmiClassification: '', whrRisk: '' };
-
-        if (heightM > 0 && weightKg > 0) {
-            const bmi = weightKg / (heightM * heightM);
-            newStats.bmi = bmi.toFixed(1);
-            let classification = '';
-            if (bmi < 18.5) classification = 'Abaixo do Peso';
-            else if (bmi < 24.9) classification = 'Eutrófico (Normal)';
-            else if (bmi < 29.9) classification = 'Sobrepeso';
-            else classification = 'Obesidade';
-
-            if (!isNaN(bfPercent)) {
-                const athleticLimit = isMale ? 16 : 24;
-                if (bmi >= 25 && bfPercent <= athleticLimit) {
-                    classification = 'Sobrecarga Muscular (Atlético)';
-                } else if (bmi < 25 && bfPercent > (isMale ? 25 : 32)) {
-                    classification = 'Peso Normal (Alta Adiposidade)';
-                }
-            }
-            newStats.bmiClassification = classification;
-        } else {
-            newStats.bmi = '--';
-            newStats.bmiClassification = 'Aguardando dados';
-        }
-
-        if (weightKg > 0 && heightM > 0) {
-            let bmr = (10 * weightKg) + (6.25 * (heightM * 100)) - (5 * age);
-            if (isMale) bmr += 5; else bmr -= 161;
-            if (!isNaN(bfPercent) && bfPercent < (isMale ? 12 : 20)) {
-                bmr = bmr * 1.05; 
-            }
-            newStats.bmr = Math.round(bmr).toString();
-        } else {
-            newStats.bmr = '--';
-        }
-
-        if (waistCm > 0 && hipCm > 0) {
-            const whr = waistCm / hipCm;
-            newStats.whr = whr.toFixed(2);
-            if (isMale) newStats.whrRisk = whr > 0.90 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
-            else newStats.whrRisk = whr > 0.85 ? 'Alto Risco Cardíaco' : 'Risco Baixo';
-        } else {
-            newStats.whr = '--';
-            newStats.whrRisk = 'Aguardando medidas';
-        }
-
-        if (JSON.stringify(newStats) !== JSON.stringify(formData.calculatedStats)) {
-            setFormData(prev => ({ ...prev, calculatedStats: newStats }));
-        }
-    }, [formData.height, formData.weight, formData.bodyFat, formData.measurements.waist, formData.measurements.hips, formData.gender, currentAge]);
-
-    // Handlers
-    const handleChange = (field: keyof UserProfile, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (field === 'theme') {
-            if (value === 'dark') {
-                document.documentElement.classList.add('dark');
-                localStorage.setItem('fitlm-theme', 'dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-                localStorage.setItem('fitlm-theme', 'light');
-            }
+    const handleAvatarClick = () => avatarInputRef.current?.click();
+    
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setIsUploadingAvatar(true);
+            try {
+                const url = await dataService.uploadAvatar(e.target.files[0], userId);
+                if (url) handleChange('avatarUrl', url);
+            } catch(e) { console.error(e); }
+            finally { setIsUploadingAvatar(false); }
         }
     };
 
-    // Date Mask Handler
-    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        let val = e.target.value.replace(/\D/g, ''); // Remove non-digits
-        if (val.length > 8) val = val.substring(0, 8);
-
-        // Apply Mask
-        let formatted = val;
-        if (val.length >= 5) {
-            formatted = `${val.substring(0, 2)}/${val.substring(2, 4)}/${val.substring(4)}`;
-        } else if (val.length >= 3) {
-            formatted = `${val.substring(0, 2)}/${val.substring(2)}`;
-        }
-
-        setBirthDateDisplay(formatted);
-
-        // Validate and Sync with Profile (ISO)
-        if (val.length === 8) {
-            const day = parseInt(val.substring(0, 2));
-            const month = parseInt(val.substring(2, 4));
-            const year = parseInt(val.substring(4, 8));
-            const currentYear = new Date().getFullYear();
-
-            // Validation strict logic
-            if (day > 0 && day <= 31 && month > 0 && month <= 12 && year > 1900 && year <= currentYear) {
-                const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                handleChange('birthDate', isoDate);
-            }
-        }
-    };
-
-    const handleMeasurementChange = (type: 'current' | 'target', field: keyof UserProfile['measurements'], value: string) => {
-        setActiveMeasurement(field as string); // Visual highlight
-        if (type === 'current') {
-            setFormData(prev => ({
-                ...prev,
-                measurements: { ...prev.measurements, [field]: value }
-            }));
-        } else {
-            setFormData(prev => ({
-                ...prev,
-                targetMeasurements: { ...(prev.targetMeasurements || defaultProfile.measurements), [field]: value }
-            }));
-        }
-    };
-
-    // Protocol Handlers
-    const handleAddProtocolItem = () => {
-        setProtocol([...protocol, { compound: '', dosage: '', frequency: '' }]);
-    };
-    const handleUpdateProtocol = (index: number, field: keyof ProtocolItem, value: string) => {
+    const handleAddProtocolItem = () => setProtocol([...protocol, { compound: '', dosage: '', frequency: '' }]);
+    const handleRemoveProtocol = (idx: number) => setProtocol(protocol.filter((_, i) => i !== idx));
+    const handleUpdateProtocol = (idx: number, field: keyof ProtocolItem, value: string) => {
         const newP = [...protocol];
-        newP[index][field] = value;
+        newP[idx][field] = value;
         setProtocol(newP);
     };
-    const handleRemoveProtocol = (index: number) => {
-        setProtocol(protocol.filter((_, i) => i !== index));
+
+    const copyUserId = () => {
+        navigator.clipboard.writeText(userId);
+        alert("ID copiado!");
+    };
+
+    const handleHardRefresh = () => {
+        if ('caches' in window) {
+            caches.keys().then((names) => {
+                names.forEach(name => caches.delete(name));
+            });
+        }
+        window.location.reload();
     };
 
     const detectChanges = (): string[] => {
         const changes: string[] = [];
-        
-        // Profile Changes
-        if (formData.weight !== initialFormData.weight) changes.push(`Peso: ${initialFormData.weight || '0'} -> ${formData.weight}`);
-        if (formData.bodyFat !== initialFormData.bodyFat) changes.push(`BF%: ${initialFormData.bodyFat || '0'} -> ${formData.bodyFat}`);
-        if (JSON.stringify(formData.measurements) !== JSON.stringify(initialFormData.measurements)) changes.push("Medidas corporais atualizadas.");
-        if (formData.comorbidities !== initialFormData.comorbidities) changes.push("Histórico de doenças alterado.");
-        if (formData.medications !== initialFormData.medications) changes.push("Medicamentos em uso alterados.");
-
-        // Targets
-        if (formData.targetWeight !== initialFormData.targetWeight) changes.push(`Meta de Peso: ${initialFormData.targetWeight || '?'} -> ${formData.targetWeight}`);
-        if (formData.targetBodyFat !== initialFormData.targetBodyFat) changes.push(`Meta de BF%: ${initialFormData.targetBodyFat || '?'} -> ${formData.targetBodyFat}`);
-        if (JSON.stringify(formData.targetMeasurements) !== JSON.stringify(initialFormData.targetMeasurements)) changes.push("Metas de medidas corporais atualizadas.");
-
-        // Hormones
-        if (hormones.testo !== initialHormones.testo) changes.push(`Testosterona Atualizada: ${hormones.testo}`);
-        if (hormones.e2 !== initialHormones.e2) changes.push(`Estradiol Atualizado: ${hormones.e2}`);
-
-        // Project Changes
-        if (goal !== initialGoal) changes.push(`Novo Objetivo: ${goal}`);
-        if (calories !== initialCalories) changes.push(`Meta Calórica: ${initialCalories || '?'} -> ${calories}`);
-        if (trainingNotes !== initialTraining) changes.push("Rotina de treino atualizada.");
-        if (JSON.stringify(protocol) !== JSON.stringify(initialProtocol)) changes.push("Protocolo farmacológico alterado.");
-
+        if (formData.weight !== initialFormData.weight) changes.push(`Peso: ${initialFormData.weight || 'N/A'} -> ${formData.weight}`);
+        if (formData.bodyFat !== initialFormData.bodyFat) changes.push(`BF%: ${initialFormData.bodyFat || 'N/A'} -> ${formData.bodyFat}`);
+        if (goal !== initialGoal) changes.push(`Objetivo: ${initialGoal} -> ${goal}`);
+        if (calories !== initialCalories) changes.push(`Calorias: ${initialCalories} -> ${calories}`);
+        if (JSON.stringify(protocol) !== JSON.stringify(initialProtocol)) changes.push("Protocolo Farmacológico alterado.");
+        if (hormones.testo !== initialHormones.testo) changes.push(`Testosterona: ${initialHormones.testo} -> ${hormones.testo}`);
         return changes;
     };
 
@@ -382,11 +223,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user && project) {
-                // 1. Save Profile (COM SOURCE='PROFILE_VIEW')
+                // 1. Save Profile
                 await dataService.saveUserProfile(session.user.id, formData, 'PROFILE_VIEW');
                 onSave(formData);
 
-                // 2. Save Project Settings (COM SOURCE='PROFILE_VIEW')
+                // 2. Save Project Settings
                 const cleanProtocol = protocol.filter(p => p.compound.trim() !== '');
                 await dataService.updateProjectSettings(
                     project.id,
@@ -397,14 +238,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     'PROFILE_VIEW'
                 );
 
-                // 3. Save Hormones & Critical Stats (COM SOURCE='PROFILE_VIEW')
+                // 3. Save Hormones & Critical Stats
                 const today = new Date().toLocaleDateString('pt-BR');
+                const timestamp = Date.now();
                 const updatedMetrics = { ...project.metrics };
 
                 const addMetricLocal = async (category: string, valueStr: string, unit: string) => {
                     const val = parseFloat(valueStr);
                     if (!isNaN(val)) {
-                        const pt = { date: today, value: val, unit: unit, label: 'Manual Profile Input' };
+                        const pt = { 
+                            date: today, 
+                            value: val, 
+                            unit: unit, 
+                            label: 'Manual Profile Input',
+                            createdAt: timestamp
+                        };
                         await dataService.addMetric(project.id, category, pt, 'PROFILE_VIEW');
                         updatedMetrics[category] = [...(updatedMetrics[category] || []), pt];
                     }
@@ -459,73 +307,38 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             setIsSaving(false);
         }
     };
-    
-    // --- ADMIN ACTIONS (SYSTEM) ---
-    const handleHardRefresh = async () => {
-        if ('serviceWorker' in navigator) {
-            try {
-                const registrations = await navigator.serviceWorker.getRegistrations();
-                for (const registration of registrations) {
-                    await registration.unregister();
-                }
-            } catch (err) { console.warn(err); }
-        }
-        if ('caches' in window) {
-            try {
-                const keys = await caches.keys();
-                await Promise.all(keys.map(key => caches.delete(key)));
-            } catch (err) { console.warn(err); }
-        }
-        window.location.reload();
-    };
 
-    const handleAvatarClick = () => { avatarInputRef.current?.click(); };
-    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setIsUploadingAvatar(true);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-                const signedUrl = await dataService.uploadAvatar(file, session.user.id);
-                if (signedUrl) {
-                    setFormData(prev => ({ ...prev, avatarUrl: signedUrl }));
-                    onSave({ ...formData, avatarUrl: signedUrl });
-                    setSuccessMsg('Foto atualizada!');
-                    setTimeout(() => setSuccessMsg(''), 3000);
-                }
-            }
-        } catch (err) { alert("Erro ao enviar foto."); } finally { setIsUploadingAvatar(false); }
-    };
-    const copyUserId = () => { navigator.clipboard.writeText(userId); alert("ID copiado: " + userId); };
-
-    const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500";
-
-    if (showEvolutionGallery && project) {
-        return <EvolutionGallery project={project} onBack={() => setShowEvolutionGallery(false)} onUpdateProject={(p) => { if(onUpdateProject) onUpdateProject(p); }} />;
+    if (showEvolutionGallery) {
+        return (
+            <EvolutionGallery 
+                project={project} 
+                onBack={() => setShowEvolutionGallery(false)} 
+                onUpdateProject={(p) => {
+                    if (onUpdateProject) onUpdateProject(p);
+                }}
+            />
+        );
     }
+
+    const inputClass = "w-full rounded-lg border-gray-300 p-3 bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all border dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500";
 
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
-             
-             {/* Audit Modal */}
              <AuditLogModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
 
-             {/* === SEÇÃO 1: HEADER FIXO === */}
              <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-4 md:px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800">
                 <h2 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-white">
                     <IconUser className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                     Ficha Biométrica
                 </h2>
                 <div className="flex gap-2">
-                    {/* BOTÃO DA GALERIA DE EVOLUÇÃO (Ajustado para PWA) */}
                     <button 
                         onClick={() => setShowEvolutionGallery(true)}
                         className="px-3 md:px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-all active:scale-95 shadow-sm flex items-center gap-1.5 md:gap-2 text-xs md:text-sm"
                         title="Ver Galeria de Fotos"
                     >
                         <IconCamera className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                        <span>Galeria</span> {/* Removido hidden para garantir que apareça no PWA */}
+                        <span>Galeria</span>
                     </button>
 
                     <button 
@@ -542,10 +355,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
             <div className="flex-1 overflow-y-auto p-4 md:p-10 max-w-4xl mx-auto w-full space-y-6 md:space-y-8 pb-32">
                 
-                {/* === SEÇÃO 2: RASTREADOR DE CUSTOS === */}
                 <CostTracker variant="inline" refreshTrigger={billingTrigger} onOpenSubscription={onOpenSubscription} />
 
-                {/* === SEÇÃO 3: BANNER DE EVOLUÇÃO (ATALHO PRINCIPAL) === */}
                 <div 
                     onClick={() => setShowEvolutionGallery(true)}
                     role="button"
@@ -573,7 +384,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 )}
                 
-                {/* === SEÇÃO 4: DADOS CADASTRAIS (AVATAR/NOME) === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center dark:bg-gray-900 dark:border-gray-800">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative dark:bg-gray-800 dark:border-gray-700">
@@ -613,13 +423,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             </label>
                         </div>
                         
-                        {/* INPUT DE DATA MELHORADO (MASK) */}
                         <div className="md:col-span-2">
                             <label className="block">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Data de Nascimento</span>
                                 <div className="relative mt-1">
                                     <input 
-                                        type="tel" // Melhor teclado numérico no mobile
+                                        type="tel" 
                                         value={birthDateDisplay} 
                                         onChange={handleDateChange} 
                                         className={`${inputClass} mt-0 pl-10 tracking-widest font-mono`} 
@@ -629,7 +438,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
                                         <IconCalendar className="w-5 h-5" />
                                     </div>
-                                    {/* Fallback de Validade Visual */}
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
                                         {currentAge ? (
                                             <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full dark:bg-green-900/30 dark:text-green-400">
@@ -646,7 +454,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* === SEÇÃO 5: METAS (PESO/BF) === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconActivity className="w-4 h-4 text-emerald-500" />
@@ -654,13 +461,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </h3>
                     
                     <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-                        {/* Header Colunas */}
                         <div className="col-span-2 grid grid-cols-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
                             <span>Atual</span>
                             <span>Meta (Alvo)</span>
                         </div>
 
-                        {/* Linha Peso */}
                         <div className="contents">
                             <div className="relative">
                                 <label className="text-[10px] font-bold text-gray-500 absolute -top-4 left-0">PESO (KG)</label>
@@ -683,7 +488,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             </div>
                         </div>
 
-                        {/* Linha BF */}
                         <div className="contents">
                             <div className="relative mt-4">
                                 <label className="text-[10px] font-bold text-gray-500 absolute -top-4 left-0">GORDURA (BF%)</label>
@@ -709,7 +513,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* === SEÇÃO 6: ANTROPOMETRIA === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-2 dark:border-gray-800">
                         <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2 dark:text-white">
@@ -735,7 +538,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                     <input 
                                         type="number"
                                         value={formData.measurements?.[part as any] || ''}
-                                        onChange={(e) => handleMeasurementChange('current', part as any, e.target.value)}
+                                        onChange={(e) => handleMeasurementChange('current', part, e.target.value)}
                                         className="w-full rounded-md border-gray-300 p-2 text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                                         placeholder="Atual"
                                         onFocus={() => setActiveMeasurement(part)}
@@ -743,7 +546,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                     <input 
                                         type="number"
                                         value={formData.targetMeasurements?.[part as any] || ''}
-                                        onChange={(e) => handleMeasurementChange('target', part as any, e.target.value)}
+                                        onChange={(e) => handleMeasurementChange('target', part, e.target.value)}
                                         className="w-20 rounded-md border-gray-300 p-2 text-sm bg-emerald-50/50 focus:ring-emerald-500 border-dashed text-center dark:bg-emerald-900/10 dark:border-gray-700 dark:text-white"
                                         placeholder="Meta"
                                         onFocus={() => setActiveMeasurement(part)}
@@ -754,7 +557,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* === SEÇÃO 7: PAINEL HORMONAL === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconScience className="w-4 h-4 text-purple-500" />
@@ -790,7 +592,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* === SEÇÃO 8: ESTRATÉGIA === */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
                         <IconDumbbell className="w-4 h-4 text-blue-600" />
@@ -850,7 +651,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                 </div>
 
-                {/* === SEÇÃO 9: SISTEMA & CONTROLE DE VERSÃO (RESTAURADO E COMPLETO) === */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-white">
                         <IconInfo className="w-4 h-4 text-gray-400" />
@@ -873,7 +673,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             </div>
                         </div>
                         
-                        {/* LISTA DE HISTÓRICO DE VERSÕES (CHANGELOG) */}
                         <div className="mt-6 border-t border-gray-100 pt-4 dark:border-gray-800">
                             <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 dark:text-gray-400">Histórico de Atualizações</h4>
                             <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-3 pr-1">
@@ -890,7 +689,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             </div>
                         </div>
 
-                        {/* Botões de Ação do Sistema */}
                         <div className="pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-3 dark:border-gray-800">
                             <button onClick={() => setIsAuditOpen(true)} className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                                 <IconList className="w-3.5 h-3.5" /> Ver Logs de Auditoria
