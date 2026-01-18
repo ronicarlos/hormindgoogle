@@ -1,7 +1,7 @@
 
--- Versão 1.6.63
--- FIX: Restaurada lista completa de histórico de versões na tela de Perfil.
+-- Versão 1.6.64
+-- UX: Legenda de cores nas métricas e clique único para abrir gráficos.
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.63', 'FIX: Restaurada lista completa de histórico de versões (Changelog) na tela de Perfil.', NOW());
+VALUES ('1.6.64', 'UX: Adicionada legenda de riscos e interação de clique único nos gráficos.', NOW());
 
 NOTIFY pgrst, 'reload config';

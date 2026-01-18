@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp } from './Icons';
+import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo } from './Icons';
 import { Tooltip } from './Tooltip';
 import MarkerInfoPanel from './MarkerInfoPanel'; 
 import { getMarkerInfo } from '../services/markerRegistry';
@@ -198,9 +198,7 @@ const BiomarkerChart = ({
     onHover: (point: MetricPoint) => void;
     isMobile: boolean;
 }) => {
-    // Referência para controlar o duplo clique manualmente
-    const lastClickTime = useRef<number>(0);
-
+    
     const { cleanData, minIndex, maxIndex } = useMemo<{ cleanData: MetricPoint[], minIndex: number, maxIndex: number }>(() => {
         if (!data || data.length === 0) return { cleanData: [], minIndex: -1, maxIndex: -1 };
         
@@ -230,22 +228,13 @@ const BiomarkerChart = ({
         }
     };
 
-    // IMPLEMENTAÇÃO DE DUPLO CLIQUE MANUAL (ROBUSTO)
+    // CLIQUE ÚNICO PARA ABRIR DETALHES (SIMPLIFICADO)
     const handleContainerClick = (e: React.MouseEvent) => {
         e.stopPropagation(); 
-        
-        const now = Date.now();
-        const timeDiff = now - lastClickTime.current;
-        
-        // Se o segundo clique ocorrer dentro de 300ms, é um duplo clique
-        if (timeDiff < 300 && timeDiff > 0) {
-            const lastPoint = cleanData[cleanData.length - 1];
-            if (lastPoint) {
-                triggerActivate(lastPoint);
-            }
-            lastClickTime.current = 0; // Reset
-        } else {
-            lastClickTime.current = now;
+        // Abre o último ponto (mais recente) por padrão se clicar no container
+        const lastPoint = cleanData[cleanData.length - 1];
+        if (lastPoint) {
+            triggerActivate(lastPoint);
         }
     };
 
@@ -275,11 +264,11 @@ const BiomarkerChart = ({
                 </div>
             </div>
             
-            {/* Container Principal com Click Handler Manual */}
+            {/* Container Principal com Click Handler Simplificado */}
             <div 
-                className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800 cursor-pointer active:scale-[0.99] transition-transform select-none"
+                className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800 cursor-pointer active:scale-[0.99] transition-transform select-none hover:border-blue-300 dark:hover:border-blue-700"
                 onClick={handleContainerClick}
-                title="Toque duas vezes para ver detalhes"
+                title="Toque uma vez para ver detalhes"
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <InteractiveChartWrapper 
@@ -568,6 +557,28 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                     <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest dark:text-white">
                                         Diagnóstico de Riscos ({risks.length})
                                     </h3>
+                                </div>
+                                
+                                {/* LEGENDA VISUAL DE CORES & INSTRUÇÃO DE INTERAÇÃO */}
+                                <div className="mb-6 bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-[10px] dark:bg-gray-900 dark:border-gray-800">
+                                    <div className="flex flex-wrap gap-4 text-gray-500 font-medium dark:text-gray-400">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
+                                            <span>Sem Problema</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-sm"></span>
+                                            <span>Atenção (Próximo ao limite)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm"></span>
+                                            <span>Problema Consumado</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/30">
+                                        <span className="text-sm">👆</span>
+                                        <span>Toque em qualquer gráfico para ver detalhes</span>
+                                    </div>
                                 </div>
                                 
                                 {risks && risks.length > 0 ? (

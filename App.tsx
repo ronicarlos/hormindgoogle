@@ -30,13 +30,13 @@ import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
 /*
-  SQL UPDATE SCRIPT FOR VERSION 1.6.63
+  SQL UPDATE SCRIPT FOR VERSION 1.6.64
   --------------------------------------------------
   INSERT INTO app_versions (version, description, created_at) 
-  VALUES ('1.6.63', 'Restaurada lista completa de histórico de versões na tela de Perfil.', NOW());
+  VALUES ('1.6.64', 'UX: Legenda de cores nas métricas e clique único para abrir gráficos.', NOW());
   --------------------------------------------------
 */
-const APP_VERSION = '1.6.63'; 
+const APP_VERSION = '1.6.64'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
