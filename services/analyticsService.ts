@@ -9,6 +9,7 @@ export interface AnalysisResult {
     delta: number;
     message: string;
     riskColor: string;
+    activeRange: { min: number, max: number } | null; // Added field
 }
 
 const parseDate = (dateStr: string): number => {
@@ -39,6 +40,11 @@ export const analyzePoint = (
         const min = dynamicRef.min !== undefined ? dynamicRef.min : -Infinity;
         const max = dynamicRef.max !== undefined ? dynamicRef.max : Infinity;
         range = [min, max];
+    }
+
+    let activeRange = null;
+    if (range) {
+        activeRange = { min: range[0], max: range[1] };
     }
 
     // 2. Status (High/Low/Normal/Borderline)
@@ -123,6 +129,7 @@ export const analyzePoint = (
         trendPercent,
         delta,
         message,
-        riskColor
+        riskColor,
+        activeRange
     };
 };

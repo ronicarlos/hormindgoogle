@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
 import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo } from './Icons';
+import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo, IconChevronDown } from './Icons';
 import { Tooltip } from './Tooltip';
 import MarkerInfoPanel from './MarkerInfoPanel'; 
 import { getMarkerInfo } from '../services/markerRegistry';
@@ -77,20 +77,18 @@ interface InteractiveChartWrapperProps {
     onActivate: (point: MetricPoint) => void;
     isMobile: boolean;
     onClick: (state: any) => void;
-    // ResponsiveContainer passes width/height/className implicitly
     width?: number | string;
     height?: number | string;
     className?: string;
 }
 
-// --- CHART WRAPPER (Handles hover logic) ---
 const InteractiveChartWrapper = ({ 
     children, 
     data, 
     title,
     onActivate,
     isMobile,
-    onClick, // Passado do pai
+    onClick,
     width,
     height,
     className
@@ -103,7 +101,6 @@ const InteractiveChartWrapper = ({
                 const point = payload[0].payload;
                 const uniqueKey = `${point.date}-${point.value}`;
 
-                // DESKTOP: Atualiza sidebar automaticamente no hover
                 if (!isMobile && lastPointRef.current !== uniqueKey) {
                     lastPointRef.current = uniqueKey;
                     onActivate({ ...point, label: point.label || title, unit: point.unit }); 
@@ -117,7 +114,6 @@ const InteractiveChartWrapper = ({
         
         const point = payload[0].payload;
 
-        // MOBILE UX: Tooltip Interativo (Clicável)
         if (isMobile) {
             return (
                 <div 
@@ -150,11 +146,10 @@ const InteractiveChartWrapper = ({
 
     return (
         <div className={`w-full h-full relative group pointer-events-none ${className || ''}`} style={{ width, height }}>
-            {/* Pointer events none no wrapper para deixar cliques passarem para o Chart Container pai, exceto tooltips */}
             {React.Children.map(children, child => {
                 if (React.isValidElement(child)) {
                     return React.cloneElement(child as any, {
-                        width, // Pass width/height to Recharts components if provided
+                        width,
                         height,
                         onClick: onClick,
                         children: [
@@ -221,26 +216,21 @@ const BiomarkerChart = ({
         return { cleanData: sorted, minIndex: minIdx, maxIndex: maxIdx };
     }, [data]);
 
-    // Ação Unificada de Ativação
     const triggerActivate = (point: any) => {
         if (point) {
             onHover({ ...point, label: title, unit: point.unit });
         }
     };
 
-    // CLIQUE ÚNICO PARA ABRIR DETALHES (SIMPLIFICADO)
     const handleContainerClick = (e: React.MouseEvent) => {
         e.stopPropagation(); 
-        // Abre o último ponto (mais recente) por padrão se clicar no container
         const lastPoint = cleanData[cleanData.length - 1];
         if (lastPoint) {
             triggerActivate(lastPoint);
         }
     };
 
-    // Recharts Click (Specific Point)
     const handleChartClick = (state: any) => {
-        // Se clicou num ponto específico, ativa imediatamente (single click em desktop, ou via tooltip em mobile)
         if (state && state.activePayload && state.activePayload.length > 0) {
             const point = state.activePayload[0].payload;
             triggerActivate(point);
@@ -248,8 +238,6 @@ const BiomarkerChart = ({
     };
 
     if (!data || data.length === 0) return null;
-
-    // Lógica para exibir referências apenas se existirem
     const hasRefs = minRef !== undefined && maxRef !== undefined;
 
     return (
@@ -264,7 +252,6 @@ const BiomarkerChart = ({
                 </div>
             </div>
             
-            {/* Container Principal com Click Handler Simplificado */}
             <div 
                 className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800 cursor-pointer active:scale-[0.99] transition-transform select-none hover:border-blue-300 dark:hover:border-blue-700"
                 onClick={handleContainerClick}
@@ -350,45 +337,77 @@ const BiomarkerChart = ({
     );
 };
 
+// --- COMPONENTE DE SEÇÃO EXPANSÍVEL ---
+const CollapsibleSection = ({ 
+    title, 
+    icon: Icon, 
+    count, 
+    children, 
+    defaultExpanded = true, 
+    colorClass = "text-gray-900 dark:text-white"
+}: any) => {
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+    if (count === 0) return null;
+
+    return (
+        <div className="mb-6">
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center justify-between w-full group mb-4"
+            >
+                <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-lg ${colorClass.includes('red') ? 'bg-red-100 dark:bg-red-900/30' : colorClass.includes('yellow') || colorClass.includes('orange') ? 'bg-yellow-100 dark:bg-yellow-900/30' : colorClass.includes('emerald') ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                        <Icon className={`w-4 h-4 ${colorClass.split(' ')[0]}`} />
+                    </div>
+                    <h3 className={`text-xs font-black uppercase tracking-widest ${colorClass}`}>
+                        {title} ({count})
+                    </h3>
+                </div>
+                <div className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                    <IconChevronDown className="w-4 h-4 text-gray-400" />
+                </div>
+            </button>
+            
+            {isExpanded && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    {children}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- DASHBOARD PRINCIPAL ---
 
 const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGenerateProntuario, isMobileView = false, isProcessing, onViewSource }) => {
-    // STATE GLOBAL DO PAINEL
     const [activeMarkerData, setActiveMarkerData] = useState<{ markerId: string; value: number; date: string; history: MetricPoint[] } | null>(null);
-    
-    // STATE DA BUSCA
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [showScrollTop, setShowScrollTop] = useState(false);
     
+    // Estados de Colapso das Seções Principais (Gráficos)
+    const [isChartsExpanded, setIsChartsExpanded] = useState(true);
+
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // ESCUTA O EVENTO GLOBAL DE BUSCA (Vindo do MobileHeader)
     useEffect(() => {
         const handleToggleSearch = () => {
             setIsSearchOpen(prev => {
                 const newState = !prev;
-                // Se estiver abrindo, rola pro topo para ver a barra
-                if (newState && containerRef.current) {
-                    containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-                }
+                if (newState && containerRef.current) containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
                 return newState;
             });
         };
-
         window.addEventListener('toggle-app-search', handleToggleSearch);
         return () => window.removeEventListener('toggle-app-search', handleToggleSearch);
     }, []);
 
-    // Auto-focus na busca
     useEffect(() => {
-        if (isSearchOpen && searchInputRef.current) {
-            searchInputRef.current.focus();
-        }
+        if (isSearchOpen && searchInputRef.current) searchInputRef.current.focus();
     }, [isSearchOpen]);
 
-    // Handler unificado para ativar o painel
     const handleChartHover = (point: MetricPoint, markerId: string, history: MetricPoint[]) => {
         setActiveMarkerData({
             markerId: markerId, 
@@ -408,16 +427,17 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
 
     const metrics = project.metrics;
     const allCategories = Object.keys(metrics);
-    
+    const gender = project.userProfile?.gender || 'Masculino';
+
     const filteredCategories = allCategories.filter(cat => 
         cat.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const gender = project.userProfile?.gender || 'Masculino';
+    // --- CÁLCULO UNIFICADO DE CATEGORIAS (PREVENTIVO vs SAUDÁVEL) ---
+    const { preventiveItems, healthyItems } = useMemo(() => {
+        const preventive: any[] = [];
+        const healthy: any[] = [];
 
-    // --- ANÁLISE PREVENTIVA (CÁLCULO EM TEMPO REAL) ---
-    const preventiveAlerts = useMemo(() => {
-        const alerts: any[] = [];
         allCategories.forEach(cat => {
             const history = metrics[cat];
             if (!history || history.length === 0) return;
@@ -430,62 +450,48 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
 
             if (lastPoint) {
                 const info = getMarkerInfo(cat);
-                
-                // Preparar referências dinâmicas se houver
                 const dynamicRef = (lastPoint.refMin !== undefined || lastPoint.refMax !== undefined) 
                     ? { min: lastPoint.refMin, max: lastPoint.refMax } 
                     : undefined;
 
                 const analysis = analyzePoint(Number(lastPoint.value), lastPoint.date, history, info, gender, dynamicRef);
                 
-                if (analysis.status === 'BORDERLINE_HIGH' || analysis.status === 'BORDERLINE_LOW') {
-                    alerts.push({
-                        category: cat,
-                        value: lastPoint.value,
-                        unit: lastPoint.unit,
-                        status: analysis.status,
-                        message: analysis.status === 'BORDERLINE_HIGH' ? 'Próximo ao limite superior' : 'Próximo ao limite inferior',
-                        date: lastPoint.date,
-                        point: lastPoint,
-                        history: history
-                    });
-                }
-                // Adicionando também alertas críticos dinâmicos (para marcadores desconhecidos)
-                if (info.isGeneric && (analysis.status === 'HIGH' || analysis.status === 'LOW')) {
-                     alerts.push({
-                        category: cat,
-                        value: lastPoint.value,
-                        unit: lastPoint.unit,
-                        status: analysis.status,
-                        message: analysis.status === 'HIGH' ? 'Valor crítico acima da referência' : 'Valor crítico abaixo da referência',
-                        date: lastPoint.date,
-                        point: lastPoint,
-                        history: history
-                    });
+                const itemData = {
+                    category: cat,
+                    value: lastPoint.value,
+                    unit: lastPoint.unit,
+                    status: analysis.status,
+                    message: analysis.message,
+                    date: lastPoint.date,
+                    point: lastPoint,
+                    history: history,
+                    range: analysis.activeRange // Range usado na análise
+                };
+
+                if (analysis.status === 'NORMAL') {
+                    healthy.push(itemData);
+                } else {
+                    // Qualquer coisa fora do normal (HIGH/LOW/BORDERLINE) vai para preventivo
+                    // O "Diagnóstico" (Vermelho) vem de props.risks
+                    preventive.push(itemData);
                 }
             }
         });
-        return alerts;
+        return { preventiveItems: preventive, healthyItems: healthy };
     }, [metrics, gender, allCategories]);
 
     return (
         <div className="flex h-full w-full overflow-hidden relative">
-            
-            {/* ÁREA PRINCIPAL (Scrollable) */}
             <div 
                 ref={containerRef}
                 onScroll={handleScroll}
                 className="flex-1 overflow-y-auto bg-gray-50 h-full p-0 pb-32 dark:bg-gray-950 relative"
             >
-                {/* Header Dinâmico (Título ou Busca) - STICKY FORÇADO */}
+                {/* Header */}
                 <div className={`sticky top-0 z-30 bg-gray-50/95 backdrop-blur-md border-b border-gray-200 px-4 md:px-8 py-4 flex justify-between items-end transition-all dark:bg-gray-950/95 dark:border-gray-800 shadow-sm ${isSearchOpen ? 'min-h-[70px]' : 'min-h-[50px] md:min-h-[70px]'}`}>
                     {isSearchOpen ? (
-                        // MODO BUSCA
                         <div className="flex items-center w-full gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
-                            <button 
-                                onClick={() => { setIsSearchOpen(false); setSearchTerm(''); }}
-                                className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full dark:text-gray-400 dark:hover:bg-gray-800"
-                            >
+                            <button onClick={() => { setIsSearchOpen(false); setSearchTerm(''); }} className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full dark:text-gray-400 dark:hover:bg-gray-800">
                                 <IconArrowLeft className="w-5 h-5" />
                             </button>
                             <div className="flex-1 relative">
@@ -498,17 +504,13 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                     className="w-full bg-white border border-gray-200 rounded-xl py-2 pl-4 pr-10 text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                                 />
                                 {searchTerm && (
-                                    <button 
-                                        onClick={() => setSearchTerm('')}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                                    >
+                                    <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                                         <IconClose className="w-4 h-4" />
                                     </button>
                                 )}
                             </div>
                         </div>
                     ) : (
-                        // MODO PADRÃO
                         <>
                             <div>
                                 <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2 dark:text-white">
@@ -519,23 +521,11 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                     Inteligência de Decisão & Saúde
                                 </p>
                             </div>
-                            
                             <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={() => setIsSearchOpen(true)}
-                                    className="p-2 text-gray-400 hover:bg-gray-200 rounded-full hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-white bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-700"
-                                    title="Filtrar Gráficos"
-                                >
-                                    <IconSearch className="w-5 h-5" />
-                                </button>
-
+                                <button onClick={() => setIsSearchOpen(true)} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-white bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-700" title="Filtrar Gráficos"><IconSearch className="w-5 h-5" /></button>
                                 {!isProcessing && (
-                                    <button 
-                                        onClick={onGenerateProntuario}
-                                        className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"
-                                    >
-                                        <IconReportPDF className="w-4 h-4" />
-                                        PRONTUÁRIO PDF
+                                    <button onClick={onGenerateProntuario} className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700">
+                                        <IconReportPDF className="w-4 h-4" /> PRONTUÁRIO PDF
                                     </button>
                                 )}
                             </div>
@@ -543,189 +533,170 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                     )}
                 </div>
 
-                {/* Conteúdo com Padding após header sticky */}
                 <div className="p-4 md:p-8">
-                    {/* Risk Alerts */}
                     {!searchTerm && (
-                        <div className="mb-8 space-y-6">
-                            {/* RISCOS CRÍTICOS */}
-                            <div>
-                                <div className="flex items-center gap-2 mb-4">
-                                    <div className="bg-red-100 p-1.5 rounded-lg dark:bg-red-900/30">
-                                        <IconShield className="w-4 h-4 text-red-600 dark:text-red-400" />
-                                    </div>
-                                    <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest dark:text-white">
-                                        Diagnóstico de Riscos ({risks.length})
-                                    </h3>
+                        <div className="mb-8">
+                            {/* LEGENDA VISUAL */}
+                            <div className="mb-6 bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-[10px] dark:bg-gray-900 dark:border-gray-800">
+                                <div className="flex flex-wrap gap-4 text-gray-500 font-medium dark:text-gray-400">
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span><span>Normal (Verde)</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-sm"></span><span>Atenção Moderada</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></span><span>Atenção Alta (Preventivo)</span></div>
+                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm"></span><span>Diagnóstico (Crítico)</span></div>
                                 </div>
-                                
-                                {/* LEGENDA VISUAL DE CORES & INSTRUÇÃO DE INTERAÇÃO (ATUALIZADA) */}
-                                <div className="mb-6 bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-[10px] dark:bg-gray-900 dark:border-gray-800">
-                                    <div className="flex flex-wrap gap-4 text-gray-500 font-medium dark:text-gray-400">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span>
-                                            <span>Sem Problema</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-sm"></span>
-                                            <span>Atenção Moderada</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></span>
-                                            <span>Atenção Alta (Preventivo)</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm"></span>
-                                            <span>Problema Consumado</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/30">
-                                        <span className="text-sm">👆</span>
-                                        <span>Toque em qualquer gráfico para ver detalhes</span>
-                                    </div>
+                                <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900/30">
+                                    <span className="text-sm">👆</span><span>Toque em qualquer gráfico para ver detalhes</span>
                                 </div>
-                                
-                                {risks && risks.length > 0 ? (
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                        {risks.map((risk, idx) => (
-                                            <div 
-                                                key={idx}
-                                                onClick={() => risk.sourceId && onViewSource && onViewSource(risk.sourceId)}
-                                                className={`group p-5 rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-pointer ${
-                                                    risk.level === 'HIGH' 
-                                                    ? 'bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/50' 
-                                                    : 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/50'
-                                                }`}
-                                            >
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm ${
-                                                        risk.level === 'HIGH' ? 'bg-red-600 text-white' : 'bg-orange-500 text-white'
-                                                    }`}>
-                                                        {risk.category}
-                                                    </span>
-                                                    <span className="text-[10px] font-bold opacity-60 text-gray-600 dark:text-gray-400">{risk.date}</span>
-                                                </div>
-                                                <p className="text-xs font-medium text-gray-800 dark:text-gray-200 leading-relaxed">{risk.message}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-6 flex items-center gap-4 dark:bg-emerald-900/10 dark:border-emerald-900/30">
-                                        <div className="bg-emerald-100 text-emerald-600 p-3 rounded-full dark:bg-emerald-900 dark:text-emerald-300">
-                                            <IconCheck className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-emerald-900 text-sm dark:text-emerald-200">Status Saudável</h4>
-                                            <p className="text-xs text-emerald-700 mt-1 leading-relaxed dark:text-emerald-400/80">
-                                                Nenhum marcador crítico foi detectado nos seus dados recentes.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
-                            {/* MONITORAMENTO PREVENTIVO (Cores Ajustadas: Laranja/Amarelo, SEM VERMELHO) */}
-                            {preventiveAlerts.length > 0 && (
-                                <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="bg-yellow-100 p-1.5 rounded-lg dark:bg-yellow-900/30">
-                                            <IconEye className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                            {/* 1. RISCOS CRÍTICOS (DIAGNÓSTICOS) - VERMELHO */}
+                            <CollapsibleSection title="Diagnósticos de Risco" count={risks.length} icon={IconShield} colorClass="text-red-700 dark:text-red-400">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {risks.map((risk, idx) => (
+                                        <div 
+                                            key={idx}
+                                            onClick={() => risk.sourceId && onViewSource && onViewSource(risk.sourceId)}
+                                            className="group p-5 rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-pointer bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/10 dark:border-red-900/50"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm bg-red-600 text-white">
+                                                    {risk.category}
+                                                </span>
+                                                <span className="text-[10px] font-bold opacity-60 text-gray-600 dark:text-gray-400">{risk.date}</span>
+                                            </div>
+                                            <p className="text-xs font-medium text-gray-800 dark:text-gray-200 leading-relaxed">{risk.message}</p>
                                         </div>
-                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest dark:text-white">
-                                            Monitoramento Preventivo ({preventiveAlerts.length})
-                                        </h3>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {preventiveAlerts.map((alert, idx) => {
-                                            const isCriticalValue = alert.status === 'HIGH' || alert.status === 'LOW';
-                                            // Lógica de Cores: Se for crítico, usa LARANJA (Atenção Alta), se for borderline, usa AMARELO (Atenção Moderada). NUNCA VERMELHO.
-                                            const styleClass = isCriticalValue
-                                                ? 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/40'
-                                                : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
-                                            
-                                            const textClass = isCriticalValue
-                                                ? 'text-orange-900 dark:text-orange-200'
-                                                : 'text-yellow-900 dark:text-yellow-200';
-
-                                            const dateClass = isCriticalValue
-                                                ? 'text-orange-700 dark:text-orange-400'
-                                                : 'text-yellow-700 dark:text-yellow-400';
-
-                                            const messageClass = isCriticalValue
-                                                ? 'text-orange-800 dark:text-orange-300/80'
-                                                : 'text-yellow-800 dark:text-yellow-300/80';
-
-                                            const valueClass = isCriticalValue
-                                                ? 'text-orange-900 dark:text-orange-100'
-                                                : 'text-yellow-900 dark:text-yellow-100';
-
-                                            return (
-                                                <div 
-                                                    key={idx}
-                                                    onClick={() => handleChartHover(alert.point, alert.category, alert.history)}
-                                                    className={`rounded-xl p-4 cursor-pointer transition-colors border ${styleClass}`}
-                                                >
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <h4 className={`font-bold text-xs uppercase tracking-wider ${textClass}`}>{alert.category}</h4>
-                                                        <span className={`text-[10px] font-bold ${dateClass}`}>{alert.date}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-end">
-                                                        <p className={`text-[10px] font-medium leading-snug max-w-[70%] ${messageClass}`}>
-                                                            {alert.message}
-                                                        </p>
-                                                        <span className={`text-sm font-black ${valueClass}`}>
-                                                            {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    ))}
+                                    {risks.length === 0 && <p className="text-xs text-gray-400 italic px-2">Nenhum diagnóstico crítico registrado.</p>}
                                 </div>
-                            )}
+                            </CollapsibleSection>
+
+                            {/* 2. MONITORAMENTO PREVENTIVO (AMARELO/LARANJA) */}
+                            <CollapsibleSection title="Monitoramento Preventivo" count={preventiveItems.length} icon={IconEye} colorClass="text-yellow-700 dark:text-yellow-400">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {preventiveItems.map((alert: any, idx: number) => {
+                                        const isCriticalValue = alert.status === 'HIGH' || alert.status === 'LOW';
+                                        const styleClass = isCriticalValue
+                                            ? 'bg-orange-50 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/10 dark:border-orange-900/40'
+                                            : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/10 dark:border-yellow-900/40';
+                                        
+                                        const textClass = isCriticalValue ? 'text-orange-900 dark:text-orange-200' : 'text-yellow-900 dark:text-yellow-200';
+                                        const rangeText = alert.range ? `Ref: ${alert.range.min} - ${alert.range.max}` : 'Ref: N/A';
+
+                                        return (
+                                            <div 
+                                                key={idx}
+                                                onClick={() => handleChartHover(alert.point, alert.category, alert.history)}
+                                                className={`rounded-xl p-4 cursor-pointer transition-colors border ${styleClass}`}
+                                            >
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <h4 className={`font-bold text-xs uppercase tracking-wider ${textClass}`}>{alert.category}</h4>
+                                                    <span className="text-[10px] font-bold opacity-60">{alert.date}</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold opacity-70 mb-1">{rangeText}</span>
+                                                        <p className={`text-[10px] font-medium leading-snug max-w-[150px] ${textClass} opacity-90`}>
+                                                            {alert.status.includes('HIGH') ? 'Acima do esperado' : 'Abaixo do esperado'}
+                                                        </p>
+                                                    </div>
+                                                    <span className={`text-sm font-black ${textClass}`}>
+                                                        {alert.value} <span className="text-[9px] font-normal opacity-70">{alert.unit}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </CollapsibleSection>
+
+                            {/* 3. MARCADORES SAUDÁVEIS (VERDE) - DEFAULT COLLAPSED */}
+                            <CollapsibleSection title="Marcadores Saudáveis" count={healthyItems.length} icon={IconCheck} defaultExpanded={false} colorClass="text-emerald-700 dark:text-emerald-400">
+                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                    {healthyItems.map((item: any, idx: number) => {
+                                        const rangeText = item.range ? `Ref: ${item.range.min} - ${item.range.max}` : 'Ref: N/A';
+                                        return (
+                                            <div 
+                                                key={idx}
+                                                onClick={() => handleChartHover(item.point, item.category, item.history)}
+                                                className="bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 rounded-xl p-4 cursor-pointer transition-colors dark:bg-emerald-900/10 dark:border-emerald-900/30"
+                                            >
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-900 dark:text-emerald-200">{item.category}</h4>
+                                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{item.date}</span>
+                                                </div>
+                                                <div className="flex justify-between items-end mt-2">
+                                                    <span className="text-[9px] font-medium text-emerald-600/80 dark:text-emerald-400/80">{rangeText}</span>
+                                                    <span className="text-sm font-black text-emerald-800 dark:text-emerald-100">
+                                                        {item.value} <span className="text-[9px] font-normal opacity-70">{item.unit}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </CollapsibleSection>
                         </div>
                     )}
 
-                    {/* INDIVIDUAL CHARTS GRID (FILTERED) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {filteredCategories.map(cat => {
-                            const cleanCat = cat.toLowerCase();
-                            // Definição de cor
-                            let chartColor = stringToColor(cat); 
-                            if (cat.includes('Testo')) chartColor = '#2563eb';
-                            else if (cat.includes('Estradiol')) chartColor = '#ec4899';
-                            else if (cat.includes('Peso')) chartColor = '#4b5563';
-                            else if (cleanCat.includes('hemo') || cleanCat.includes('eritro')) chartColor = '#ef4444'; // Sangue = Vermelho
-
-                            // Tenta obter referências dinâmicas do último ponto se o registro não tiver
-                            const history = metrics[cat];
-                            const lastPoint = history[history.length - 1];
-                            const info = getMarkerInfo(cat);
-                            
-                            // Preferência: Registro Estático > Dinâmico do último ponto
-                            let minRef = info.ranges?.general?.[0];
-                            let maxRef = info.ranges?.general?.[1];
-                            
-                            if (info.isGeneric && lastPoint) {
-                                if (lastPoint.refMin !== undefined) minRef = lastPoint.refMin;
-                                if (lastPoint.refMax !== undefined) maxRef = lastPoint.refMax;
-                            }
-
-                            return (
-                                <div key={cat} className="animate-in fade-in duration-500">
-                                    <BiomarkerChart 
-                                        title={cat} 
-                                        data={metrics[cat]} 
-                                        color={chartColor}
-                                        type={cat.includes('Peso') ? 'area' : 'line'}
-                                        minRef={minRef}
-                                        maxRef={maxRef}
-                                        onHover={(point) => handleChartHover(point, cat, metrics[cat])}
-                                        isMobile={isMobileView}
-                                    />
+                    {/* SEÇÃO 4: GRÁFICOS */}
+                    <div className="mb-4">
+                        <button 
+                            onClick={() => setIsChartsExpanded(!isChartsExpanded)}
+                            className="flex items-center justify-between w-full group mb-4"
+                        >
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800">
+                                    <IconActivity className="w-4 h-4 text-gray-700 dark:text-gray-300" />
                                 </div>
-                            );
-                        })}
+                                <h3 className="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">
+                                    Gráficos de Evolução ({filteredCategories.length})
+                                </h3>
+                            </div>
+                            <div className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform duration-200 ${isChartsExpanded ? 'rotate-180' : ''}`}>
+                                <IconChevronDown className="w-4 h-4 text-gray-400" />
+                            </div>
+                        </button>
+
+                        {isChartsExpanded && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                                {filteredCategories.map(cat => {
+                                    const cleanCat = cat.toLowerCase();
+                                    let chartColor = stringToColor(cat); 
+                                    if (cat.includes('Testo')) chartColor = '#2563eb';
+                                    else if (cat.includes('Estradiol')) chartColor = '#ec4899';
+                                    else if (cat.includes('Peso')) chartColor = '#4b5563';
+                                    else if (cleanCat.includes('hemo') || cleanCat.includes('eritro')) chartColor = '#ef4444';
+
+                                    const history = metrics[cat];
+                                    const lastPoint = history[history.length - 1];
+                                    const info = getMarkerInfo(cat);
+                                    
+                                    let minRef = info.ranges?.general?.[0];
+                                    let maxRef = info.ranges?.general?.[1];
+                                    
+                                    if (info.isGeneric && lastPoint) {
+                                        if (lastPoint.refMin !== undefined) minRef = lastPoint.refMin;
+                                        if (lastPoint.refMax !== undefined) maxRef = lastPoint.refMax;
+                                    }
+
+                                    return (
+                                        <div key={cat} className="animate-in fade-in duration-500">
+                                            <BiomarkerChart 
+                                                title={cat} 
+                                                data={metrics[cat]} 
+                                                color={chartColor}
+                                                type={cat.includes('Peso') ? 'area' : 'line'}
+                                                minRef={minRef}
+                                                maxRef={maxRef}
+                                                onHover={(point) => handleChartHover(point, cat, metrics[cat])}
+                                                isMobile={isMobileView}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     {filteredCategories.length === 0 && (
@@ -740,10 +711,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                     {isMobileView && !isProcessing && (
                         <div className="md:hidden fixed bottom-24 right-4 z-40">
                             <Tooltip content="Gerar Prontuário PDF" position="left">
-                                <button 
-                                    onClick={onGenerateProntuario}
-                                    className="bg-black text-white p-4 rounded-full shadow-2xl active:scale-90 transition-transform dark:bg-blue-600 border border-gray-800 dark:border-blue-500"
-                                >
+                                <button onClick={onGenerateProntuario} className="bg-black text-white p-4 rounded-full shadow-2xl active:scale-90 transition-transform dark:bg-blue-600 border border-gray-800 dark:border-blue-500">
                                     <IconReportPDF className="w-6 h-6" />
                                 </button>
                             </Tooltip>
@@ -752,24 +720,13 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                 </div>
             </div>
 
-            {/* SCROLL TO TOP BUTTON (Mobile/Desktop) */}
             {showScrollTop && (
-                <button
-                    onClick={scrollToTop}
-                    className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-40 bg-black/80 backdrop-blur text-white p-3 rounded-full shadow-lg border border-gray-700 animate-in fade-in slide-in-from-bottom-4 active:scale-90 transition-all dark:bg-blue-600/80 dark:border-blue-500"
-                    title="Voltar ao topo / Buscar"
-                >
+                <button onClick={scrollToTop} className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-40 bg-black/80 backdrop-blur text-white p-3 rounded-full shadow-lg border border-gray-700 animate-in fade-in slide-in-from-bottom-4 active:scale-90 transition-all dark:bg-blue-600/80 dark:border-blue-500" title="Voltar ao topo / Buscar">
                     <IconArrowUp className="w-5 h-5" />
                 </button>
             )}
 
-            {/* PAINEL LATERAL (Desktop) / BOTTOM SHEET (Mobile via Componente) */}
-            <MarkerInfoPanel 
-                activeData={activeMarkerData} 
-                onClose={() => setActiveMarkerData(null)}
-                gender={gender}
-            />
-
+            <MarkerInfoPanel activeData={activeMarkerData} onClose={() => setActiveMarkerData(null)} gender={gender} />
         </div>
     );
 };
