@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { Source, ChatMessage, UserProfile, MetricPoint } from '../types';
+import { Source, ChatMessage, UserProfile, MetricPoint, SourceType } from '../types';
 import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 import { dataService } from './dataService';
 import { supabase } from '../lib/supabase';
@@ -8,30 +8,6 @@ import { supabase } from '../lib/supabase';
 /**
  * ==============================================================================
  * 🧠 FITLM CORE ARCHITECTURE: ANTI-HALLUCINATION & DATA SOURCE OF TRUTH
- * ==============================================================================
- * 
- * Este serviço implementa regras rígidas para impedir que a IA "invente" dados 
- * ou confunda registros antigos com novos.
- * 
- * 1. HIERARQUIA DE DADOS (THE WATERFALL RULE):
- *    A IA é instruída a seguir esta ordem de precedência absoluta:
- *    - Nível 1 (Supremo): Objeto JSON 'CURRENT_BIOMETRICS' injetado no prompt.
- *    - Nível 2 (Histórico Estruturado): Lista de métricas ordenadas cronologicamente.
- *    - Nível 3 (Contexto Documental): Texto extraído via OCR.
- *    - Nível 4 (Conversa): Histórico do chat (pode conter alucinações passadas).
- * 
- * 2. DESEMPATE TEMPORAL (SAME-DAY SORTING LOGIC):
- *    Problema: O usuário tem dois exames com a mesma data clínica (ex: Hoje),
- *    um errado (4500) e um corrigido (2900).
- *    Solução: A função `sortMetrics` normaliza as datas para remover fusos horários
- *    e usa o campo `createdAt` (Timestamp exato do banco) como critério de desempate.
- *    O registro inserido por ÚLTIMO é considerado a verdade vigente.
- * 
- * 3. FALLBACK DE DATA (METADATA INJECTION):
- *    Se o OCR não encontrar uma data impressa no documento (ex: "Data da Coleta"),
- *    o sistema usa a data de criação do arquivo (File Metadata) como a data oficial.
- *    Isso impede que exames antigos upados hoje recebam a data atual incorretamente,
- *    desde que o arquivo original tenha os metadados preservados.
  * ==============================================================================
  */
 
@@ -74,8 +50,9 @@ const getMedicalModel = () => {
 
 export const OCR_MODEL = getOcrModel() || 'gemini-2.0-flash-lite-preview-02-05';
 export const MEDICAL_MODEL = getMedicalModel() || 'gemini-3-pro-preview';
+export const VISION_MODEL = 'gemini-2.5-flash-image'; // Novo modelo para análise visual (Nano Banana)
 
-console.log(`🤖 Arquitetura Ativa:\n - OCR: ${OCR_MODEL}\n - Cérebro Clínico: ${MEDICAL_MODEL}`);
+console.log(`🤖 Arquitetura Ativa:\n - OCR: ${OCR_MODEL}\n - Cérebro Clínico: ${MEDICAL_MODEL}\n - Visão: ${VISION_MODEL}`);
 
 const EMBEDDING_MODEL_ID = 'text-embedding-004';
 
@@ -273,16 +250,21 @@ const buildContext = (
   context += "=== 3. CONTEXTO DOCUMENTAL (ARQUIVOS OCR) ===\n";
   if (sources.length > 0) {
       sources.forEach(source => {
-        const prefix = source.type === 'USER_INPUT' ? '[REGISTRO MANUAL]' : `[DOC OCR: ${source.title}]`;
-        const sourceDateTs = parseDate(source.date);
-        
-        let dateDisplay = source.date;
-        if (sourceDateTs > futureLimit) dateDisplay = "DATA_INVALIDA (Ignorar)";
+        // Se for uma foto de evolução, identifica como tal
+        if (source.type === 'IMAGE' && source.specificType === 'PHYSIQUE_CHECK') {
+            context += `[CHECK DE FÍSICO / EVOLUÇÃO VISUAL] (${source.date}):\n${source.content}\n\n`;
+        } else {
+            const prefix = source.type === 'USER_INPUT' ? '[REGISTRO MANUAL]' : `[DOC OCR: ${source.title}]`;
+            const sourceDateTs = parseDate(source.date);
+            
+            let dateDisplay = source.date;
+            if (sourceDateTs > futureLimit) dateDisplay = "DATA_INVALIDA (Ignorar)";
 
-        let contentSnippet = source.summary || source.content;
-        if (contentSnippet.length > 6000) contentSnippet = contentSnippet.substring(0, 6000) + "...";
-        
-        context += `${prefix} (${dateDisplay}):\n${contentSnippet}\n\n`;
+            let contentSnippet = source.summary || source.content;
+            if (contentSnippet.length > 6000) contentSnippet = contentSnippet.substring(0, 6000) + "...";
+            
+            context += `${prefix} (${dateDisplay}):\n${contentSnippet}\n\n`;
+        }
       });
   }
   
@@ -404,6 +386,72 @@ export const processDocument = async (file: File, defaultDate: string): Promise<
     } catch (error) {
         console.error("OCR Critical Error:", error);
         return { extractedText: `[Erro OCR: Falha crítica na leitura com modelo ${OCR_MODEL}. Verifique a imagem ou tente novamente.]`, metrics: [] };
+    }
+};
+
+// --- NOVA FUNÇÃO: ANÁLISE DE FÍSICO (VISUAL) ---
+export const analyzePhysique = async (files: File[], comparisonMode: boolean = false): Promise<string> => {
+    if (!apiKey) return "Erro: API Key ausente.";
+
+    try {
+        console.log(`FitLM Vision: Iniciando análise visual com ${VISION_MODEL}...`);
+        
+        const fileParts = await Promise.all(files.map(f => fileToGenerativePart(f)));
+        
+        let prompt = "";
+        if (comparisonMode && files.length >= 2) {
+            prompt = `
+            ATUE COMO UM TREINADOR DE FISICULTURISMO E ESPECIALISTA EM BIOMECÂNICA (FitLM Coach).
+            
+            TAREFA: Compare estas imagens de físico (Antes/Depois ou Evolução).
+            
+            ANÁLISE COMPARATIVA OBRIGATÓRIA:
+            1. **Volume Muscular:** Onde houve ganho visível? (Braços, Ombros, Pernas, Dorsal).
+            2. **Definição (BF%):** A gordura diminuiu? Houve melhora na vascularização ou cortes?
+            3. **Pontos Fortes vs Fracos:** O que melhorou e o que ainda precisa de atenção?
+            4. **Postura:** Alguma mudança postural notável?
+            
+            Seja direto, técnico e motivador. Use terminologia de musculação correta.
+            `;
+        } else {
+            prompt = `
+            ATUE COMO UM TREINADOR DE FISICULTURISMO E ESPECIALISTA EM BIOMECÂNICA (FitLM Coach).
+            
+            TAREFA: Analise esta imagem de físico (Check de Shape).
+            
+            FORNEÇA:
+            1. **Estimativa de BF%:** (Visual aproximado).
+            2. **Análise de Simetria:** Desbalanços visíveis (Ex: ombro esquerdo mais alto, quadríceps dominante).
+            3. **Pontos Fortes:** Grupos musculares bem desenvolvidos.
+            4. **Pontos de Melhoria:** Onde focar o treino.
+            
+            NOTA DE SEGURANÇA: Esta é uma análise técnica de fitness/esporte para monitoramento de progresso atlético.
+            `;
+        }
+
+        const result = await ai.models.generateContent({
+            model: VISION_MODEL,
+            contents: { parts: [...fileParts, { text: prompt }] },
+        });
+
+        const userId = await getCurrentUserId();
+        if (userId && result.usageMetadata) {
+            // Log de custo específico para Imagem
+            await dataService.logUsage(
+                userId, 
+                undefined, 
+                comparisonMode ? 'PHYSIQUE_COMPARE' : 'PHYSIQUE_ANALYSIS', 
+                result.usageMetadata.promptTokenCount || 0, 
+                result.usageMetadata.candidatesTokenCount || 0,
+                VISION_MODEL 
+            );
+        }
+
+        return result.text || "Não foi possível analisar a imagem.";
+
+    } catch (error) {
+        console.error("Physique Analysis Error:", error);
+        return "Erro ao processar análise visual. Tente novamente.";
     }
 };
 

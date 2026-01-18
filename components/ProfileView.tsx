@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, AppVersion, Project, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
@@ -7,12 +6,13 @@ import CostTracker from './CostTracker';
 import { Tooltip } from './Tooltip';
 import BodyGuide from './BodyGuide';
 import AuditLogModal from './AuditLogModal';
+import EvolutionGallery from './EvolutionGallery'; // Import
 import { 
     IconUser, IconPlus, IconSun, IconMoon, IconFlame, 
     IconActivity, IconAlert, IconShield, IconRefresh, 
     IconWizard, IconCheck, IconInfo, IconCopy, IconClock,
     IconPill, IconDumbbell, IconList, IconClose, IconScience,
-    IconFile, IconCalendar, IconHistory
+    IconFile, IconCalendar, IconHistory, IconCamera
 } from './Icons';
 
 interface ProfileViewProps {
@@ -27,12 +27,7 @@ interface ProfileViewProps {
     onRequestAnalysis?: (context: string) => void;
 }
 
-const CODE_VERSION = "v1.6.59"; // Bump version
-/*
-  SQL PARA ATUALIZAÇÃO (RODAR NO SUPABASE):
-  INSERT INTO public.app_versions (version, description, created_at) 
-  VALUES ('1.6.59', 'Correção de bug crítico na lógica de cálculo de idade em ProfileView.', NOW());
-*/
+const CODE_VERSION = "v1.6.61"; 
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -72,6 +67,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     
     // Audit Modal State
     const [isAuditOpen, setIsAuditOpen] = useState(false);
+    
+    // Evolution Gallery State
+    const [showEvolutionGallery, setShowEvolutionGallery] = useState(false);
     
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -486,6 +484,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
     const inputClass = "mt-1 block w-full rounded-lg border-gray-300 p-3 bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm border dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:placeholder-gray-500";
 
+    if (showEvolutionGallery && project) {
+        return <EvolutionGallery project={project} onBack={() => setShowEvolutionGallery(false)} onUpdateProject={(p) => { if(onUpdateProject) onUpdateProject(p); }} />;
+    }
+
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
              
@@ -498,38 +500,50 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     <IconUser className="w-6 h-6 text-blue-600" />
                     Ficha Biométrica
                 </h2>
-                <button 
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-2"
-                >
-                    {isSaving ? <IconRefresh className="w-4 h-4 animate-spin" /> : <IconCheck className="w-4 h-4" />}
-                    Salvar Tudo
-                </button>
+                <div className="flex gap-2">
+                    {/* BOTÃO ADICIONADO NO HEADER PARA GARANTIR VISIBILIDADE */}
+                    <button 
+                        onClick={() => setShowEvolutionGallery(true)}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-all active:scale-95 shadow-sm flex items-center gap-2"
+                        title="Ver Galeria de Fotos"
+                    >
+                        <IconCamera className="w-4 h-4" />
+                        <span className="hidden md:inline">Galeria</span>
+                    </button>
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="px-6 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-all active:scale-95 disabled:opacity-50 shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700 flex items-center gap-2"
+                    >
+                        {isSaving ? <IconRefresh className="w-4 h-4 animate-spin" /> : <IconCheck className="w-4 h-4" />}
+                        Salvar Tudo
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl mx-auto w-full space-y-8 pb-32">
                 
                 <CostTracker variant="inline" refreshTrigger={billingTrigger} onOpenSubscription={onOpenSubscription} />
 
-                {/* WIZARD BANNER */}
+                {/* BANNER EVOLUÇÃO (MANTIDO TAMBÉM NO CORPO) */}
                 <div 
-                    onClick={onOpenWizard}
+                    onClick={() => setShowEvolutionGallery(true)}
                     role="button"
                     tabIndex={0}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all group"
+                    className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group dark:bg-gray-900 dark:border-gray-800"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:bg-white/30 transition-colors">
-                            <IconWizard className="w-8 h-8 text-white" />
+                        <div className="bg-purple-100 p-3 rounded-xl dark:bg-purple-900/30">
+                            <IconCamera className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg leading-tight">Modo Assistente</h3>
-                            <p className="text-sm text-blue-100 font-medium mt-0.5">Preenchimento guiado passo-a-passo</p>
+                            <h3 className="font-bold text-lg leading-tight text-gray-900 dark:text-white group-hover:text-purple-600 transition-colors">Galeria de Evolução</h3>
+                            <p className="text-sm text-gray-500 font-medium mt-0.5 dark:text-gray-400">Analise seu físico, compare fotos e acompanhe o progresso visual.</p>
                         </div>
                     </div>
-                    <div className="bg-white/10 p-2 rounded-full group-hover:bg-white/20 transition-colors">
-                         <span className="text-sm font-bold px-2">Iniciar →</span>
+                    <div className="bg-gray-50 p-2 rounded-full group-hover:bg-purple-50 transition-colors dark:bg-gray-800 dark:group-hover:bg-purple-900/30">
+                         <span className="text-sm font-bold px-2 text-gray-400 group-hover:text-purple-600">Ver Galeria →</span>
                     </div>
                 </div>
 
@@ -667,303 +681,194 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                                     type="number" 
                                     value={formData.targetBodyFat} 
                                     onChange={(e) => handleChange('targetBodyFat', e.target.value)} 
-                                    className={`${inputClass} border-l-4 border-l-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10`}
-                                    placeholder="Meta"
+                                    className={`${inputClass} border-l-4 border-l-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/10`} 
+                                    placeholder="12" 
                                 />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* 3. PAINEL HORMONAL (FIXO) */}
+                {/* 3. MEDIDAS */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                     <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-2 dark:border-gray-800">
-                        <h3 className="text-sm font-black text-purple-600 uppercase tracking-widest flex items-center gap-2 dark:text-purple-400">
-                            <IconScience className="w-4 h-4" />
-                            Painel Hormonal Base
+                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2 dark:text-white">
+                            <IconFlame className="w-4 h-4 text-orange-500" />
+                            Antropometria
                         </h3>
-                        <Tooltip content="Mantenha estes valores atualizados com seus últimos exames para que a IA monitore riscos." position="left">
-                            <IconInfo className="w-4 h-4 text-gray-400 cursor-help" />
-                        </Tooltip>
+                        <BodyGuide part={activeMeasurement} gender={formData.gender} className="w-10 h-16" />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                        {['chest', 'arm', 'waist', 'hips', 'thigh', 'calf'].map((part) => (
+                            <div key={part} className="space-y-1" onMouseEnter={() => setActiveMeasurement(part)}>
+                                <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase">
+                                    <span className="flex items-center gap-1">
+                                        {LABELS_PT[part]}
+                                        <Tooltip content={MEASUREMENT_HINTS[part]} position="top">
+                                            <IconInfo className="w-3 h-3 text-gray-300 hover:text-blue-500" />
+                                        </Tooltip>
+                                    </span>
+                                    <span>Meta</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="number"
+                                        value={formData.measurements?.[part as any] || ''}
+                                        onChange={(e) => handleMeasurementChange('current', part as any, e.target.value)}
+                                        className="w-full rounded-md border-gray-300 p-2 text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                                        placeholder="Atual"
+                                        onFocus={() => setActiveMeasurement(part)}
+                                    />
+                                    <input 
+                                        type="number"
+                                        value={formData.targetMeasurements?.[part as any] || ''}
+                                        onChange={(e) => handleMeasurementChange('target', part as any, e.target.value)}
+                                        className="w-20 rounded-md border-gray-300 p-2 text-sm bg-emerald-50/50 focus:ring-emerald-500 border-dashed text-center dark:bg-emerald-900/10 dark:border-gray-700 dark:text-white"
+                                        placeholder="Meta"
+                                        onFocus={() => setActiveMeasurement(part)}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* 4. HORMONIOS & SAUDE */}
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
+                        <IconScience className="w-4 h-4 text-purple-500" />
+                        Painel Hormonal & Saúde
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <label className="block">
                             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Testosterona Total</span>
                             <div className="relative">
-                                <input 
-                                    type="number" 
-                                    value={hormones.testo} 
-                                    onChange={(e) => setHormones({...hormones, testo: e.target.value})} 
-                                    className={`${inputClass} pr-12`} 
-                                    placeholder="Ex: 600"
-                                />
+                                <input type="number" value={hormones.testo} onChange={e => setHormones({...hormones, testo: e.target.value})} className={`${inputClass} pr-12`} placeholder="Ex: 500" />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">ng/dL</span>
                             </div>
                         </label>
                         <label className="block">
                             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Estradiol (E2)</span>
                             <div className="relative">
-                                <input 
-                                    type="number" 
-                                    value={hormones.e2} 
-                                    onChange={(e) => setHormones({...hormones, e2: e.target.value})} 
-                                    className={`${inputClass} pr-12`} 
-                                    placeholder="Ex: 30"
-                                />
+                                <input type="number" value={hormones.e2} onChange={e => setHormones({...hormones, e2: e.target.value})} className={`${inputClass} pr-12`} placeholder="Ex: 30" />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">pg/mL</span>
                             </div>
                         </label>
                     </div>
-                </div>
 
-                {/* 4. BIOMETRIA & MEDIDAS (COM BODY GUIDE) */}
-                <div className="grid md:grid-cols-3 gap-6">
-                    {/* Visual Guide Column */}
-                    <div className="md:col-span-1 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-200 p-4 dark:bg-gray-800 dark:border-gray-700">
-                        <BodyGuide part={activeMeasurement} gender={formData.gender} className="h-64 w-auto" />
-                    </div>
-
-                    {/* Inputs Column */}
-                    <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                        <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4 dark:text-gray-500">Medidas (cm)</h3>
-                        
-                        <div className="space-y-4">
-                            {/* Header row */}
-                            <div className="grid grid-cols-3 text-[10px] font-bold text-gray-400 uppercase text-center">
-                                <span className="text-left">Local</span>
-                                <span>Atual</span>
-                                <span>Meta</span>
-                            </div>
-
-                            {['chest', 'arm', 'waist', 'hips', 'thigh', 'calf'].map((part) => (
-                                <div key={part} className="grid grid-cols-3 gap-3 items-center" onMouseEnter={() => setActiveMeasurement(part)}>
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-xs font-bold text-gray-600 capitalize dark:text-gray-300">
-                                            {LABELS_PT[part] || part}
-                                        </span>
-                                        <Tooltip content={
-                                            <div className="flex flex-col items-center gap-2">
-                                                <span className="text-[10px]">{MEASUREMENT_HINTS[part]}</span>
-                                                <BodyGuide part={part} gender={formData.gender} className="h-20 w-auto bg-white/10 rounded p-1" />
-                                            </div>
-                                        } position="top">
-                                            <IconInfo className="w-3 h-3 text-gray-300 cursor-help hover:text-blue-500 transition-colors" />
-                                        </Tooltip>
-                                    </div>
-                                    
-                                    <input 
-                                        type="number" 
-                                        value={formData.measurements[part as keyof typeof formData.measurements]} 
-                                        onChange={(e) => handleMeasurementChange('current', part as any, e.target.value)}
-                                        className="w-full rounded-md border-gray-300 p-1.5 text-xs text-center bg-gray-50 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                                        placeholder="-"
-                                        onFocus={() => setActiveMeasurement(part)}
-                                    />
-                                    
-                                    <input 
-                                        type="number" 
-                                        value={formData.targetMeasurements?.[part as keyof typeof formData.targetMeasurements] || ''} 
-                                        onChange={(e) => handleMeasurementChange('target', part as any, e.target.value)}
-                                        className="w-full rounded-md border-gray-300 p-1.5 text-xs text-center bg-emerald-50/50 focus:ring-emerald-500 border-dashed dark:bg-emerald-900/10 dark:border-gray-700 dark:text-white"
-                                        placeholder="-"
-                                        onFocus={() => setActiveMeasurement(part)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* 5. SAÚDE (LEGACY) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 dark:border-l-red-600">
-                    <h3 className="text-sm font-black text-red-600 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-red-400">
-                        <IconAlert className="w-4 h-4" /> Saúde
-                    </h3>
                     <div className="space-y-4">
                         <label className="block">
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Comorbidades</span>
-                            <textarea 
-                                value={formData.comorbidities}
-                                onChange={(e) => handleChange('comorbidities', e.target.value)}
-                                className="mt-1 w-full rounded-md border-gray-300 p-2 text-sm h-16 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            />
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Comorbidades / Doenças</span>
+                            <textarea value={formData.comorbidities} onChange={e => handleChange('comorbidities', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Hipertensão, Diabetes..." />
                         </label>
                         <label className="block">
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Medicamentos (Saúde)</span>
-                            <textarea 
-                                value={formData.medications}
-                                onChange={(e) => handleChange('medications', e.target.value)}
-                                className="mt-1 w-full rounded-md border-gray-300 p-2 text-sm h-16 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            />
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Medicamentos de Uso Contínuo</span>
+                            <textarea value={formData.medications} onChange={e => handleChange('medications', e.target.value)} className={`${inputClass} h-20`} placeholder="Ex: Losartana 50mg..." />
                         </label>
                     </div>
                 </div>
 
-                {/* 6. PLANEJAMENTO ESTRATÉGICO */}
+                {/* 5. ESTRATÉGIA (DIETA/TREINO/PROTOCOLO) */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                    <h3 className="text-sm font-black text-blue-600 uppercase tracking-widest mb-6 border-b border-blue-100 pb-2 flex items-center gap-2 dark:text-blue-400 dark:border-blue-900/30">
-                        <IconActivity className="w-4 h-4" />
-                        Planejamento Estratégico
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
+                        <IconDumbbell className="w-4 h-4 text-blue-600" />
+                        Estratégia Vigente
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Objetivo Atual</span>
-                            <select value={goal} onChange={(e) => setGoal(e.target.value as any)} className={inputClass}>
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Objetivo Principal</span>
+                            <select value={goal} onChange={e => setGoal(e.target.value as any)} className={inputClass}>
                                 <option value="Bulking">Bulking (Ganho de Massa)</option>
                                 <option value="Cutting">Cutting (Perda de Gordura)</option>
                                 <option value="Performance">Performance Esportiva</option>
-                                <option value="Longevity">Longevidade / Manutenção</option>
+                                <option value="Longevity">Longevidade / Saúde</option>
                             </select>
                         </label>
-                        
                         <label className="block">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Meta Calórica (Dieta)</span>
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Meta Calórica (Média)</span>
                             <div className="relative">
-                                <input 
-                                    type="number" 
-                                    value={calories} 
-                                    onChange={(e) => setCalories(e.target.value)} 
-                                    className={`${inputClass} pr-12`} 
-                                    placeholder="Ex: 2500"
-                                />
+                                <input type="number" value={calories} onChange={e => setCalories(e.target.value)} className={`${inputClass} pr-12`} placeholder="2500" />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-500">kcal</span>
                             </div>
                         </label>
                     </div>
 
-                    <label className="block">
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 block">Resumo do Treino / Rotina</span>
-                        <textarea 
-                            value={trainingNotes}
-                            onChange={(e) => setTrainingNotes(e.target.value)}
-                            placeholder="Ex: ABCDE com foco em ombros. Cardio 30min TSD."
-                            className={`${inputClass} h-24 resize-none`}
-                        />
+                    <label className="block mb-6">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block dark:text-gray-400">Resumo do Treino</span>
+                        <textarea value={trainingNotes} onChange={e => setTrainingNotes(e.target.value)} className={`${inputClass} h-32`} placeholder="Ex: ABCDE, foco em ombros..." />
                     </label>
-                </div>
-
-                {/* 7. PROTOCOLO FARMACOLÓGICO */}
-                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                    <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-2 dark:border-gray-800">
-                        <h3 className="text-sm font-black text-purple-600 uppercase tracking-widest flex items-center gap-2 dark:text-purple-400">
-                            <IconPill className="w-4 h-4" />
-                            Protocolo Farmacológico
-                        </h3>
-                        <button 
-                            onClick={handleAddProtocolItem}
-                            className="text-xs flex items-center gap-1 font-bold text-purple-600 bg-purple-50 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition-colors dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40"
-                        >
-                            <IconPlus className="w-3 h-3" /> Adicionar
-                        </button>
-                    </div>
 
                     <div className="space-y-3">
-                        {protocol.length === 0 && (
-                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-                                <IconScience className="w-8 h-8 mx-auto text-gray-300 mb-2 dark:text-gray-600" />
-                                <p className="text-xs text-gray-400 dark:text-gray-500">Nenhum ergogênico ou suplemento registrado.</p>
-                            </div>
-                        )}
-                        
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Protocolo Farmacológico</span>
+                            <button onClick={handleAddProtocolItem} className="text-xs text-blue-600 font-bold flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded transition-colors dark:text-blue-400 dark:hover:bg-blue-900/30">
+                                <IconPlus className="w-3 h-3" /> Adicionar
+                            </button>
+                        </div>
                         {protocol.map((item, idx) => (
-                            <div key={idx} className="flex gap-2 items-start bg-gray-50 p-3 rounded-xl border border-gray-100 dark:bg-gray-800 dark:border-gray-700 animate-in fade-in slide-in-from-bottom-2">
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div key={idx} className="flex gap-2 items-start bg-gray-50 p-2 rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+                                <div className="flex-1 space-y-2">
                                     <input 
                                         type="text" 
-                                        placeholder="Composto (Ex: Dura)"
-                                        value={item.compound}
-                                        onChange={(e) => handleUpdateProtocol(idx, 'compound', e.target.value)}
-                                        className="w-full text-sm border-gray-300 rounded p-2 bg-white text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-500"
+                                        placeholder="Composto" 
+                                        value={item.compound} 
+                                        onChange={(e) => handleUpdateProtocol(idx, 'compound', e.target.value)} 
+                                        className="w-full text-xs border-gray-300 rounded p-1.5 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Dose (Ex: 250mg)"
-                                        value={item.dosage}
-                                        onChange={(e) => handleUpdateProtocol(idx, 'dosage', e.target.value)}
-                                        className="w-full text-sm border-gray-300 rounded p-2 bg-white text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-500"
-                                    />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Freq (Ex: 1x/sem)"
-                                        value={item.frequency}
-                                        onChange={(e) => handleUpdateProtocol(idx, 'frequency', e.target.value)}
-                                        className="w-full text-sm border-gray-300 rounded p-2 bg-white text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-500"
-                                    />
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="Dose" value={item.dosage} onChange={(e) => handleUpdateProtocol(idx, 'dosage', e.target.value)} className="w-1/2 text-xs border-gray-300 rounded p-1.5 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                                        <input type="text" placeholder="Freq" value={item.frequency} onChange={(e) => handleUpdateProtocol(idx, 'frequency', e.target.value)} className="w-1/2 text-xs border-gray-300 rounded p-1.5 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                                    </div>
                                 </div>
-                                <button 
-                                    onClick={() => handleRemoveProtocol(idx)} 
-                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                                >
-                                    <IconClose className="w-4 h-4" />
-                                </button>
+                                <button onClick={() => handleRemoveProtocol(idx)} className="text-gray-400 hover:text-red-500 p-1 dark:hover:text-red-400"><IconClose className="w-4 h-4" /></button>
                             </div>
                         ))}
+                        {protocol.length === 0 && <p className="text-xs text-gray-400 text-center py-2">Nenhum item adicionado.</p>}
                     </div>
                 </div>
 
-                 {/* 8. ADMINISTRAÇÃO & VERSÃO */}
-                 <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-2 dark:text-white dark:border-gray-800">
-                        <IconShield className="w-4 h-4" />
-                        Sistema & Controle de Versão
+                {/* 6. VERSÃO & SISTEMA */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-white">
+                        <IconInfo className="w-4 h-4 text-gray-400" />
+                        Sistema
                     </h3>
-                    <div className="flex flex-col gap-4">
-                        <div className="flex gap-4">
-                            <button onClick={() => handleChange('theme', 'light')} className={`flex-1 p-3 rounded-xl border text-xs font-bold transition-all ${formData.theme !== 'dark' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700'}`}><IconSun className="w-4 h-4 inline mr-2"/>Claro</button>
-                            <button onClick={() => handleChange('theme', 'dark')} className={`flex-1 p-3 rounded-xl border text-xs font-bold transition-all ${formData.theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700'}`}><IconMoon className="w-4 h-4 inline mr-2"/>Escuro</button>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">Versão do App</span>
+                            <span className="font-mono font-bold text-gray-900 dark:text-white">{CODE_VERSION}</span>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button onClick={handleHardRefresh} className="flex-1 p-3 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-900/30 flex items-center justify-center gap-2">
-                                <IconRefresh className="w-4 h-4" /> Atualizar App / Limpar Cache
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">ID do Usuário</span>
+                            <button onClick={copyUserId} className="font-mono text-xs text-blue-600 hover:underline truncate max-w-[150px] dark:text-blue-400">{userId}</button>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">Tema</span>
+                            <div className="flex bg-gray-100 rounded-lg p-1 dark:bg-gray-800">
+                                <button onClick={() => handleChange('theme', 'light')} className={`p-1.5 rounded ${formData.theme === 'light' ? 'bg-white shadow text-yellow-600 dark:bg-gray-700 dark:text-yellow-400' : 'text-gray-400'}`}><IconSun className="w-4 h-4" /></button>
+                                <button onClick={() => handleChange('theme', 'dark')} className={`p-1.5 rounded ${formData.theme === 'dark' ? 'bg-white shadow text-purple-600 dark:bg-gray-700 dark:text-purple-400' : 'text-gray-400'}`}><IconMoon className="w-4 h-4" /></button>
+                            </div>
+                        </div>
+                        <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 dark:border-gray-800">
+                            <button onClick={() => setIsAuditOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                                <IconList className="w-3.5 h-3.5" /> Logs
                             </button>
-                            {onLogout && (
-                                <button onClick={onLogout} className="flex-1 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30">
-                                    Sair da Conta
-                                </button>
-                            )}
-                        </div>
-
-                        {/* BOTÃO DE AUDITORIA */}
-                        <button 
-                            onClick={() => setIsAuditOpen(true)}
-                            className="w-full p-3 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors border border-gray-200 flex items-center justify-center gap-2 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                        >
-                            <IconHistory className="w-4 h-4" /> Auditoria de Dados (Logs)
-                        </button>
-
-                        {/* CARD DE VERSÕES */}
-                        {versionHistory.length > 0 && (
-                            <div className="mt-4 bg-gray-50 rounded-xl p-4 border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">Histórico de Atualizações</h4>
-                                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold dark:bg-green-900/30 dark:text-green-400">
-                                        Atual: {CODE_VERSION}
-                                    </span>
-                                </div>
-                                <div className="space-y-3 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-                                    {versionHistory.map((v) => (
-                                        <div key={v.id} className="text-xs border-l-2 border-gray-300 pl-3 dark:border-gray-600">
-                                            <div className="flex justify-between items-center">
-                                                <span className="font-bold text-gray-900 dark:text-white">v{v.version}</span>
-                                                <span className="text-[10px] text-gray-400">{new Date(v.created_at).toLocaleDateString()}</span>
-                                            </div>
-                                            <p className="text-gray-600 mt-0.5 dark:text-gray-400">{v.description}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        
-                        <div className="text-center mt-2">
-                            <div onClick={copyUserId} className="inline-block cursor-pointer hover:bg-gray-100 px-2 py-1 rounded text-[10px] text-gray-400 dark:hover:bg-gray-800" title="Clique para copiar ID">
-                                ID: {userId}
-                            </div>
+                            <button onClick={handleHardRefresh} className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                                <IconRefresh className="w-3.5 h-3.5" /> Reset Cache
+                            </button>
                         </div>
                     </div>
-                 </div>
+                </div>
+
+                {onLogout && (
+                    <button onClick={onLogout} className="w-full py-3 text-red-500 font-bold text-sm hover:bg-red-50 rounded-xl transition-colors dark:hover:bg-red-900/20">
+                        Sair da Conta
+                    </button>
+                )}
 
             </div>
         </div>

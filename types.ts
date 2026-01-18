@@ -5,7 +5,8 @@ export enum SourceType {
   TEXT = 'TEXT',
   CSV = 'CSV',
   USER_INPUT = 'USER_INPUT',
-  PRONTUARIO = 'PRONTUARIO'
+  PRONTUARIO = 'PRONTUARIO',
+  PHYSIQUE_CHECK = 'PHYSIQUE_CHECK' // Novo tipo específico
 }
 
 export enum AnalysisType {
@@ -15,7 +16,7 @@ export enum AnalysisType {
   FULL_PRONTUARIO = 'FULL_PRONTUARIO'
 }
 
-export type AppView = 'chat' | 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing' | 'timeline';
+export type AppView = 'chat' | 'dashboard' | 'training_library' | 'metrics' | 'protocol_library' | 'profile' | 'sources' | 'billing' | 'timeline' | 'evolution'; // Added evolution
 
 export interface AppVersion {
     id: string;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { dataService } from './services/dataService';
@@ -29,7 +28,14 @@ import { generateProntuario, processDocument, OCR_MODEL } from './services/gemin
 import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
-const APP_VERSION = '1.6.59'; 
+/*
+  SQL UPDATE SCRIPT FOR VERSION 1.6.61
+  --------------------------------------------------
+  INSERT INTO app_versions (version, description, created_at) 
+  VALUES ('1.6.61', 'Correção de tipo no seletor de objetivo do ProfileView.', NOW());
+  --------------------------------------------------
+*/
+const APP_VERSION = '1.6.61'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -374,7 +380,7 @@ export default function App() {
           await dataService.addMessage(project.id, aiMsg);
 
           // 7. Atualizar UI Global
-          setBillingTrigger(prev => prev + 1); // Atualiza contador de tokens
+          setBillingTrigger(prev => prev + 1);
           
           // Recarrega o projeto (opcional, mas bom para sincronizar)
           await loadProject(session.user.id); 
