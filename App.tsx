@@ -30,13 +30,13 @@ import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
 /*
-  SQL UPDATE SCRIPT FOR VERSION 1.6.71
+  SQL UPDATE SCRIPT FOR VERSION 1.6.87
   --------------------------------------------------
   INSERT INTO app_versions (version, description, created_at) 
-  VALUES ('1.6.71', 'Correção de tipagem na análise de métricas (remoção de código inalcançável).', NOW());
+  VALUES ('1.6.87', 'FIX: Estabilização dos cabeçalhos e botões de ação (Salvar/Filtros) em modo paisagem e portrait.', NOW());
   --------------------------------------------------
 */
-const APP_VERSION = '1.6.71'; 
+const APP_VERSION = '1.6.87'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -506,7 +506,7 @@ export default function App() {
 
   if (isLoading && !project && !processingState && pendingDocs.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="flex flex-col items-center gap-6 p-4 text-center">
             <div className="relative">
                 <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -537,7 +537,8 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
+    // FIX: Changed h-screen to h-[100dvh] for reliable mobile height
+    <div className="flex h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
       
       {/* Componente Visual de Processamento Global (Upload/OCR) */}
       <ProcessingOverlay state={processingState} />

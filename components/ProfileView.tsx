@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, AppVersion, Project, ProtocolItem } from '../types';
 import { dataService } from '../services/dataService';
@@ -15,7 +16,7 @@ import {
     IconFile, IconCalendar, IconHistory, IconCamera, IconUpload
 } from './Icons';
 
-const CODE_VERSION = "v1.6.71";
+const CODE_VERSION = "v1.6.87";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -207,18 +208,54 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         window.location.reload();
     };
 
+    // Helper para comparar valores com segurança (String vs Number)
+    const normalize = (val: any) => val === null || val === undefined ? '' : String(val).trim();
+
     const detectChanges = (): string[] => {
         const changes: string[] = [];
-        if (formData.weight !== initialFormData.weight) changes.push(`Peso: ${initialFormData.weight || 'N/A'} -> ${formData.weight}`);
-        if (formData.bodyFat !== initialFormData.bodyFat) changes.push(`BF%: ${initialFormData.bodyFat || 'N/A'} -> ${formData.bodyFat}`);
-        if (goal !== initialGoal) changes.push(`Objetivo: ${initialGoal} -> ${goal}`);
-        if (calories !== initialCalories) changes.push(`Calorias: ${initialCalories} -> ${calories}`);
+        
+        // Basic fields
+        if (normalize(formData.weight) !== normalize(initialFormData.weight)) changes.push(`Peso: ${initialFormData.weight || 'N/A'} -> ${formData.weight}`);
+        if (normalize(formData.bodyFat) !== normalize(initialFormData.bodyFat)) changes.push(`BF%: ${initialFormData.bodyFat || 'N/A'} -> ${formData.bodyFat}`);
+        if (normalize(formData.height) !== normalize(initialFormData.height)) changes.push(`Altura: ${initialFormData.height || 'N/A'} -> ${formData.height}`);
+        
+        // Targets (Metas)
+        if (normalize(formData.targetWeight) !== normalize(initialFormData.targetWeight)) changes.push(`Meta Peso: ${initialFormData.targetWeight || 'N/A'} -> ${formData.targetWeight}`);
+        if (normalize(formData.targetBodyFat) !== normalize(initialFormData.targetBodyFat)) changes.push(`Meta BF%: ${initialFormData.targetBodyFat || 'N/A'} -> ${formData.targetBodyFat}`);
+
+        // Strategy
+        if (normalize(goal) !== normalize(initialGoal)) changes.push(`Objetivo: ${initialGoal} -> ${goal}`);
+        if (normalize(calories) !== normalize(initialCalories)) changes.push(`Calorias: ${initialCalories} -> ${calories}`);
+        if (normalize(trainingNotes) !== normalize(initialTraining)) changes.push("Notas de Treino atualizadas.");
+        
+        // Protocol & Hormones
         if (JSON.stringify(protocol) !== JSON.stringify(initialProtocol)) changes.push("Protocolo Farmacológico alterado.");
-        if (hormones.testo !== initialHormones.testo) changes.push(`Testosterona: ${initialHormones.testo} -> ${hormones.testo}`);
+        if (normalize(hormones.testo) !== normalize(initialHormones.testo)) changes.push(`Testosterona: ${initialHormones.testo} -> ${hormones.testo}`);
+        if (normalize(hormones.e2) !== normalize(initialHormones.e2)) changes.push(`Estradiol: ${initialHormones.e2} -> ${hormones.e2}`);
+
+        // Measurements (Deep compare)
+        const parts = ['chest', 'arm', 'waist', 'hips', 'thigh', 'calf'];
+        let measChanged = false;
+        parts.forEach(p => {
+            const currentM = (formData.measurements as any)?.[p];
+            const initialM = (initialFormData.measurements as any)?.[p];
+            if (normalize(currentM) !== normalize(initialM)) measChanged = true;
+            
+            // Check Targets too
+            const currentT = (formData.targetMeasurements as any)?.[p];
+            const initialT = (initialFormData.targetMeasurements as any)?.[p];
+            if (normalize(currentT) !== normalize(initialT)) measChanged = true;
+        });
+        
+        if (measChanged) changes.push("Medidas corporais ou metas antropométricas atualizadas.");
+
         return changes;
     };
 
     const handleSave = async () => {
+        // Captura as mudanças ANTES de qualquer operação async para garantir integridade
+        const currentChanges = detectChanges();
+        
         setIsSaving(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -258,16 +295,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     }
                 };
 
-                if (hormones.testo && hormones.testo !== initialHormones.testo) {
+                if (hormones.testo && normalize(hormones.testo) !== normalize(initialHormones.testo)) {
                     await addMetricLocal('Testosterone', hormones.testo, 'ng/dL');
                 }
-                if (hormones.e2 && hormones.e2 !== initialHormones.e2) {
+                if (hormones.e2 && normalize(hormones.e2) !== normalize(initialHormones.e2)) {
                     await addMetricLocal('Estradiol', hormones.e2, 'pg/mL');
                 }
-                if (formData.weight && formData.weight !== initialFormData.weight) {
+                if (formData.weight && normalize(formData.weight) !== normalize(initialFormData.weight)) {
                     await addMetricLocal('Weight', formData.weight, 'kg');
                 }
-                if (formData.bodyFat && formData.bodyFat !== initialFormData.bodyFat) {
+                if (formData.bodyFat && normalize(formData.bodyFat) !== normalize(initialFormData.bodyFat)) {
                     await addMetricLocal('BodyFat', formData.bodyFat, '%');
                 }
 
@@ -285,13 +322,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
                 setSuccessMsg('Perfil e Estratégia salvos!');
                 
-                const changes = detectChanges();
-                if (changes.length > 0 && onRequestAnalysis) {
-                    setTimeout(() => {
-                        onRequestAnalysis(`O usuário ATUALIZOU DADOS CRÍTICOS MANUALMENTE AGORA (${today}):\n${changes.join('\n')}\n\nConsidere estes novos valores como a VERDADE ABSOLUTA e reavalie o cenário.`);
-                    }, 200);
+                // Se houve mudanças reais detectadas, solicita reanálise
+                if (currentChanges.length > 0 && onRequestAnalysis) {
+                    onRequestAnalysis(`O usuário ATUALIZOU DADOS CRÍTICOS MANUALMENTE AGORA (${today}):\n${currentChanges.join('\n')}\n\nConsidere estes novos valores como a VERDADE ABSOLUTA e reavalie o cenário.`);
                 }
                 
+                // Atualiza o estado inicial para o atual
                 setInitialFormData(JSON.parse(JSON.stringify(formData)));
                 setInitialGoal(goal);
                 setInitialCalories(calories);
@@ -326,7 +362,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
              <AuditLogModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
 
-             <div className="shrink-0 z-30 bg-white border-b border-gray-200 shadow-sm sticky top-0 px-4 md:px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800">
+             {/* FIX: Header is NO LONGER STICKY inside a scrollview. It is a sibling flex item. */}
+             <div className="shrink-0 z-40 bg-white border-b border-gray-200 shadow-sm px-4 md:px-6 py-4 flex items-center justify-between dark:bg-gray-900 dark:border-gray-800 relative">
                 <h2 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2 dark:text-white">
                     <IconUser className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                     Ficha Biométrica
