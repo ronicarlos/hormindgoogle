@@ -13,10 +13,10 @@ import {
     IconActivity, IconAlert, IconShield, IconRefresh, 
     IconWizard, IconCheck, IconInfo, IconCopy, IconClock,
     IconPill, IconDumbbell, IconList, IconClose, IconScience,
-    IconFile, IconCalendar, IconHistory, IconCamera, IconUpload
+    IconFile, IconCalendar, IconHistory, IconCamera, IconUpload, IconReportPDF
 } from './Icons';
 
-const CODE_VERSION = "v1.6.90";
+const CODE_VERSION = "v1.6.93";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -45,6 +45,7 @@ interface ProfileViewProps {
     onOpenSubscription: () => void;
     onLogout?: () => void;
     onRequestAnalysis?: (context: string) => void;
+    onGenerateProntuario?: () => void;
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({ 
@@ -55,7 +56,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     billingTrigger, 
     onOpenSubscription, 
     onLogout, 
-    onRequestAnalysis 
+    onRequestAnalysis,
+    onGenerateProntuario
 }) => {
     // State initialization
     const [formData, setFormData] = useState<UserProfile>(project.userProfile || {} as UserProfile);
@@ -133,6 +135,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     // Helpers
     const handleChange = (field: keyof UserProfile, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleThemeChange = (newTheme: 'light' | 'dark') => {
+        // 1. Atualiza estado do form para salvar no banco
+        handleChange('theme', newTheme);
+        
+        // 2. Aplica visualmente AGORA (Zero delay)
+        if (newTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('fitlm-theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('fitlm-theme', 'light');
+        }
     };
 
     const handleMeasurementChange = (type: 'current' | 'target', part: string, value: string) => {
@@ -333,13 +349,24 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                     Ficha Biométrica
                 </h2>
                 <div className="flex gap-2">
+                    {onGenerateProntuario && (
+                        <button 
+                            onClick={onGenerateProntuario}
+                            className="px-3 md:px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg font-medium hover:bg-indigo-100 transition-all active:scale-95 shadow-sm flex items-center gap-1.5 md:gap-2 text-xs md:text-sm border border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-900/30"
+                            title="Gerar Prontuário Médico PDF"
+                        >
+                            <IconReportPDF className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                            <span className="hidden md:inline">Prontuário</span>
+                        </button>
+                    )}
+
                     <button 
                         onClick={() => setShowEvolutionGallery(true)}
                         className="px-3 md:px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-all active:scale-95 shadow-sm flex items-center gap-1.5 md:gap-2 text-xs md:text-sm"
                         title="Ver Galeria de Fotos"
                     >
                         <IconCamera className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                        <span>Galeria</span>
+                        <span className="hidden md:inline">Galeria</span>
                     </button>
 
                     <button 
@@ -673,8 +700,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-gray-600 dark:text-gray-400">Tema</span>
                                 <div className="flex bg-gray-100 rounded-lg p-1 dark:bg-gray-800">
-                                    <button onClick={() => handleChange('theme', 'light')} className={`p-1.5 rounded ${formData.theme === 'light' ? 'bg-white shadow text-yellow-600 dark:bg-gray-700 dark:text-yellow-400' : 'text-gray-400'}`}><IconSun className="w-4 h-4" /></button>
-                                    <button onClick={() => handleChange('theme', 'dark')} className={`p-1.5 rounded ${formData.theme === 'dark' ? 'bg-white shadow text-purple-600 dark:bg-gray-700 dark:text-purple-400' : 'text-gray-400'}`}><IconMoon className="w-4 h-4" /></button>
+                                    <button onClick={() => handleThemeChange('light')} className={`p-1.5 rounded ${formData.theme === 'light' ? 'bg-white shadow text-yellow-600 dark:bg-gray-700 dark:text-yellow-400' : 'text-gray-400'}`}><IconSun className="w-4 h-4" /></button>
+                                    <button onClick={() => handleThemeChange('dark')} className={`p-1.5 rounded ${formData.theme === 'dark' ? 'bg-white shadow text-purple-600 dark:bg-gray-700 dark:text-purple-400' : 'text-gray-400'}`}><IconMoon className="w-4 h-4" /></button>
                                 </div>
                             </div>
                             

@@ -30,13 +30,13 @@ import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
 /*
-  SQL UPDATE SCRIPT FOR VERSION 1.6.87
+  SQL UPDATE SCRIPT FOR VERSION 1.6.93
   --------------------------------------------------
   INSERT INTO app_versions (version, description, created_at) 
-  VALUES ('1.6.87', 'FIX: Estabilização dos cabeçalhos e botões de ação (Salvar/Filtros) em modo paisagem e portrait.', NOW());
+  VALUES ('1.6.93', 'UX: Adição do botão de Prontuário na tela de perfil e correção do seletor de tema.', NOW());
   --------------------------------------------------
 */
-const APP_VERSION = '1.6.87'; 
+const APP_VERSION = '1.6.93'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -643,6 +643,7 @@ export default function App() {
                               onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
                               onLogout={handleLogout}
                               onRequestAnalysis={(ctx) => handleTriggerAnalysisConfirmation(ctx)}
+                              onGenerateProntuario={handleGenerateProntuario} // Passado para o ProfileView
                           />
                       )}
 
