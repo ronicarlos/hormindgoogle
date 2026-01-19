@@ -3,39 +3,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Compound } from '../types';
 import { fetchCompounds } from '../services/protocolService';
 import { IconSearch, IconPill, IconScience, IconClose, IconAlert, IconActivity, IconArrowUp } from './Icons';
-import HormoneGuideModal from './HormoneGuideModal'; // Import do novo componente
+import HormoneGuideModal from './HormoneGuideModal';
 
 const ProtocolLibrary: React.FC = () => {
     const [compounds, setCompounds] = useState<Compound[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Todos');
     const [selectedCompound, setSelectedCompound] = useState<Compound | null>(null);
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const [showHormoneGuide, setShowHormoneGuide] = useState(false); // Estado do modal
+    const [showHormoneGuide, setShowHormoneGuide] = useState(false);
     
-    const listRef = useRef<HTMLDivElement>(null);
+    // Referência para o container de scroll
+    const scrollRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchCompounds().then(setCompounds);
-    }, []);
-
-    // Escuta evento global de busca e reset
-    useEffect(() => {
-        const handleToggleSearch = () => {
-            if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-            setTimeout(() => searchInputRef.current?.focus(), 300);
-        };
-        const handleResetLayout = () => {
-            if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'auto' });
-        };
-
-        window.addEventListener('toggle-app-search', handleToggleSearch);
-        window.addEventListener('reset-view-layout', handleResetLayout);
-        return () => {
-            window.removeEventListener('toggle-app-search', handleToggleSearch);
-            window.removeEventListener('reset-view-layout', handleResetLayout);
-        };
     }, []);
 
     const categories = ['Todos', 'Protocolo Exemplo', 'Suplemento', 'Testosterona', '19-Nor', 'DHT', 'Oral', 'Peptídeo', 'Mitocondrial', 'Nootrópico', 'Termogênico', 'SERM/IA'];
@@ -46,14 +28,6 @@ const ProtocolLibrary: React.FC = () => {
         const matchesCategory = selectedCategory === 'Todos' || c.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });
-
-    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        setShowScrollTop(e.currentTarget.scrollTop > 200);
-    };
-
-    const scrollToTop = () => {
-        listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    };
 
     const getRiskColor = (risk: string) => {
         switch(risk) {
@@ -96,16 +70,21 @@ const ProtocolLibrary: React.FC = () => {
     }
 
     return (
-        <div className="flex-1 bg-white h-full flex flex-col overflow-hidden relative w-full dark:bg-gray-950">
+        // LAYOUT "CAIXA DE VIDRO"
+        // absolute inset-0 força o componente a preencher exatamente o espaço do pai (App.tsx)
+        // flex flex-col garante a estrutura vertical rígida
+        <div className="absolute inset-0 flex flex-col bg-gray-50 dark:bg-gray-950 overflow-hidden">
              
             <HormoneGuideModal isOpen={showHormoneGuide} onClose={() => setShowHormoneGuide(false)} />
 
-            {/* FIXED HEADER - SEPARADO DO SCROLL VIEW PARA EVITAR DESAPARECIMENTO */}
-            <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm w-full dark:bg-gray-900/95 dark:border-gray-800">
+            {/* HEADER RÍGIDO (flex-none) */}
+            {/* Nunca vai rolar, nunca vai sumir, pois não é sticky, é um bloco fixo no topo da flexbox */}
+            <div className="flex-none bg-white z-30 border-b border-gray-200 dark:bg-gray-900 dark:border-gray-800 shadow-sm">
                 <div className="max-w-7xl mx-auto w-full">
-                    <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
+                    {/* Top Bar */}
+                    <div className="px-4 py-3 flex flex-col md:flex-row gap-3 md:items-center justify-between">
                         <div className="flex items-center justify-between">
-                                <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tighter flex items-center gap-2 dark:text-white">
+                            <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tighter flex items-center gap-2 dark:text-white">
                                 <IconScience className="w-5 h-5 text-purple-600" />
                                 PHARMA
                             </h2>
@@ -135,13 +114,13 @@ const ProtocolLibrary: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Horizontal Filters - Touch Optimized */}
-                    <div className="px-3 pb-2 md:px-6 md:pb-4 flex gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x w-full">
+                    {/* Horizontal Carousel (Filters) */}
+                    <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar touch-pan-x w-full">
                         {categories.map(cat => (
                             <button
                                 key={cat}
                                 onClick={() => setSelectedCategory(cat)}
-                                className={`flex-shrink-0 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold whitespace-nowrap transition-all border touch-manipulation active:scale-95 ${
+                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold whitespace-nowrap transition-all border touch-manipulation active:scale-95 ${
                                     selectedCategory === cat 
                                     ? 'bg-purple-900 text-white border-purple-900 shadow-md dark:bg-purple-600 dark:border-purple-600' 
                                     : 'bg-white text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
@@ -154,50 +133,43 @@ const ProtocolLibrary: React.FC = () => {
                 </div>
             </div>
 
-            {/* SCROLLABLE CONTENT */}
+            {/* CORPO COM SCROLL (flex-1) */}
+            {/* Ocupa todo o espaço restante. O scroll acontece AQUI DENTRO. */}
             <div 
-                className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 custom-scrollbar pb-32 md:pb-40 w-full dark:bg-gray-950 relative"
-                onScroll={handleScroll}
-                ref={listRef}
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 bg-gray-50/50 custom-scrollbar dark:bg-gray-950 relative"
             >
-                {/* PRODUCT CARDS */}
-                <div className="p-1.5 md:p-8">
-                    {/* GRID: 3 columns on mobile, gap 1.5. No horizontal overflow. */}
-                    <div className="max-w-7xl mx-auto grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 md:gap-4 w-full">
+                <div className="p-2 md:p-8 pb-32"> {/* Padding bottom extra para mobile nav */}
+                    <div className="max-w-7xl mx-auto grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4 w-full">
                         {filteredCompounds.map(c => (
                             <div 
                                 key={c.id} 
                                 onClick={() => setSelectedCompound(c)}
-                                className={`bg-white rounded-lg md:rounded-2xl p-0 border shadow-sm active:scale-95 transition-all cursor-pointer group flex flex-col overflow-hidden relative h-full min-h-[100px] md:min-h-[160px] touch-manipulation ${
+                                className={`bg-white rounded-xl border shadow-sm active:scale-95 transition-all cursor-pointer group flex flex-col overflow-hidden relative h-full min-h-[120px] touch-manipulation ${
                                     c.category === 'Protocolo Exemplo' ? 'border-gray-900 dark:border-gray-600' : 'border-gray-200 dark:border-gray-800'
                                 } dark:bg-gray-900`}
                             >
-                                {/* Color Bar Top (Mobile) or Side (Desktop) - Let's use Top for verticality on tiny cards */}
-                                <div className={`h-1 w-full ${getCategoryColorClass(c.category)}`} />
+                                <div className={`h-1.5 w-full ${getCategoryColorClass(c.category)}`} />
 
-                                <div className="p-2 flex flex-col h-full justify-between">
+                                <div className="p-3 flex flex-col h-full justify-between">
                                     <div>
-                                        {/* Category */}
-                                        <div className="mb-1">
-                                            <span className="text-[7px] md:text-[9px] font-bold uppercase text-gray-400 tracking-wider truncate block dark:text-gray-500">
+                                        <div className="mb-1.5">
+                                            <span className="text-[9px] font-bold uppercase text-gray-400 tracking-wider truncate block dark:text-gray-500">
                                                 {c.category === 'Protocolo Exemplo' ? 'Protocolo' : c.category}
                                             </span>
                                         </div>
                                         
-                                        {/* Name */}
-                                        <h3 className="font-bold text-gray-900 text-[10px] md:text-sm leading-tight group-hover:text-purple-700 transition-colors line-clamp-3 dark:text-white dark:group-hover:text-purple-400">
+                                        <h3 className="font-bold text-gray-900 text-xs md:text-sm leading-tight group-hover:text-purple-700 transition-colors line-clamp-3 dark:text-white dark:group-hover:text-purple-400">
                                             {c.name}
                                         </h3>
                                     </div>
 
-                                    {/* Description HIDDEN on Mobile */}
                                     <div className="hidden md:block text-xs text-gray-500 mt-2 line-clamp-2 leading-relaxed dark:text-gray-400">
                                         {c.description}
                                     </div>
 
-                                    {/* Risk Badge Bottom */}
-                                    <div className="mt-2 pt-1 border-t border-gray-50 flex items-center justify-between dark:border-gray-800">
-                                        <span className={`text-[7px] md:text-[9px] px-1 py-0.5 rounded border font-bold uppercase ${getRiskColor(c.riskLevel)}`}>
+                                    <div className="mt-3 pt-2 border-t border-gray-50 flex items-center justify-between dark:border-gray-800">
+                                        <span className={`text-[8px] md:text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${getRiskColor(c.riskLevel)}`}>
                                             {c.riskLevel}
                                         </span>
                                     </div>
@@ -208,24 +180,13 @@ const ProtocolLibrary: React.FC = () => {
                 </div>
             </div>
 
-            {/* SCROLL TO TOP BUTTON */}
-            {showScrollTop && (
-                <button
-                    onClick={scrollToTop}
-                    className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-40 bg-black/80 backdrop-blur text-white p-3 rounded-full shadow-lg border border-gray-700 animate-in fade-in slide-in-from-bottom-4 active:scale-90 transition-all dark:bg-blue-600/80 dark:border-blue-500"
-                    title="Voltar ao topo / Buscar"
-                >
-                    <IconArrowUp className="w-5 h-5" />
-                </button>
-            )}
-
-            {/* MODAL */}
+            {/* MODAL (Portal) */}
             {selectedCompound && (
                 <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4 dark:bg-black/80">
                     <div className="bg-white w-full md:max-w-2xl md:rounded-3xl rounded-t-3xl h-[85vh] md:h-auto md:max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300 dark:bg-gray-900 dark:border dark:border-gray-800">
                         
                         {/* Modal Header */}
-                        <div className="p-6 md:p-8 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 md:rounded-t-3xl dark:border-gray-800 dark:bg-gray-800/50">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50/50 md:rounded-t-3xl dark:border-gray-800 dark:bg-gray-800/50 shrink-0">
                             <div>
                                 <div className="flex gap-2 mb-2">
                                      <span className={`text-[10px] px-2 py-1 rounded font-black uppercase tracking-wider ${getCategoryBadgeStyle(selectedCompound.category)}`}>
@@ -235,7 +196,7 @@ const ProtocolLibrary: React.FC = () => {
                                         {selectedCompound.type}
                                     </span>
                                 </div>
-                                <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">{selectedCompound.name}</h2>
+                                <h2 className="text-2xl font-black text-gray-900 dark:text-white leading-tight">{selectedCompound.name}</h2>
                             </div>
                             <button onClick={() => setSelectedCompound(null)} className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors border border-gray-200 active:scale-90 touch-manipulation dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
                                 <IconClose className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -243,9 +204,8 @@ const ProtocolLibrary: React.FC = () => {
                         </div>
 
                         {/* Modal Content */}
-                        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                             
-                            {/* Warning Box */}
                             <div className={`p-4 rounded-xl border flex gap-3 ${
                                 selectedCompound.riskLevel === 'Extremo' ? 'bg-red-50 border-red-100 text-red-900 dark:bg-red-900/10 dark:border-red-900/30 dark:text-red-200' : 
                                 selectedCompound.riskLevel === 'Alto' ? 'bg-orange-50 border-orange-100 text-orange-900 dark:bg-orange-900/10 dark:border-orange-900/30 dark:text-orange-200' :
@@ -258,68 +218,53 @@ const ProtocolLibrary: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Dosages */}
                             <div>
-                                <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-white">
+                                <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-3 flex items-center gap-2 dark:text-white">
                                     <IconPill className="w-4 h-4 text-purple-600" />
-                                    {selectedCompound.category === 'Protocolo Exemplo' ? 'Estrutura do Ciclo' : 'Dosagens Comuns'}
+                                    {selectedCompound.category === 'Protocolo Exemplo' ? 'Estrutura' : 'Dosagens'}
                                 </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Iniciante / Básico</p>
-                                        <p className="font-bold text-gray-800 dark:text-gray-200">{selectedCompound.commonDosages.beginner}</p>
+                                <div className="grid grid-cols-1 gap-3">
+                                    <div className="p-3 rounded-lg bg-gray-50 border border-gray-100 dark:bg-gray-800 dark:border-gray-700 flex justify-between items-center">
+                                        <span className="text-xs font-bold text-gray-500 uppercase">Iniciante</span>
+                                        <span className="text-sm font-bold text-gray-900 dark:text-white text-right">{selectedCompound.commonDosages.beginner}</span>
                                     </div>
-                                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Avançado / Blast</p>
-                                        <p className="font-bold text-gray-800 dark:text-gray-200">{selectedCompound.commonDosages.advanced}</p>
+                                    <div className="p-3 rounded-lg bg-gray-50 border border-gray-100 dark:bg-gray-800 dark:border-gray-700 flex justify-between items-center">
+                                        <span className="text-xs font-bold text-gray-500 uppercase">Avançado</span>
+                                        <span className="text-sm font-bold text-gray-900 dark:text-white text-right">{selectedCompound.commonDosages.advanced}</span>
                                     </div>
-                                    {selectedCompound.commonDosages.women && (
-                                         <div className="p-4 rounded-xl bg-pink-50 border border-pink-100 md:col-span-2 dark:bg-pink-900/10 dark:border-pink-900/30">
-                                            <p className="text-[10px] font-bold text-pink-400 uppercase mb-1">Mulheres</p>
-                                            <p className="font-bold text-pink-800 dark:text-pink-300">{selectedCompound.commonDosages.women}</p>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
-                            <div className="grid md:grid-cols-2 gap-8">
-                                {/* Benefits */}
+                            <div className="grid grid-cols-1 gap-6">
                                 <div>
-                                    <h3 className="text-xs font-black text-emerald-700 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-emerald-400">
-                                        <IconActivity className="w-4 h-4" />
-                                        Benefícios Esperados
+                                    <h3 className="text-xs font-black text-emerald-700 uppercase tracking-widest mb-3 flex items-center gap-2 dark:text-emerald-400">
+                                        <IconActivity className="w-4 h-4" /> Benefícios
                                     </h3>
                                     <ul className="space-y-2">
                                         {selectedCompound.benefits.map((b, i) => (
                                             <li key={i} className="text-sm font-medium text-gray-700 flex items-start gap-2 dark:text-gray-300">
-                                                <span className="text-emerald-500 font-bold">•</span>
-                                                {b}
+                                                <span className="text-emerald-500 font-bold">•</span> {b}
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
 
-                                {/* Side Effects */}
                                 <div>
-                                    <h3 className="text-xs font-black text-red-700 uppercase tracking-widest mb-4 flex items-center gap-2 dark:text-red-400">
-                                        <IconAlert className="w-4 h-4" />
-                                        Colaterais Possíveis
+                                    <h3 className="text-xs font-black text-red-700 uppercase tracking-widest mb-3 flex items-center gap-2 dark:text-red-400">
+                                        <IconAlert className="w-4 h-4" /> Colaterais
                                     </h3>
                                     <ul className="space-y-2">
                                         {selectedCompound.sideEffects.map((s, i) => (
                                             <li key={i} className="text-sm font-medium text-gray-700 flex items-start gap-2 dark:text-gray-300">
-                                                <span className="text-red-500 font-bold">•</span>
-                                                {s}
+                                                <span className="text-red-500 font-bold">•</span> {s}
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
                             </div>
-
                         </div>
 
-                        {/* Footer Disclaimer */}
-                        <div className="p-4 border-t border-gray-100 bg-gray-50 text-center md:rounded-b-3xl dark:bg-gray-800 dark:border-gray-700">
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 text-center md:rounded-b-3xl dark:bg-gray-800 dark:border-gray-700 shrink-0">
                             <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
                                 Uso estritamente educacional. Não prescrevemos medicamentos.
                             </p>

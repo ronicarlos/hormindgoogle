@@ -1,7 +1,7 @@
 
--- Versão 1.6.89
--- FIX: Refatoração completa dos Headers das bibliotecas e perfil para evitar sumiço em rotação de tela (remoção de sticky em containers scrolláveis). Adição de botão 'Restaurar Visual' no header global.
+-- Versão 1.6.90
+-- FIX: Refatoração estrutural "Holy Grail Layout" para impedir desaparecimento de UI em Training, Pharma e Profile.
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.89', 'FIX: Refatoração completa dos Headers (Protocolo/Treino/Perfil) para evitar desaparecimento ao rotacionar tela. Botão de Restaurar Layout adicionado.', NOW());
+VALUES ('1.6.90', 'FIX: Refatoração estrutural (Flexbox Rígido) em Treino, Pharma e Perfil. Elimina bug de desaparecimento de cabeçalhos e carrosseis.', NOW());
 
 NOTIFY pgrst, 'reload config';
