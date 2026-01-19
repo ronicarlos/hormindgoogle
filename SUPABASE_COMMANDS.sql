@@ -1,5 +1,5 @@
 
--- Versão 1.6.93
--- UX: Adição do botão de Prontuário na tela de perfil e correção do seletor de tema.
+-- Versão 1.6.94
+-- UX: Feedback visual de carregamento (Overlay) ao gerar PDF do Prontuário.
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.93', 'UX: Adição do botão de Prontuário na tela de perfil (mobile) e correção da troca instantânea de tema.', NOW());
+VALUES ('1.6.94', 'UX: Feedback visual de carregamento (Overlay) ao gerar PDF do Prontuário.', NOW());

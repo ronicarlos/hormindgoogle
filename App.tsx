@@ -30,13 +30,13 @@ import { IconSparkles, IconAlert, IconRefresh } from './components/Icons';
 
 // --- CONTROLE DE VERSÃO E CACHE ---
 /*
-  SQL UPDATE SCRIPT FOR VERSION 1.6.93
+  SQL UPDATE SCRIPT FOR VERSION 1.6.94
   --------------------------------------------------
   INSERT INTO app_versions (version, description, created_at) 
-  VALUES ('1.6.93', 'UX: Adição do botão de Prontuário na tela de perfil e correção do seletor de tema.', NOW());
+  VALUES ('1.6.94', 'UX: Feedback visual de carregamento (Overlay) ao gerar PDF do Prontuário.', NOW());
   --------------------------------------------------
 */
-const APP_VERSION = '1.6.93'; 
+const APP_VERSION = '1.6.94'; 
 
 export default function App() {
   const [session, setSession] = useState<any>(null);

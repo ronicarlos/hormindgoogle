@@ -21,86 +21,89 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
 
   const handleDownloadPDF = () => {
     setIsGenerating(true);
-    const element = document.getElementById('prontuario-content');
-    
-    if (!element) {
-        setIsGenerating(false);
-        return;
-    }
 
-    // 1. FORÇAR MODO CLARO (BRANCO) PARA O PDF
-    // Armazena estilo original para reverter depois
-    const originalStyle = element.getAttribute('style');
-    
-    // Força container principal
-    element.style.backgroundColor = '#ffffff';
-    element.style.color = '#000000';
-    element.classList.remove('dark:bg-gray-950', 'dark:text-gray-200');
-    element.classList.add('light-mode-forced');
-    
-    // 2. CORRIGIR ELEMENTOS INTERNOS (CRÍTICO PARA EVITAR TARJAS PRETAS)
-    const allElements = element.querySelectorAll('*');
-    allElements.forEach((el: any) => {
-        // Força Texto Preto
-        el.style.color = '#000000';
+    // Pequeno delay para permitir que o React renderize o Overlay de Loading antes
+    // do html2pdf travar a thread principal com o processamento gráfico.
+    setTimeout(() => {
+        const element = document.getElementById('prontuario-content');
         
-        // Remove inversão de cores do Markdown (Prose)
-        if(el.classList.contains('prose-invert')) {
-            el.classList.remove('prose-invert');
+        if (!element) {
+            setIsGenerating(false);
+            return;
         }
 
-        // CORREÇÃO DA TARJA PRETA:
-        // Se o elemento tiver a classe 'bg-gray-50' (usada no bloco de dados do paciente),
-        // forçamos o background para cinza claro via style inline (sobrescreve o dark mode css).
-        if (el.classList.contains('bg-gray-50')) {
-            el.style.backgroundColor = '#f9fafb'; // Cinza muito claro
-            el.style.borderColor = '#e5e7eb';     // Borda clara
-        }
-
-        // Força bordas para preto (ex: linha do cabeçalho)
-        if (el.classList.contains('border-black') || el.classList.contains('dark:border-white')) {
-            el.style.borderColor = '#000000';
-        }
-    });
-
-    const opt = {
-      margin:       [15, 15, 15, 15], // Margens (Topo, Esq, Baixo, Dir) em mm
-      filename:     `Prontuario_FitLM_${profile?.name?.replace(/ /g, '_') || 'Atleta'}_${new Date().toISOString().split('T')[0]}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } 
-    };
-
-    // Gera o PDF e salva
-    html2pdf().set(opt).from(element).save().then(() => {
-        // REVERTER ESTILOS PARA O USUÁRIO (Voltar ao Dark Mode se estiver ativo)
-        if (originalStyle) element.setAttribute('style', originalStyle);
-        else element.removeAttribute('style');
+        // 1. FORÇAR MODO CLARO (BRANCO) PARA O PDF
+        // Armazena estilo original para reverter depois
+        const originalStyle = element.getAttribute('style');
         
-        // Limpar overrides dos filhos
+        // Força container principal
+        element.style.backgroundColor = '#ffffff';
+        element.style.color = '#000000';
+        element.classList.remove('dark:bg-gray-950', 'dark:text-gray-200');
+        element.classList.add('light-mode-forced');
+        
+        // 2. CORRIGIR ELEMENTOS INTERNOS (CRÍTICO PARA EVITAR TARJAS PRETAS)
+        const allElements = element.querySelectorAll('*');
         allElements.forEach((el: any) => {
-             el.style.color = '';
-             el.style.backgroundColor = '';
-             el.style.borderColor = '';
-             // Nota: Não readicionamos 'prose-invert' aqui pois o React re-renderiza rápido, 
-             // mas se necessário, a navegação ou atualização de estado resolveria.
+            // Força Texto Preto
+            el.style.color = '#000000';
+            
+            // Remove inversão de cores do Markdown (Prose)
+            if(el.classList.contains('prose-invert')) {
+                el.classList.remove('prose-invert');
+            }
+
+            // CORREÇÃO DA TARJA PRETA:
+            // Se o elemento tiver a classe 'bg-gray-50' (usada no bloco de dados do paciente),
+            // forçamos o background para cinza claro via style inline (sobrescreve o dark mode css).
+            if (el.classList.contains('bg-gray-50')) {
+                el.style.backgroundColor = '#f9fafb'; // Cinza muito claro
+                el.style.borderColor = '#e5e7eb';     // Borda clara
+            }
+
+            // Força bordas para preto (ex: linha do cabeçalho)
+            if (el.classList.contains('border-black') || el.classList.contains('dark:border-white')) {
+                el.style.borderColor = '#000000';
+            }
         });
-        
-        setIsGenerating(false);
-    }).catch((err: any) => {
-        console.error("Erro ao gerar PDF", err);
-        setIsGenerating(false);
-        // Reverter em caso de erro também
-        if (originalStyle) element.setAttribute('style', originalStyle);
-        else element.removeAttribute('style');
-        allElements.forEach((el: any) => {
-            el.style.color = '';
-            el.style.backgroundColor = '';
-            el.style.borderColor = '';
+
+        const opt = {
+          margin:       [15, 15, 15, 15], // Margens (Topo, Esq, Baixo, Dir) em mm
+          filename:     `Prontuario_FitLM_${profile?.name?.replace(/ /g, '_') || 'Atleta'}_${new Date().toISOString().split('T')[0]}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } 
+        };
+
+        // Gera o PDF e salva
+        html2pdf().set(opt).from(element).save().then(() => {
+            // REVERTER ESTILOS PARA O USUÁRIO (Voltar ao Dark Mode se estiver ativo)
+            if (originalStyle) element.setAttribute('style', originalStyle);
+            else element.removeAttribute('style');
+            
+            // Limpar overrides dos filhos
+            allElements.forEach((el: any) => {
+                 el.style.color = '';
+                 el.style.backgroundColor = '';
+                 el.style.borderColor = '';
+            });
+            
+            setIsGenerating(false);
+        }).catch((err: any) => {
+            console.error("Erro ao gerar PDF", err);
+            setIsGenerating(false);
+            // Reverter em caso de erro também
+            if (originalStyle) element.setAttribute('style', originalStyle);
+            else element.removeAttribute('style');
+            allElements.forEach((el: any) => {
+                el.style.color = '';
+                el.style.backgroundColor = '';
+                el.style.borderColor = '';
+            });
+            alert("Erro ao gerar o PDF. Tente novamente.");
         });
-        alert("Erro ao gerar o PDF. Tente novamente.");
-    });
+    }, 100);
   };
 
   const calculateAge = (birthDate?: string) => {
@@ -119,6 +122,31 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex items-center justify-center p-0 md:p-4 overflow-y-auto">
+      
+      {/* OVERLAY DE CARREGAMENTO BLOQUEANTE */}
+      {isGenerating && (
+        <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300 cursor-wait">
+            <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center max-w-sm mx-6 border border-white/20 dark:border-gray-700 relative overflow-hidden">
+                {/* Background Shimmer */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent animate-[shimmer_2s_infinite]"></div>
+                
+                <div className="relative mb-6">
+                    <div className="w-20 h-20 border-4 border-gray-100 dark:border-gray-800 rounded-full"></div>
+                    <div className="absolute top-0 left-0 w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <IconDownload className="w-8 h-8 text-blue-600 animate-pulse" />
+                    </div>
+                </div>
+                
+                <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 relative z-10">Gerando PDF Oficial</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed relative z-10">
+                    Formatando layout, processando gráficos e renderizando documento...<br/>
+                    <span className="text-xs font-bold text-blue-500 mt-2 block">Isso pode levar alguns segundos.</span>
+                </p>
+            </div>
+        </div>
+      )}
+
       {/* Container - acts as the paper sheet wrapper */}
       <div className="w-full max-w-4xl min-h-screen md:min-h-[80vh] flex flex-col relative">
         
@@ -134,40 +162,18 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
                         disabled={isGenerating}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
-                        {isGenerating ? (
-                            <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                                Gerando...
-                            </>
-                        ) : (
-                            <>
-                                <IconDownload className="w-4 h-4" />
-                                Baixar PDF
-                            </>
-                        )}
+                        <IconDownload className="w-4 h-4" />
+                        Baixar PDF
                     </button>
                     <button 
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors dark:hover:bg-gray-800"
+                        disabled={isGenerating}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors dark:hover:bg-gray-800 disabled:opacity-50"
                     >
                         <IconClose className="w-5 h-5" />
                     </button>
                 </div>
             </div>
-            
-            {/* Barra de Progresso (Visível apenas gerando) */}
-            {isGenerating && (
-                <div className="w-full h-1 bg-blue-100 overflow-hidden relative dark:bg-blue-900/30">
-                    <div className="absolute top-0 left-0 bottom-0 bg-blue-600 w-1/3 animate-[progress_1.5s_ease-in-out_infinite]" />
-                    <style>{`
-                        @keyframes progress {
-                            0% { left: -35%; width: 30%; }
-                            50% { width: 60%; }
-                            100% { left: 100%; width: 30%; }
-                        }
-                    `}</style>
-                </div>
-            )}
         </div>
 
         {/* 
@@ -177,7 +183,7 @@ const ProntuarioModal: React.FC<ProntuarioModalProps> = ({ isOpen, onClose, mark
         */}
         <div 
             id="prontuario-content" 
-            className={`bg-white p-8 md:p-12 md:rounded-b-xl shadow-2xl font-serif text-gray-900 leading-relaxed text-sm md:text-base min-h-[297mm] dark:bg-gray-950 dark:text-gray-200 ${isGenerating ? 'opacity-50 pointer-events-none grayscale' : ''} transition-all duration-500`} 
+            className={`bg-white p-8 md:p-12 md:rounded-b-xl shadow-2xl font-serif text-gray-900 leading-relaxed text-sm md:text-base min-h-[297mm] dark:bg-gray-950 dark:text-gray-200 transition-all duration-500`} 
         >
             <style>
               {`
