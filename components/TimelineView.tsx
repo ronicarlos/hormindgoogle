@@ -23,6 +23,7 @@ interface TimelineItem {
     content: string;
     isHighlight?: boolean;
     isSummary?: boolean; // Novo: Identifica se é um resumo consolidado
+    isFuture?: boolean; // Novo: Identifica datas futuras (provável erro)
     originalObject?: any;
     topMetrics?: { category: string, value: number, unit: string, status: 'NORMAL' | 'HIGH' | 'LOW' }[];
 }
@@ -69,7 +70,9 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-3xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden dark:bg-gray-900 dark:border dark:border-gray-800">
                 <div className={`p-6 border-b shrink-0 flex justify-between items-start ${
-                    item.isSummary 
+                    item.isFuture 
+                    ? 'bg-orange-50 border-orange-100 dark:bg-orange-900/20 dark:border-orange-900/30'
+                    : item.isSummary 
                     ? 'bg-purple-50 border-purple-100 dark:bg-purple-900/20 dark:border-purple-900/30'
                     : isSource 
                         ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' 
@@ -77,25 +80,30 @@ const TimelineEventModal = ({ item, onClose }: { item: TimelineItem | null, onCl
                 }`}>
                     <div className="flex gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                            item.isSummary
+                            item.isFuture
+                            ? 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300'
+                            : item.isSummary
                             ? 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300'
                             : isSource 
                                 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300' 
                                 : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300'
                         }`}>
-                            {item.isSummary ? <IconSparkles className="w-6 h-6" /> : 
+                            {item.isFuture ? <IconAlert className="w-6 h-6" /> : 
+                             item.isSummary ? <IconSparkles className="w-6 h-6" /> : 
                              isSource ? <IconFile className="w-6 h-6" /> : <IconSparkles className="w-6 h-6" />}
                         </div>
                         <div>
                             <div className="flex items-center gap-2 mb-1">
                                 <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                    item.isSummary
+                                    item.isFuture
+                                    ? 'bg-orange-200 text-orange-800 dark:bg-orange-800 dark:text-orange-100'
+                                    : item.isSummary
                                     ? 'bg-purple-200 text-purple-800 dark:bg-purple-800 dark:text-purple-100'
                                     : isSource 
                                         ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100' 
                                         : 'bg-indigo-200 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-100'
                                 }`}>
-                                    {item.isSummary ? 'Resumo Estratégico' : isSource ? 'Documento Original' : 'Análise IA'}
+                                    {item.isFuture ? 'Data Futura (Verificar)' : item.isSummary ? 'Resumo Estratégico' : isSource ? 'Documento Original' : 'Análise IA'}
                                 </span>
                                 <span className="text-xs font-bold text-gray-500 flex items-center gap-1 dark:text-gray-400">
                                     <IconCalendar className="w-3 h-3" />
@@ -138,6 +146,10 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
     const [searchTerm, setSearchTerm] = useState('');
     const searchInputRef = useRef<HTMLInputElement>(null);
 
+    const now = new Date();
+    // Considera "Futuro" datas > 7 dias à frente
+    const futureThreshold = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+
     useEffect(() => {
         const handleToggleSearch = () => { setIsSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 300); };
         window.addEventListener('toggle-app-search', handleToggleSearch);
@@ -157,14 +169,32 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
         
         // --- SOURCES ---
         sources.forEach(source => {
-            const parts = source.date.split('/');
+            // FIX: Robust Date Parsing
             let dateObj = new Date();
-            if (parts.length === 3) dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            let dateDisplay = source.date;
+
+            // Tenta formato BR DD/MM/AAAA
+            if (source.date.includes('/')) {
+                const parts = source.date.split('/');
+                if (parts.length === 3) {
+                    dateObj = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                }
+            } else {
+                // Tenta ISO YYYY-MM-DD
+                const iso = new Date(source.date);
+                if (!isNaN(iso.getTime())) {
+                    dateObj = iso;
+                    // Corrige display se veio ISO
+                    const d = iso.getDate().toString().padStart(2, '0');
+                    const m = (iso.getMonth() + 1).toString().padStart(2, '0');
+                    const y = iso.getFullYear();
+                    dateDisplay = `${d}/${m}/${y}`;
+                }
+            }
 
             const sourceTopMetrics: any[] = [];
             if (metrics) {
                 Object.entries(metrics).forEach(([category, points]) => {
-                    // Fix for TS unknown error: cast points to MetricPoint[]
                     const pts = points as MetricPoint[];
                     const matchingPoint = pts.find(p => p.date === source.date);
                     if (matchingPoint) {
@@ -185,12 +215,13 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
             items.push({
                 id: source.id,
                 dateObj,
-                dateDisplay: source.date,
+                dateDisplay,
                 type: 'SOURCE',
                 subType: source.type,
                 title: source.title,
                 content: rawContent,
                 isHighlight: sourceTopMetrics.some(m => m.status !== 'NORMAL'),
+                isFuture: dateObj > futureThreshold,
                 originalObject: source,
                 topMetrics: sourceTopMetrics.slice(0, 6)
             });
@@ -210,11 +241,10 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
             if (seenContent.has(text)) return;
             seenContent.add(text);
 
-            // Tamanho Mínimo (aumentado para 80 chars) para evitar chat curto
-            // Exceção: Se tiver palavras chave de alerta
+            // FIX: REDUZIDO DE 80 PARA 15 CARACTERES PARA NÃO ESCONDER ITENS VÁLIDOS
             const isImportant = lowerText.includes('risco') || lowerText.includes('alerta') || lowerText.includes('atenção') || lowerText.includes('importante');
             
-            if (text.length < 80 && !isImportant && !msg.isBookmarked) return;
+            if (text.length < 15 && !isImportant && !msg.isBookmarked) return;
 
             const dateObj = new Date(msg.timestamp);
             
@@ -253,6 +283,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                 content: text,
                 isHighlight: msg.isBookmarked,
                 isSummary,
+                isFuture: dateObj > futureThreshold,
                 originalObject: msg
             });
         });
@@ -278,7 +309,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
             case 'SAUDE': return <IconActivity className="w-3.5 h-3.5" />;
             default: return <IconSparkles className="w-3.5 h-3.5" />;
         }
-        };
+    };
 
     let lastMonthYear = '';
 
@@ -334,13 +365,20 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                             <React.Fragment key={item.id}>
                                 {showMonthHeader && (
                                     <div className="relative flex justify-center items-center my-10 z-10">
-                                        <span className="bg-white text-gray-900 text-[10px] font-black uppercase px-4 py-1.5 rounded-full border border-gray-200 shadow-md tracking-widest dark:bg-gray-800 dark:text-white dark:border-gray-700">{monthYear}</span>
+                                        <span className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-full border shadow-md tracking-widest ${
+                                            item.isFuture 
+                                            ? 'bg-orange-500 text-white border-orange-600 animate-pulse' 
+                                            : 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:text-white dark:border-gray-700'
+                                        }`}>
+                                            {item.isFuture ? `${monthYear} (FUTURO?)` : monthYear}
+                                        </span>
                                     </div>
                                 )}
                                 <div className={`relative mb-8 md:flex md:items-start md:justify-between w-full group ${isLeft ? 'md:flex-row-reverse' : ''}`}>
                                     
                                     {/* ÍCONE CENTRAL NA LINHA DO TEMPO */}
                                     <div className={`absolute left-8 -translate-x-1/2 w-4 h-4 rounded-full border-4 border-white shadow-md z-20 md:left-1/2 md:top-6 transition-transform group-hover:scale-125 dark:border-gray-900 ${
+                                        item.isFuture ? 'bg-orange-500' :
                                         item.isSummary ? 'bg-purple-500' :
                                         item.type === 'SOURCE' ? 'bg-emerald-500' : 'bg-indigo-500'
                                     }`} />
@@ -349,6 +387,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                     
                                     <div className={`ml-12 md:ml-0 md:w-[45%] transition-all duration-300 ${isLeft ? 'md:pr-8 hover:-translate-x-2' : 'md:pl-8 hover:translate-x-2'}`}>
                                         <div onClick={() => setSelectedItem(item)} className={`bg-white rounded-2xl p-5 border shadow-sm cursor-pointer relative overflow-hidden dark:bg-gray-900 dark:border-gray-800 ${
+                                            item.isFuture ? 'border-l-4 border-l-orange-500 shadow-orange-100 dark:shadow-none' :
                                             item.isSummary ? 'border-l-4 border-l-purple-500 shadow-purple-100 dark:shadow-none' :
                                             item.isHighlight ? 'border-l-4 border-l-blue-500 shadow-md' : 'border-gray-100 hover:border-gray-300 dark:hover:border-gray-700'
                                         }`}>
@@ -357,6 +396,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                             <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`p-1.5 rounded-lg ${
+                                                        item.isFuture ? 'bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400' :
                                                         item.isSummary ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' :
                                                         item.type === 'SOURCE' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400'
                                                     }`}>
@@ -365,7 +405,9 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                                                             : getCategoryIcon(item.category)
                                                         }
                                                     </span>
-                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{item.dateDisplay}</span>
+                                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${item.isFuture ? 'text-orange-500 animate-pulse' : 'text-gray-400'}`}>
+                                                        {item.dateDisplay}
+                                                    </span>
                                                 </div>
                                                 {item.type === 'SOURCE' && item.originalObject?.fileUrl && (
                                                     <button onClick={(e) => { e.stopPropagation(); window.open(item.originalObject.fileUrl, '_blank'); }} className="p-1.5 bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-blue-600 rounded-lg transition-colors dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-500 dark:hover:text-blue-400" title="Baixar Original"><IconDownload className="w-4 h-4" /></button>
@@ -374,6 +416,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
 
                                             <h3 className="text-base font-bold text-gray-900 mb-2 leading-tight dark:text-white flex items-center gap-2">
                                                 <HighlightText text={item.title} highlight={searchTerm} />
+                                                {item.isFuture && <IconAlert className="w-4 h-4 text-orange-500" />}
                                                 {item.isSummary && <span className="text-[8px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider dark:bg-purple-900/30 dark:text-purple-300">Resumo</span>}
                                             </h3>
 
@@ -418,7 +461,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({ sources, messages: initialM
                             </React.Fragment>
                         );
                     })}
-                    {filteredData.length === 0 && <div className="text-center py-20 opacity-50 ml-8 md:ml-0"><IconClock className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p className="text-sm font-medium text-gray-400">Nenhum evento relevante.</p></div>}
+                    {filteredData.length === 0 && <div className="text-center py-20 opacity-50 ml-8 md:ml-0"><IconClock className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p className="text-sm font-medium text-gray-400">Nenhum evento encontrado.</p></div>}
                 </div>
             </div>
         </div>

@@ -1,7 +1,7 @@
 
--- Versão 1.6.87
--- FIX: Correção de layout (Viewport Dinâmico) para impedir que cabeçalhos sumam ao rotacionar a tela ou rolar.
+-- Versão 1.6.88
+-- FIX: Correção crítica na Timeline (Parser de datas ISO/BR e redução de filtros de ruído).
 INSERT INTO app_versions (version, description, created_at)
-VALUES ('1.6.87', 'FIX: Estabilização dos cabeçalhos e botões de ação (Salvar/Filtros) em modo paisagem e portrait.', NOW());
+VALUES ('1.6.88', 'FIX: Correção na Timeline: Suporte a datas ISO, alerta visual para datas futuras e redução do filtro de mensagens curtas.', NOW());
 
 NOTIFY pgrst, 'reload config';
