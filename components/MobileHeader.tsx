@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { IconWizard, IconUser, IconList, IconSearch } from './Icons';
+import { IconWizard, IconUser, IconList, IconSearch, IconLayout } from './Icons'; // IconLayout added
 
 interface MobileHeaderProps {
     onOpenWizard: () => void;
@@ -13,6 +13,11 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onOpenWizard, onOpenProfile
     // Dispara evento global para que a tela ativa (Dashboard, Library, etc) abra sua busca interna
     const triggerSearch = () => {
         window.dispatchEvent(new CustomEvent('toggle-app-search'));
+    };
+
+    // Dispara evento para resetar scrolls e layouts (Correção de desaparecimento)
+    const triggerLayoutReset = () => {
+        window.dispatchEvent(new CustomEvent('reset-view-layout'));
     };
 
     return (
@@ -29,6 +34,15 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onOpenWizard, onOpenProfile
 
             {/* Actions Area */}
             <div className="flex items-center gap-1">
+                {/* Botão de Reset de Layout (Solicitado para corrigir desaparecimento) */}
+                <button 
+                    onClick={triggerLayoutReset}
+                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors dark:text-gray-300 dark:hover:bg-gray-800 active:scale-90"
+                    title="Restaurar Visual / Corrigir Layout"
+                >
+                    <IconLayout className="w-5 h-5" />
+                </button>
+
                 {/* Botão GLOBAL de Busca/Filtro */}
                 <button 
                     onClick={triggerSearch}
@@ -45,14 +59,6 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onOpenWizard, onOpenProfile
                     title="Parâmetros & Métricas"
                 >
                     <IconList className="w-5 h-5" />
-                </button>
-
-                <button 
-                    onClick={onOpenWizard}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-sm active:scale-95 transition-transform ml-1"
-                >
-                    <IconWizard className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-bold">Assistente</span>
                 </button>
 
                 <button 

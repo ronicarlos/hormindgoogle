@@ -16,7 +16,7 @@ import {
     IconFile, IconCalendar, IconHistory, IconCamera, IconUpload
 } from './Icons';
 
-const CODE_VERSION = "v1.6.87";
+const CODE_VERSION = "v1.6.89";
 
 const MEASUREMENT_HINTS: Record<string, string> = {
     chest: 'Passe a fita na linha dos mamilos, sob as axilas.',
@@ -87,6 +87,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     const [showEvolutionGallery, setShowEvolutionGallery] = useState(false);
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Initial load logic
     useEffect(() => {
@@ -128,6 +129,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({
             }
         }
     }, [formData.birthDate]);
+
+    // Listener para resetar o layout (Correção de Bug Visual)
+    useEffect(() => {
+        const handleResetLayout = () => {
+            if (scrollContainerRef.current) scrollContainerRef.current.scrollTo({ top: 0, behavior: 'auto' });
+        };
+        window.addEventListener('reset-view-layout', handleResetLayout);
+        return () => window.removeEventListener('reset-view-layout', handleResetLayout);
+    }, []);
 
     // Helpers
     const handleChange = (field: keyof UserProfile, value: any) => {
@@ -390,7 +400,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-10 max-w-4xl mx-auto w-full space-y-6 md:space-y-8 pb-32">
+            <div 
+                ref={scrollContainerRef}
+                className="flex-1 overflow-y-auto p-4 md:p-10 max-w-4xl mx-auto w-full space-y-6 md:space-y-8 pb-32"
+            >
                 
                 <CostTracker variant="inline" refreshTrigger={billingTrigger} onOpenSubscription={onOpenSubscription} />
 

@@ -20,14 +20,22 @@ const ProtocolLibrary: React.FC = () => {
         fetchCompounds().then(setCompounds);
     }, []);
 
-    // Escuta evento global de busca
+    // Escuta evento global de busca e reset
     useEffect(() => {
         const handleToggleSearch = () => {
             if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'smooth' });
             setTimeout(() => searchInputRef.current?.focus(), 300);
         };
+        const handleResetLayout = () => {
+            if (listRef.current) listRef.current.scrollTo({ top: 0, behavior: 'auto' });
+        };
+
         window.addEventListener('toggle-app-search', handleToggleSearch);
-        return () => window.removeEventListener('toggle-app-search', handleToggleSearch);
+        window.addEventListener('reset-view-layout', handleResetLayout);
+        return () => {
+            window.removeEventListener('toggle-app-search', handleToggleSearch);
+            window.removeEventListener('reset-view-layout', handleResetLayout);
+        };
     }, []);
 
     const categories = ['Todos', 'Protocolo Exemplo', 'Suplemento', 'Testosterona', '19-Nor', 'DHT', 'Oral', 'Peptídeo', 'Mitocondrial', 'Nootrópico', 'Termogênico', 'SERM/IA'];
@@ -92,66 +100,66 @@ const ProtocolLibrary: React.FC = () => {
              
             <HormoneGuideModal isOpen={showHormoneGuide} onClose={() => setShowHormoneGuide(false)} />
 
-            {/* GRID CONTENT CONTAINER (SCROLLABLE) */}
+            {/* FIXED HEADER - SEPARADO DO SCROLL VIEW PARA EVITAR DESAPARECIMENTO */}
+            <div className="shrink-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm w-full dark:bg-gray-900/95 dark:border-gray-800">
+                <div className="max-w-7xl mx-auto w-full">
+                    <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
+                        <div className="flex items-center justify-between">
+                                <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tighter flex items-center gap-2 dark:text-white">
+                                <IconScience className="w-5 h-5 text-purple-600" />
+                                PHARMA
+                            </h2>
+                            <span className="md:hidden text-[9px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full dark:bg-gray-800 dark:text-gray-500">
+                                {compounds.length}
+                            </span>
+                        </div>
+                        
+                        <div className="flex gap-2 w-full md:w-auto">
+                            <button 
+                                onClick={() => setShowHormoneGuide(true)}
+                                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap active:scale-95"
+                            >
+                                📘 Guia Mestre
+                            </button>
+                            <div className="relative flex-1 md:w-64">
+                                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                <input 
+                                    ref={searchInputRef}
+                                    type="text" 
+                                    placeholder="Buscar..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-2 bg-gray-100/50 border-0 md:border md:border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-medium placeholder-gray-400 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-purple-900"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Horizontal Filters - Touch Optimized */}
+                    <div className="px-3 pb-2 md:px-6 md:pb-4 flex gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x w-full">
+                        {categories.map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => setSelectedCategory(cat)}
+                                className={`flex-shrink-0 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold whitespace-nowrap transition-all border touch-manipulation active:scale-95 ${
+                                    selectedCategory === cat 
+                                    ? 'bg-purple-900 text-white border-purple-900 shadow-md dark:bg-purple-600 dark:border-purple-600' 
+                                    : 'bg-white text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
+                                }`}
+                            >
+                                {cat.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* SCROLLABLE CONTENT */}
             <div 
                 className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 custom-scrollbar pb-32 md:pb-40 w-full dark:bg-gray-950 relative"
                 onScroll={handleScroll}
                 ref={listRef}
             >
-                {/* HEADER - STICKY INSIDE SCROLL CONTAINER */}
-                <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm w-full dark:bg-gray-900/95 dark:border-gray-800">
-                    <div className="max-w-7xl mx-auto w-full">
-                        <div className="px-3 pt-3 pb-2 md:p-6 md:pb-4 flex flex-col md:flex-row gap-2 md:items-center justify-between">
-                            <div className="flex items-center justify-between">
-                                 <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tighter flex items-center gap-2 dark:text-white">
-                                    <IconScience className="w-5 h-5 text-purple-600" />
-                                    PHARMA
-                                </h2>
-                                <span className="md:hidden text-[9px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full dark:bg-gray-800 dark:text-gray-500">
-                                    {compounds.length}
-                                </span>
-                            </div>
-                            
-                            <div className="flex gap-2 w-full md:w-auto">
-                                <button 
-                                    onClick={() => setShowHormoneGuide(true)}
-                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap active:scale-95"
-                                >
-                                    📘 Guia Mestre
-                                </button>
-                                <div className="relative flex-1 md:w-64">
-                                    <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                                    <input 
-                                        ref={searchInputRef}
-                                        type="text" 
-                                        placeholder="Buscar..." 
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 bg-gray-100/50 border-0 md:border md:border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-medium placeholder-gray-400 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-purple-900"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        
-                        {/* Horizontal Filters - Touch Optimized */}
-                        <div className="px-3 pb-2 md:px-6 md:pb-4 flex gap-1.5 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x w-full">
-                            {categories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                    className={`flex-shrink-0 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold whitespace-nowrap transition-all border touch-manipulation active:scale-95 ${
-                                        selectedCategory === cat 
-                                        ? 'bg-purple-900 text-white border-purple-900 shadow-md dark:bg-purple-600 dark:border-purple-600' 
-                                        : 'bg-white text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
-                                    }`}
-                                >
-                                    {cat.toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
                 {/* PRODUCT CARDS */}
                 <div className="p-1.5 md:p-8">
                     {/* GRID: 3 columns on mobile, gap 1.5. No horizontal overflow. */}
