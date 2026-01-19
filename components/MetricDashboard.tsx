@@ -1,13 +1,15 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
-import { Project, RiskFlag, MetricPoint } from '../types';
-import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo, IconChevronDown, IconAlert, IconUser, IconFile, IconRefresh, IconPill } from './Icons';
+import { Project, RiskFlag, MetricPoint, LearnedMarker } from '../types';
+import { IconActivity, IconCheck, IconShield, IconReportPDF, IconSearch, IconArrowLeft, IconClose, IconEye, IconArrowUp, IconInfo, IconChevronDown, IconAlert, IconUser, IconFile, IconRefresh, IconPill, IconSparkles } from './Icons';
 import { Tooltip } from './Tooltip';
 import MarkerInfoPanel from './MarkerInfoPanel'; 
 import { getMarkerInfo } from '../services/markerRegistry';
 import { analyzePoint } from '../services/analyticsService';
 import RichTooltip from './RichTooltip';
+import { dataService } from '../services/dataService';
+import { researchMedicalMarker } from '../services/geminiService';
 
 interface MetricDashboardProps {
   project: Project;
@@ -93,9 +95,10 @@ interface InteractiveChartWrapperProps {
     className?: string;
     gender: 'Masculino' | 'Feminino';
     history: MetricPoint[];
+    learnedData: LearnedMarker[]; // Passado para o Tooltip
 }
 
-const InteractiveChartWrapper = ({ children, data, title, onActivate, isMobile, onClick, width, height, className, gender, history }: InteractiveChartWrapperProps) => {
+const InteractiveChartWrapper = ({ children, data, title, onActivate, isMobile, onClick, width, height, className, gender, history, learnedData }: InteractiveChartWrapperProps) => {
     const CustomTooltip = ({ active, payload, label }: any) => {
         const lastPointRef = useRef<string | null>(null);
         useEffect(() => {
@@ -112,7 +115,7 @@ const InteractiveChartWrapper = ({ children, data, title, onActivate, isMobile, 
         }, [active, payload]);
 
         if (isMobile) return null;
-        return <RichTooltip active={active} payload={payload} label={label} gender={gender} history={history} />;
+        return <RichTooltip active={active} payload={payload} label={label} gender={gender} history={history} learnedData={learnedData} />;
     };
 
     return (
@@ -134,7 +137,7 @@ const InteractiveChartWrapper = ({ children, data, title, onActivate, isMobile, 
 };
 
 // Componente Chart - Mantido
-const BiomarkerChart = ({ title, data, color, minRef, maxRef, yDomain, type = 'line', onHover, isMobile, gender }: any) => {
+const BiomarkerChart = ({ title, data, color, minRef, maxRef, yDomain, type = 'line', onHover, isMobile, gender, learnedData }: any) => {
     const { cleanData, minIndex, maxIndex } = useMemo(() => {
         if (!data || data.length === 0) return { cleanData: [], minIndex: -1, maxIndex: -1 };
         
@@ -175,7 +178,7 @@ const BiomarkerChart = ({ title, data, color, minRef, maxRef, yDomain, type = 'l
             </div>
             <div className="h-40 w-full bg-white rounded-xl p-2 border border-gray-100 shadow-sm relative dark:bg-gray-900 dark:border-gray-800 cursor-pointer active:scale-[0.99] transition-transform select-none hover:border-blue-300 dark:hover:border-blue-700" onClick={handleContainerClick}>
                 <ResponsiveContainer width="100%" height="100%">
-                    <InteractiveChartWrapper data={cleanData} title={title} onActivate={triggerActivate} isMobile={isMobile} onClick={handleChartClick} gender={gender} history={data}>
+                    <InteractiveChartWrapper data={cleanData} title={title} onActivate={triggerActivate} isMobile={isMobile} onClick={handleChartClick} gender={gender} history={data} learnedData={learnedData}>
                         {type === 'area' ? (
                             <AreaChart data={cleanData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
                                 <defs><linearGradient id={`grad-${title}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={color} stopOpacity={0.3}/><stop offset="95%" stopColor={color} stopOpacity={0}/></linearGradient></defs>
@@ -338,8 +341,60 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
     const [searchTerm, setSearchTerm] = useState('');
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [isChartsExpanded, setIsChartsExpanded] = useState(true);
+    
+    // NOVO: Estado para armazenar conhecimento aprendido (cache local para não re-buscar toda hora)
+    const [learnedRegistry, setLearnedRegistry] = useState<LearnedMarker[]>([]);
+    const [isLearning, setIsLearning] = useState(false); // Feedback visual de "Pesquisando..."
+
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Initial Load of Learned Markers
+    useEffect(() => {
+        const loadLearned = async () => {
+            const markers = await dataService.getLearnedMarkers();
+            setLearnedRegistry(markers);
+        };
+        loadLearned();
+    }, []);
+
+    // KNOWLEDGE ENRICHMENT (BACKGROUND PROCESS)
+    // Se encontrarmos um marcador "GENERIC" (desconhecido), disparamos a pesquisa e salvamos no banco.
+    useEffect(() => {
+        if (!project.metrics || learnedRegistry === null) return;
+
+        const allKeys = Object.keys(project.metrics);
+        const unknownKeys: string[] = [];
+
+        allKeys.forEach(key => {
+            // Verifica se é conhecido hardcoded ou já foi aprendido
+            const info = getMarkerInfo(key, learnedRegistry);
+            if (info.isGeneric && !info.isLearned) {
+                // É desconhecido E não temos no cache
+                unknownKeys.push(key);
+            }
+        });
+
+        if (unknownKeys.length > 0 && !isLearning) {
+            const learn = async () => {
+                setIsLearning(true);
+                // Processa um por vez para não estourar rate limit
+                for (const key of unknownKeys) {
+                    // Double check para evitar race condition
+                    const alreadyLearned = learnedRegistry.find(l => l.marker_key === key);
+                    if (alreadyLearned) continue;
+
+                    const result = await researchMedicalMarker(key);
+                    if (result) {
+                        await dataService.saveLearnedMarker(result);
+                        setLearnedRegistry(prev => [...prev, result]);
+                    }
+                }
+                setIsLearning(false);
+            };
+            learn();
+        }
+    }, [project.metrics, learnedRegistry]);
 
     useEffect(() => {
         const handleToggleSearch = () => {
@@ -422,8 +477,9 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
             
             if (!primaryPoint) return;
 
-            // ANALISAR O PONTO PRINCIPAL (COM FALLBACK DE REF)
-            const info = getMarkerInfo(cat);
+            // ANALISAR O PONTO PRINCIPAL (COM FALLBACK DE REF APRENDIDO)
+            const info = getMarkerInfo(cat, learnedRegistry);
+            
             // Se o ponto não tem referência, ou é nulo, tenta usar undefined para forçar o fallback do analyticsService
             const dynamicRef = (primaryPoint.refMin !== undefined && primaryPoint.refMin !== null) || (primaryPoint.refMax !== undefined && primaryPoint.refMax !== null)
                 ? { min: primaryPoint.refMin, max: primaryPoint.refMax } 
@@ -474,7 +530,7 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
         });
         
         return { criticalItems: critical, highAttentionItems: highAttention, alertItems: alert, healthyItems: healthy };
-    }, [metrics, gender, allCategories]);
+    }, [metrics, gender, allCategories, learnedRegistry]);
 
     // Filtros de busca
     const filteredRisks = risks.filter(r => r.category.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -503,6 +559,13 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider dark:text-gray-400">Inteligência de Decisão & Saúde</p>
                             </div>
                             <div className="flex items-center gap-2">
+                                {/* INDICADOR DE APRENDIZADO IA */}
+                                {isLearning && (
+                                    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full text-[10px] text-indigo-700 font-bold uppercase tracking-wider animate-pulse dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300">
+                                        <IconSparkles className="w-3 h-3" />
+                                        Pesquisando Marcadores...
+                                    </div>
+                                )}
                                 <button onClick={() => setIsSearchOpen(true)} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-white bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-700"><IconSearch className="w-5 h-5" /></button>
                                 {!isProcessing && (
                                     <button onClick={onGenerateProntuario} className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-700"><IconReportPDF className="w-4 h-4" /> PRONTUÁRIO PDF</button>
@@ -591,12 +654,21 @@ const MetricDashboard: React.FC<MetricDashboardProps> = ({ project, risks, onGen
                                 {filteredCategories.map(cat => {
                                     const history = metrics[cat];
                                     const lastPoint = history[history.length - 1];
-                                    const info = getMarkerInfo(cat);
+                                    const info = getMarkerInfo(cat, learnedRegistry);
                                     let minRef = info.ranges?.general?.[0];
                                     let maxRef = info.ranges?.general?.[1];
+                                    
+                                    // Fallback: Se não tem no registry, tenta ver se o OCR pegou
                                     if (info.isGeneric && lastPoint) { if (lastPoint.refMin !== undefined) minRef = lastPoint.refMin; if (lastPoint.refMax !== undefined) maxRef = lastPoint.refMax; }
+                                    
+                                    // Fallback 2: Registry de Genero (se available via learned)
+                                    if (minRef === undefined && info.ranges) {
+                                        const range = gender === 'Masculino' ? info.ranges.male : info.ranges.female;
+                                        if (range) { minRef = range[0]; maxRef = range[1]; }
+                                    }
+
                                     const chartColor = stringToColor(cat);
-                                    return <div key={cat} className="animate-in fade-in duration-500"><BiomarkerChart title={cat} data={metrics[cat]} color={chartColor} type={cat.includes('Peso') ? 'area' : 'line'} minRef={minRef} maxRef={maxRef} onHover={(point: any) => handleChartHover(point, cat, metrics[cat])} isMobile={isMobileView} gender={gender} /></div>;
+                                    return <div key={cat} className="animate-in fade-in duration-500"><BiomarkerChart title={cat} data={metrics[cat]} color={chartColor} type={cat.includes('Peso') ? 'area' : 'line'} minRef={minRef} maxRef={maxRef} onHover={(point: any) => handleChartHover(point, cat, metrics[cat])} isMobile={isMobileView} gender={gender} learnedData={learnedRegistry} /></div>;
                                 })}
                             </div>
                         )}

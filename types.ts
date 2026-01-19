@@ -35,6 +35,20 @@ export interface AuditLog {
     created_at: string;
 }
 
+export interface LearnedMarker {
+    id: string;
+    marker_key: string;
+    label: string;
+    unit: string;
+    ref_min_male: number;
+    ref_max_male: number;
+    ref_min_female: number;
+    ref_max_female: number;
+    definition: string;
+    source_url?: string;
+    created_at?: string;
+}
+
 export interface UserProfile {
   id?: string;
   name: string;

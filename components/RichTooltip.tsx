@@ -2,8 +2,8 @@
 import React, { useMemo } from 'react';
 import { getMarkerInfo } from '../services/markerRegistry';
 import { analyzePoint } from '../services/analyticsService';
-import { MetricPoint } from '../types';
-import { IconInfo, IconActivity, IconAlert, IconCheck } from './Icons';
+import { MetricPoint, LearnedMarker } from '../types';
+import { IconInfo, IconActivity, IconAlert, IconCheck, IconSparkles } from './Icons';
 
 interface RichTooltipProps {
     active?: boolean;
@@ -11,9 +11,10 @@ interface RichTooltipProps {
     label?: string;
     gender: 'Masculino' | 'Feminino';
     history: MetricPoint[]; // Histórico completo para calcular tendência
+    learnedData: LearnedMarker[]; // Dados aprendidos
 }
 
-const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gender, history }) => {
+const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gender, history, learnedData }) => {
     if (!active || !payload || !payload.length) return null;
 
     const dataPoint = payload[0]; // O ponto atual do gráfico
@@ -21,8 +22,8 @@ const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gende
     const value = Number(dataPoint.value);
     const date = label || '';
 
-    // 1. Obter Inteligência do Registro
-    const info = useMemo(() => getMarkerInfo(markerName), [markerName]);
+    // 1. Obter Inteligência do Registro (Agora com suporte a aprendizado)
+    const info = useMemo(() => getMarkerInfo(markerName, learnedData), [markerName, learnedData]);
 
     // 2. Executar Análise em Tempo Real
     const analysis = useMemo(() => {
@@ -45,8 +46,10 @@ const RichTooltip: React.FC<RichTooltipProps> = ({ active, payload, label, gende
             {/* 1. Header: Valor e Status */}
             <div className={`p-3 border-b flex justify-between items-start ${headerColor}`}>
                 <div>
-                    <h4 className="font-black text-gray-900 text-sm uppercase tracking-wider dark:text-white">
+                    <h4 className="font-black text-gray-900 text-sm uppercase tracking-wider dark:text-white flex items-center gap-1">
                         {info.label}
+                        {/* Indicador visual de aprendizado */}
+                        {(info as any).isLearned && <IconSparkles className="w-3 h-3 text-indigo-500" />}
                     </h4>
                     <span className="text-[10px] text-gray-500 font-bold dark:text-gray-400">{date}</span>
                 </div>

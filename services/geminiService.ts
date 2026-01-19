@@ -1,6 +1,6 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
-import { Source, ChatMessage, UserProfile, MetricPoint, SourceType } from '../types';
+import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { Source, ChatMessage, UserProfile, MetricPoint, SourceType, LearnedMarker } from '../types';
 import { FITLM_ARCHITECTURE_EXPLANATION } from '../lib/systemKnowledge';
 import { dataService } from './dataService';
 import { supabase } from '../lib/supabase';
@@ -325,6 +325,85 @@ export const pcmToAudioBuffer = (
     }
     return audioBuffer;
 }
+
+// --- FUNÇÃO DE PESQUISA DE MARCADORES (KNOWLEDGE ENRICHMENT) ---
+export const researchMedicalMarker = async (markerName: string): Promise<LearnedMarker | null> => {
+    if (!apiKey) return null;
+
+    try {
+        console.log(`FitLM Researcher: Investigando marcador desconhecido "${markerName}" via Google Search...`);
+        
+        // Usa o modelo Pro pois suporta Google Search e Raciocínio Complexo
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview', // Obrigatório para Google Search Grounding
+            contents: `PESQUISA MÉDICA TÉCNICA: "${markerName}".
+            Encontre os valores de referência padrão (Min/Max) para Homens e Mulheres adultos saudáveis.
+            Defina sucintamente o que é o marcador.
+            Retorne APENAS um JSON válido.`,
+            config: {
+                tools: [{googleSearch: {}}], // Ativa Grounding
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        label: { type: Type.STRING, description: "Nome científico padrão (ex: Homocisteína)" },
+                        unit: { type: Type.STRING, description: "Unidade de medida padrão (ex: umol/L)" },
+                        ref_min_male: { type: Type.NUMBER },
+                        ref_max_male: { type: Type.NUMBER },
+                        ref_min_female: { type: Type.NUMBER },
+                        ref_max_female: { type: Type.NUMBER },
+                        definition: { type: Type.STRING, description: "Explicação sucinta de 1 frase" }
+                    },
+                    required: ["label", "unit", "definition"]
+                }
+            }
+        });
+
+        const jsonStr = response.text?.trim();
+        if (!jsonStr) return null;
+
+        const data = JSON.parse(jsonStr);
+        
+        // Pega a primeira fonte do grounding como referência
+        let sourceUrl = '';
+        if (response.candidates?.[0]?.groundingMetadata?.groundingChunks?.length) {
+            const chunk = response.candidates[0].groundingMetadata.groundingChunks[0];
+            if (chunk.web?.uri) sourceUrl = chunk.web.uri;
+        }
+
+        const learned: LearnedMarker = {
+            id: '', // DB gera
+            marker_key: markerName.toLowerCase().trim(),
+            label: data.label,
+            unit: data.unit,
+            ref_min_male: data.ref_min_male || 0,
+            ref_max_male: data.ref_max_male || 0,
+            ref_min_female: data.ref_min_female || 0,
+            ref_max_female: data.ref_max_female || 0,
+            definition: data.definition,
+            source_url: sourceUrl
+        };
+
+        // Log de custo (Usa Pro)
+        const userId = await getCurrentUserId();
+        if (userId && response.usageMetadata) {
+            await dataService.logUsage(
+                userId, 
+                undefined, 
+                'KNOWLEDGE_SEARCH', 
+                response.usageMetadata.promptTokenCount || 0, 
+                response.usageMetadata.candidatesTokenCount || 0,
+                'gemini-3-pro-preview' 
+            );
+        }
+
+        return learned;
+
+    } catch (error) {
+        console.error("Marker Research Error:", error);
+        return null;
+    }
+};
 
 // --- FUNÇÃO DE OCR (USA VITE_GEMINI_MODEL - FLASH LITE) ---
 export const processDocument = async (file: File, defaultDate: string): Promise<{ extractedText: string, metrics: { category: string, data: MetricPoint }[], documentType?: string, detectedDate?: string }> => {

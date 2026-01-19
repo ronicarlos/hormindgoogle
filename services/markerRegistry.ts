@@ -1,5 +1,5 @@
 
-import { MetricPoint } from '../types';
+import { MetricPoint, LearnedMarker } from '../types';
 
 export interface MarkerInfo {
     id: string;
@@ -18,6 +18,7 @@ export interface MarkerInfo {
     tips: string[];
     sources: { title: string; url: string }[];
     isGeneric?: boolean; // Flag para identificar marcadores dinâmicos
+    isLearned?: boolean; // Flag nova: Marcador pesquisado pela IA
 }
 
 // Normaliza chaves para garantir match
@@ -216,7 +217,7 @@ export const MARKER_REGISTRY: Record<string, MarkerInfo> = {
         definition: 'Marcador de inflamação aguda ou crônica no corpo. Produzida pelo fígado em resposta a inflamação.',
         ranges: { general: [0, 0.5] }, // Ultrassensível < 0.3 ideal
         risks: {
-            high: ['Infecção ativa', 'Risco cardiovascular (inflamação nas artérias)', 'Overreaching (treino excessivo)'],
+            high: ['Infecção ativa (bacteriana)', 'Risco cardiovascular (inflamação nas artérias)', 'Overreaching (treino excessivo)'],
             low: ['Excelente estado de saúde', 'Baixa inflamação sistêmica']
         },
         tips: ['PCR cronicamente alta sem infecção pode indicar risco cardíaco futuro.'],
@@ -541,21 +542,47 @@ export const MARKER_REGISTRY: Record<string, MarkerInfo> = {
     }
 };
 
-export const getMarkerInfo = (name: string): MarkerInfo => {
+// Nova assinatura: Aceita learnedData (opcional)
+export const getMarkerInfo = (name: string, learnedData?: LearnedMarker[]): MarkerInfo => {
     const key = normalizeMarkerKey(name);
     
-    // Se o marcador for conhecido, retorna do registro
+    // 1. Tenta encontrar no Registro Hardcoded
     if (MARKER_REGISTRY[key] && key !== 'generic') {
         return MARKER_REGISTRY[key];
     }
 
-    // Se for desconhecido (fallback genérico dinâmico)
+    // 2. Tenta encontrar no Banco de Conhecimento Aprendido (Se fornecido)
+    if (learnedData && learnedData.length > 0) {
+        const learned = learnedData.find(l => l.marker_key === key);
+        if (learned) {
+            return {
+                id: learned.marker_key,
+                label: learned.label,
+                unit: learned.unit,
+                definition: learned.definition,
+                ranges: {
+                    male: [learned.ref_min_male, learned.ref_max_male],
+                    female: [learned.ref_min_female, learned.ref_max_female],
+                    general: [learned.ref_min_male, learned.ref_max_male] // Fallback
+                },
+                risks: {
+                    high: ['Consulte valores de referência do laboratório.'], // TODO: Poderíamos expandir isso
+                    low: ['Consulte valores de referência do laboratório.']
+                },
+                tips: ['Referência aprendida via Google Search Medical Grounding.'],
+                sources: learned.source_url ? [{ title: 'Fonte Médica (IA)', url: learned.source_url }] : [],
+                isLearned: true // Marca que veio do banco de conhecimento
+            };
+        }
+    }
+
+    // 3. Fallback Genérico
     return {
         id: key,
-        label: name, // Usa o nome original (ex: "Homocisteína")
-        unit: '', // Será preenchido pelo dado do gráfico se disponível
+        label: name,
+        unit: '',
         definition: `Este marcador foi identificado nos seus documentos, mas não possui uma ficha técnica dedicada na base de conhecimento do FitLM. De modo geral, biomarcadores quantificam processos biológicos, estado de saúde ou resposta a terapias.`,
-        ranges: {}, // Sem range específico, o gráfico mostrará apenas a linha do tempo
+        ranges: {}, 
         risks: {
             high: [
                 'Pode indicar sobrecarga do órgão responsável ou hiperatividade do sistema.',
@@ -573,6 +600,6 @@ export const getMarkerInfo = (name: string): MarkerInfo => {
             'Use o Chat IA para perguntar especificamente sobre este marcador.'
         ],
         sources: [],
-        isGeneric: true // Flag para UI mostrar aviso
+        isGeneric: true
     };
 };

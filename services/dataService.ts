@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog, AppVersion, AuditLog } from '../types';
+import { Project, Source, SourceType, MetricPoint, ProtocolItem, UserProfile, ChatMessage, UsageLog, AppVersion, AuditLog, LearnedMarker } from '../types';
 import { embedText } from './geminiService';
 
 // Tipos auxiliares para Banco de Dados
@@ -140,6 +140,28 @@ const calculateMetabolicStats = (
 };
 
 export const dataService = {
+    // --- LEARNED MARKERS (KNOWLEDGE BASE) ---
+    async getLearnedMarkers(): Promise<LearnedMarker[]> {
+        const { data, error } = await supabase
+            .from('learned_markers')
+            .select('*');
+        
+        if (error) {
+            console.warn("Erro ao buscar marcadores aprendidos:", error);
+            return [];
+        }
+        return data as LearnedMarker[];
+    },
+
+    async saveLearnedMarker(marker: LearnedMarker) {
+        const { error } = await supabase
+            .from('learned_markers')
+            .upsert(marker, { onConflict: 'marker_key' });
+        
+        if (error) console.error("Erro ao salvar marcador aprendido:", error);
+        return error;
+    },
+
     // --- AUDIT LOGGING SYSTEM ---
     async logAudit(userId: string, actionType: 'CREATE' | 'UPDATE' | 'DELETE', entity: string, details: any, source: string = 'UNKNOWN') {
         try {
